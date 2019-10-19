@@ -63,10 +63,10 @@ for (first = [0:10]) {
 
 //hexagon_grid();
 module source_head() {
-  scale (1000) import("head_fixed.stl", convexity = 10);
+  scale (1000) import("../head_fixed.stl", convexity = 10);
 }
 module cropped_head() {
-  import("target/head_cropped.stl", convexity = 10);
+  import("head_cropped.stl", convexity = 10);
 }
 
 module nose_cube() {
@@ -156,7 +156,7 @@ module whole_mask_hole() union() {
 }
 
 module elastic_holder() {
-  r = 1.5;
+  r = 0.75;
   hole = 5;
   rotate([0,90,0]) rotate_extrude(convexity=10) translate([hole+r/2, 0, 0]) circle(r=r, $fn=12);
 }
@@ -171,7 +171,7 @@ module elastic_holder() {
     }
     whole_mask_hole();
   }
-  %translate ([0,0,0]) cropped_head();
+  //%translate ([0,0,0]) cropped_head();
 //}
 //*translate([0,0,-1.8]) projection(cut = true) translate ([0, 0, - 65]) source_head();
 """
@@ -210,7 +210,7 @@ def source_face_depth(x,y):
   
 
 
-tubing_thickness = 1
+tubing_thickness = 0.5 #1
 mask_thickness = tubing_thickness
 CPAP_connector_outer_radius = 21.5/2
 
