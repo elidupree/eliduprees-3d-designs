@@ -3,9 +3,8 @@ import numpy
 import math
 from utils import *
 
-
-with open ("./target/generated.scad", "w") as file:
-  file.write ('''
+def tongue_and_groove():
+  return '''
 module shape() union () {
   square ([10, 3]);
   square ([3, 8]);
@@ -33,7 +32,84 @@ module socket() difference(){
 plug();
 
 translate([0, 20, 0]) socket();
-  ''');
+  '''
+
+def wall_normal(v):
+  return normalize (numpy.array ([-v[1], v[0]]))
+
+def wall_sides (vertices, radius):
+  sides = [[],[]]
+  perpendicular = wall_normal(vertices [1] - vertices [0])
+  sides[0].append(vertices [0] - perpendicular*radius)
+  sides[1].append(vertices [0] + perpendicular*radius)
+  
+  for index in range(len(vertices)-2):
+    [previous, current, next] = vertices [index: index + 3]
+    perpendicular_1 =wall_normal(current - previous)
+    perpendicular_2 =wall_normal(next - current)
+    # hack - assume only 90degree corners
+    sides[0].append(current - (perpendicular_1+perpendicular_2)*radius)
+    sides[1].append(current + (perpendicular_1+perpendicular_2)*radius)
+    
+  perpendicular = wall_normal(vertices [-1] - vertices [-2])
+  sides[0].append(vertices [-1] - perpendicular*radius)
+  sides[1].append(vertices [-1] + perpendicular*radius)
+  return sides
+  
+def wall_wedge(vertices, radius, length):
+  sides = wall_sides (vertices, radius)
+  points = [[v[0],v[1],length] for v in vertices] + sides[0] + sides[1]
+  number = len (vertices)
+  faces = [
+    [0, number, 2*number],
+    [number -1, 3*number -1, 2*number -1],
+  ]
+  
+  for index in range(len(vertices)-1):
+    faces.extend ([
+      [index, index +1, index + number +1, index + number],
+      [index +1, index, index + 2*number, index + 2*number +1],
+      [index + number, index + number +1, index + 2*number +1, index + 2*number],
+    ])
+  return (points, faces)
+  
+def pointy_plug_walls():
+  wall_vertices = [numpy.array (k, dtype=numpy.double) for k in [
+    [0, 13],
+    [0, 0],
+    [25, 0],
+    [25, 13],
+  ]]
+  
+  wedge_points, wedge_faces = wall_wedge (wall_vertices, 1.5, 3)
+  sides = wall_sides (wall_vertices, 1.5)
+  
+  return scad_variables({
+    "wedge_points": wedge_points, "wedge_faces": wedge_faces,
+    "wall_polygon_points": sides[0] + list(reversed(sides[1])),
+  })+'''
+module wall_polygon() polygon(points=wall_polygon_points, convexity=10);
+module wall_wedge() polyhedron(points=wedge_points, faces=wedge_faces, convexity=10);
+
+module plug() union(){
+  linear_extrude(height=4, convexity = 10) wall_polygon();
+  translate([0, 0, 4]) wall_wedge();
+}
+module socket() difference(){
+  linear_extrude(height=7, convexity = 10) wall_polygon();
+  translate([0, 0, 7]) mirror([0, 0, 1]) wall_wedge();
+}
+plug();
+
+translate([0, 20, 0]) socket();
+  '''
+
+  
+  
+
+
+with open ("./target/generated.scad", "w") as file:
+  file.write (pointy_plug_walls());
 
 print("done building experiment(s)")
 

@@ -1,4 +1,5 @@
 import numpy
+import json
 
 def normalize (vector):
   return vector/numpy.linalg.norm(vector)
@@ -33,3 +34,13 @@ def offset_from_surface (surface, source_coordinates, offset, epsilon = 0.00001)
   return offset_from_measurement_points ([surface (v) for v in measurement_points], offset)
 
 
+def scad_variables(variables):
+  def fix(v):
+    if type(v) is list:
+      v = [fix(x) for x in v]
+    if type(v) is numpy.ndarray:
+      v = v.tolist()
+    return v
+  def line(k,v):
+    return f"{k} = {json.dumps (fix(v))};"
+  return "\n".join(line(k,v) for k,v in variables.items())
