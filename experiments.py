@@ -104,12 +104,31 @@ plug();
 translate([0, 20, 0]) socket();
   '''
 
-  
+def tube_thing():
+  return '''
+
+$fn = 64;
+thickness = 1;
+r1 = 50;
+r2 = 45;
+difference() {
+union() {
+cylinder(r = r1, h = 25);
+translate([0, 0, 35]) cylinder(r = r2 , h = 25);
+translate([0, 0, 25]) linear_extrude(height = 10, scale = r2 /r1) circle(r=r1);
+}
+union() {
+cylinder(r = r1-thickness, h = 25);
+translate([0, 0, 35]) cylinder(r = r2 -thickness, h = 25);
+translate([0, 0, 25]) linear_extrude(height = 10, scale = (r2 -thickness)/(r1-thickness)) circle(r=r1-thickness);
+}
+}
+'''
   
 
 
 with open ("./target/generated.scad", "w") as file:
-  file.write (pointy_plug_walls());
+  file.write (tube_thing());
 
 print("done building experiment(s)")
 
