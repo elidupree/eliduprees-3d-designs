@@ -124,11 +124,28 @@ translate([0, 0, 25]) linear_extrude(height = 10, scale = (r2 -thickness)/(r1-th
 }
 }
 '''
+
+
+def wall_and_groove_calibrator():
+  return '''
+
+wall_width = 0.8;
+cube([wall_width, 25, 25]);
+
+translate([5,0,0]) difference() {
+  cube([16, 25, 3]);
+  for (index = [0:5]) {
+    translate([1 + index*2.5, 0, 1]) cube ([wall_width + index*0.1, 25, 2]);
+  }
+}
+    
+  '''
+
   
 
 
 with open ("./target/generated.scad", "w") as file:
-  file.write (tube_thing());
+  file.write (wall_and_groove_calibrator());
 
 print("done building experiment(s)")
 
