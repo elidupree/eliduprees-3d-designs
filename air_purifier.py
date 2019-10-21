@@ -109,8 +109,7 @@ walls_source = [
 ]
 exterior_walls_source = [
   outer_wall,
-  entrance_wall,
-  exit_wall_partial,
+  entrance_wall + exit_wall_partial,
 ]
 a.floor_points = outer_wall + entrance_wall + exit_wall_partial
 
