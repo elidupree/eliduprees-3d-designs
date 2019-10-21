@@ -12,6 +12,7 @@ a.fan_depth = 31.0
 a.foam_thickness = 9
 a.wall_thickness = 0.8
 a.wall_radius = a.wall_thickness / 2
+a.thin_wall_thickness = 0.4
 a.min_air_passage_thickness = 19
 a.acoustic_tile_thickness = 13
 a.acoustic_tile_air_gap = 3
@@ -35,6 +36,9 @@ a.circular_intake_radius = a.circular_intake_diameter/2
 a.circular_intake_left = 57
 a.circular_intake_back = 69
 a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.circular_intake_left - a.circular_intake_radius
+
+a.bump_spacing = 12
+a.between_bumps = 20
 
 a.total_depth = a.wall_thickness + a.foam_thickness + a.fan_width + a.foam_thickness
 
@@ -78,12 +82,41 @@ module walls_flat()
     }
   }
 
-module floor_flat() polygon (points = floor_points);
+module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
+module interior() linear_extrude (height = total_depth, convexity = 10) floor_flat();
+
+module bumps() difference() {
+  for (wall = walls) {
+    delta = wall [1] - wall [0];
+    length = norm (delta);
+    tangent = delta/length;
+    used_length = length - bump_spacing*2;
+    used_depth = total_depth - bump_spacing*2;
+    rows = round(used_depth/between_bumps);
+    columns = round(used_length/between_bumps);
+    echo (rows, columns);
+    for (column = [0: max(0, columns -1)]) {
+      horizontal_position = wall [0] + tangent*(columns < 1 ?
+        (length / 2)
+        : (bump_spacing + used_length*column/(columns -1)));
+      for (row = [0: rows - 1]) {
+        vertical_position = (bump_spacing + used_depth*row/(rows -1));
+        position = concat(horizontal_position, [vertical_position]);
+        translate (position) difference() {
+          sphere (r= wall_radius + acoustic_tile_air_gap) ;
+          sphere (r= wall_radius + acoustic_tile_air_gap - thin_wall_thickness) ;
+        }
+      }
+    }
+  }
+  interior();
+}
 
 union() {
 
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   linear_extrude (height = total_depth, convexity = 10) walls_flat();
+  //bumps();
 }
 
 //translate ([-165, 150, 120 -259/2]) cube ([165, 40.64, 259]);
