@@ -12,7 +12,6 @@ a.fan_depth = 31.0
 a.foam_thickness = 9
 a.wall_thickness = 0.8
 a.wall_radius = a.wall_thickness / 2
-a.thin_wall_thickness = 0.4
 a.min_air_passage_thickness = 19
 a.acoustic_tile_thickness = 13
 a.acoustic_tile_air_gap = 3
@@ -30,6 +29,11 @@ a.entrance_right =      a.fan_right - a.wall_thickness - a.foam_thickness - a.fa
 a.entrance_left  = a.entrance_right - a.wall_thickness - a.min_air_passage_thickness - a.foam_thickness
 a.exit_right     =  a.entrance_left - a.wall_thickness - a.acoustic_tile_space
 a.exit_left      =     a.exit_right - a.wall_thickness - a.min_air_passage_thickness - a.foam_thickness
+
+a.thin_wall_thickness = 0.4
+a.thin_wall_radius = a.thin_wall_thickness / 2
+a.wall_groove_tolerance_one_sided = 0.15
+a.groove_depth = 3
 
 a.circular_intake_diameter = 70
 a.circular_intake_radius = a.circular_intake_diameter/2
@@ -75,13 +79,30 @@ for strip in walls_source:
     a.walls.append (strip [index: index +2])
 
 scad = scad_variables (vars(a)) +"""
-module walls_flat()
+$fn = 64;
+module curve_flat(radius) {
+  intersection() {
+    translate ([radius, radius]) difference() {
+      //radius = wall_radius + acoustic_tile_air_gap;
+      
+      circle (r= radius ) ;
+      scale((radius - thin_wall_thickness)/radius) circle (r= radius ) ;
+    }
+    square(radius);
+  }
+}
+
+module walls_flat() {
   for (wall = walls) {
     hull() {
       translate (wall[0]) square (wall_thickness, center = true);
       translate (wall[1]) square (wall_thickness, center = true);
     }
   }
+  translate ([entrance_left, above_fan]) curve_flat (foam_thickness + min_air_passage_thickness);
+  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (foam_thickness + min_air_passage_thickness);
+  translate ([exit_left, below_fan]) curve_flat (foam_thickness*2 + fan_depth);
+}
 
 module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
 module interior() linear_extrude (height = total_depth, convexity = 10) floor_flat();
@@ -104,8 +125,9 @@ module bumps() difference() {
         vertical_position = (bump_spacing + used_depth*row/(rows -1));
         position = concat(horizontal_position, [vertical_position]);
         translate (position) difference() {
-          sphere (r= wall_radius + acoustic_tile_air_gap) ;
-          sphere (r= wall_radius + acoustic_tile_air_gap - thin_wall_thickness) ;
+          radius = wall_radius + acoustic_tile_air_gap;
+          sphere (r= radius ) ;
+          scale((radius - thin_wall_thickness)/radius) sphere (r= radius ) ;
         }
       }
     }
@@ -122,19 +144,38 @@ module fan_restricting_wall_flat() {
   }
 }
 
+
 module fan_restricting_wall()
   translate ([0, above_fan, 0])
   rotate ([90, 0, 0])
   linear_extrude (height = wall_thickness, center = true, convexity = 10)
   fan_restricting_wall_flat();
+  
+module all_walls() {
+  linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat();
+  fan_restricting_wall();
+}
+
+module lid() {
+  intersection() {
+    interior();
+    linear_extrude (height = groove_depth, convexity = 10) difference () {
+      offset(delta=wall_groove_tolerance_one_sided + wall_thickness) walls_flat();
+      offset(delta=wall_groove_tolerance_one_sided) walls_flat();
+    }
+  }
+  translate([0,0,groove_depth]) linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
+}
+
 
 union() {
 
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
-  linear_extrude (height = total_depth, convexity = 10) walls_flat();
+  all_walls();
   //bumps();
-  fan_restricting_wall();
 }
+
+rotate([0, 180, 0]) lid();
 
 //translate ([-165, 150, 120 -259/2]) cube ([165, 40.64, 259]);
 //color ("blue") translate ([-215, -5]) square (220);
