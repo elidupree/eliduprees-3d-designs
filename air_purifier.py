@@ -86,14 +86,16 @@ entrance_wall =[
     [a.prefilter_left, a.above_prefilter],
     [a.prefilter_left + a.prefilter_border, a.above_prefilter],
   ]
+entrance_wall.reverse()
 exit_wall_partial = [
     [a.exit_right, a.above_exit],
     [a.exit_right, a.above_fan],
     
   ]
+exit_wall_partial.reverse()
 walls_source = [
   outer_wall,
-  exit_wall_partial + [[a.left_of_circular_intake - a.wall_radius, a.above_fan]],
+  [[a.left_of_circular_intake - a.wall_radius, a.above_fan]] + exit_wall_partial,
   entrance_wall,
   [
     [a.prefilter_left, a.above_entrance],
@@ -105,12 +107,22 @@ walls_source = [
     [a.prefilter_right - a.prefilter_border, a.below_prefilter],
   ],
 ]
-a.floor_points = outer_wall + list (reversed (entrance_wall)) + list (reversed (exit_wall_partial))
+exterior_walls_source = [
+  outer_wall,
+  entrance_wall,
+  exit_wall_partial,
+]
+a.floor_points = outer_wall + entrance_wall + exit_wall_partial
 
 a.walls = []
 for strip in walls_source:
   for index in range (len (strip) - 1):
     a.walls.append (strip [index: index +2])
+
+a.exterior_walls = []
+for strip in exterior_walls_source:
+  for index in range (len (strip) - 1):
+    a.exterior_walls.append (strip [index: index +2])
 
 scad = scad_variables (vars(a)) +"""
 $fn = 64;
@@ -168,24 +180,36 @@ module interior() linear_extrude (height = total_depth, convexity = 10) floor_fl
 
 module bump() {
   radius = wall_radius + acoustic_tile_air_gap;
-  module shape() intersection() {
-    cube(radius * 2, center = true);
-    rotate([0, 0, 45]) cube(radius * 2, center = true);
-    rotate([0, 45, 0]) cube(radius * 2, center = true);
-    rotate([45, 0, 0]) cube(radius * 2, center = true);
+  shorter = radius/2;
+  module flat() polygon(points = [
+    [radius, 0],
+    [radius, shorter],
+    [shorter, radius],
+    [-shorter, radius],
+    [-radius, shorter],
+    [-radius, 0],
+  ]);
+  module shape() {
+    height = norm([radius,shorter])*2;
+    linear_extrude(height = 2, center = true) flat();
+    translate ([0, 0, 1]) linear_extrude(height = height, scale = 0) flat();
+    mirror([0,0,1]) translate ([0, 0, 1]) linear_extrude(height = height, scale = 0) flat();
   }
-  shape();
-  scale((radius - thin_wall_thickness)/radius) shape();
+  difference() {
+    shape();
+    scale((radius - thin_wall_thickness)/radius) shape();
+  }
 }
-module bumps() difference() 
+module bumps()// difference()
 {
   $fn = 8;
 
-  for (wall = walls) {
+  for (wall = exterior_walls) {
     echo(wall);
    center = (wall [1] + wall [0])/2;
    if (center [0] < prefilter_left || center [1] <= below_entrance ) {
     delta = wall [1] - wall [0];
+    angle = atan2(delta[1], delta[0]);
     length = norm (delta);
     tangent = delta/length;
     used_length = length - bump_spacing*2;
@@ -193,22 +217,26 @@ module bumps() difference()
     rows = 1+round(used_depth/between_bumps);
     columns = 1+round(used_length/between_bumps);
     echo (rows, columns);
-    for (column = [0: max(0, columns -1)]) {
+    for (column = [0: max(0, columns -1)
+    ]) {
       horizontal_position = wall [0] + tangent*((columns <= 1) ?
         (length / 2)
         : (bump_spacing + used_length*column/(columns -1)));
-      for (row = [0: rows - 1]) {
+      for (row = [0: rows - 1
+      ]) {
         vertical_position = (bump_spacing + used_depth*row/(rows -1));
         position = concat(horizontal_position, [vertical_position]);
-        translate (position) difference() {
-          radius = wall_radius + acoustic_tile_air_gap;
-          bump();
+        //difference(){
+        translate (position) {
+          rotate([0, 0, angle+180]) bump();
         }
+        //  interior();
+        //}
       }
     }
    }
   }
-  interior();
+ // interior();
 }
 
 module fan_restricting_wall_flat() {
