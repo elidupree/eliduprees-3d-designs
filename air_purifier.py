@@ -38,8 +38,7 @@ a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.c
 
 a.total_depth = a.wall_thickness + a.foam_thickness + a.fan_width + a.foam_thickness
 
-walls_source = [
-  [
+outer_wall = [
     [a.exit_left, a.above_entrance],
     [a.exit_left, a.below_fan],
     [a.fan_right, a.below_fan],
@@ -47,18 +46,23 @@ walls_source = [
     [a.entrance_right, a.above_intake],
     [a.entrance_right, a.below_entrance],
     [a.fan_right, a.below_entrance],
-  ],
-  [
-    [a.exit_right, a.above_entrance],
-    [a.exit_right, a.above_fan],
-    [a.left_of_circular_intake, a.above_fan],
-  ],
-  [
+  ]
+entrance_wall =[
     [a.entrance_left, a.above_fan],
     [a.entrance_left, a.above_entrance],
     [a.fan_right, a.above_entrance],
-  ],
+  ]
+exit_wall_partial = [
+    [a.exit_right, a.above_entrance],
+    [a.exit_right, a.above_fan],
+    
+  ]
+walls_source = [
+  outer_wall,
+  exit_wall_partial + [[a.left_of_circular_intake, a.above_fan]],
+  entrance_wall,
 ]
+a.floor_points = outer_wall + list (reversed (entrance_wall)) + list (reversed (exit_wall_partial))
 
 a.walls = []
 for strip in walls_source:
@@ -66,18 +70,20 @@ for strip in walls_source:
     a.walls.append (strip [index: index +2])
 
 scad = scad_variables (vars(a)) +"""
-module walls()
+module walls_flat()
   for (wall = walls) {
     hull() {
       translate (wall[0]) square (wall_thickness, center = true);
       translate (wall[1]) square (wall_thickness, center = true);
     }
   }
-  
+
+module floor_flat() polygon (points = floor_points);
+
 union() {
 
-  linear_extrude (height = wall_thickness, center = true, convexity = 10) hull() walls();
-  linear_extrude (height = total_depth, convexity = 10) walls();
+  linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
+  linear_extrude (height = total_depth, convexity = 10) walls_flat();
 }
 
 //translate ([-165, 150, 120 -259/2]) cube ([165, 40.64, 259]);
