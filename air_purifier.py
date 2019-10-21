@@ -36,6 +36,7 @@ a.circular_intake_radius = a.circular_intake_diameter/2
 a.circular_intake_left = 57
 a.circular_intake_back = 69
 a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.circular_intake_left - a.circular_intake_radius
+a.below_circular_intake = 0 + a.wall_radius + a.foam_thickness + a.fan_width - a.circular_intake_back
 
 a.bump_spacing = 12
 a.between_bumps = 20
@@ -63,7 +64,7 @@ exit_wall_partial = [
   ]
 walls_source = [
   outer_wall,
-  exit_wall_partial + [[a.left_of_circular_intake, a.above_fan]],
+  exit_wall_partial + [[a.left_of_circular_intake - a.wall_radius, a.above_fan]],
   entrance_wall,
 ]
 a.floor_points = outer_wall + list (reversed (entrance_wall)) + list (reversed (exit_wall_partial))
@@ -112,11 +113,27 @@ module bumps() difference() {
   interior();
 }
 
+module fan_restricting_wall_flat() {
+  translate ([left_of_circular_intake, 0]) square ([fan_right - left_of_circular_intake, below_circular_intake]);
+  difference() {
+    translate ([left_of_circular_intake, 0]) square ([circular_intake_radius, below_circular_intake + circular_intake_radius]);
+    translate ([left_of_circular_intake + circular_intake_radius, below_circular_intake + circular_intake_radius])
+      circle (r= circular_intake_radius); 
+  }
+}
+
+module fan_restricting_wall()
+  translate ([0, above_fan, 0])
+  rotate ([90, 0, 0])
+  linear_extrude (height = wall_thickness, center = true, convexity = 10)
+  fan_restricting_wall_flat();
+
 union() {
 
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   linear_extrude (height = total_depth, convexity = 10) walls_flat();
   //bumps();
+  fan_restricting_wall();
 }
 
 //translate ([-165, 150, 120 -259/2]) cube ([165, 40.64, 259]);
