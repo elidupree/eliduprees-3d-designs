@@ -7,62 +7,87 @@ class Foo(object):
   pass
 a = Foo()
 
+
+### Measured constants ###
+
 a.fan_width = 120.5
 a.fan_depth = 31.0
 a.foam_thickness = 9
-a.wall_thickness = 0.8
-a.wall_radius = a.wall_thickness / 2
-a.min_air_passage_thickness = 19
 a.acoustic_tile_thickness = 13
-a.acoustic_tile_air_gap = 3
-a.acoustic_tile_space = a.acoustic_tile_thickness + 2*a.acoustic_tile_air_gap
+a.prefilter_thickness = 18
+a.wall_groove_tolerance_one_sided = 0.15
 
-# 2d points
+a.circular_intake_diameter = 70
+a.circular_intake_left = 57
+a.circular_intake_back = 69
+
+
+### Chosen constants ###
+
+a.wall_thickness = 0.8
+a.thin_wall_thickness = 0.4
+a.min_air_passage_thickness = 19
+a.acoustic_tile_air_gap = 3
+a.groove_depth = 3
+a.bump_spacing = 12
+a.between_bumps = 24
+a.prefilter_border = 9
+a.foam_restraining_lip_length = a.foam_thickness/2
+a.foam_restraining_lip_backoff = a.foam_thickness*1.5
+
+a.wall_radius = a.wall_thickness / 2
+a.thin_wall_radius = a.thin_wall_thickness / 2
+a.circular_intake_radius = a.circular_intake_diameter/2
+a.acoustic_tile_space = a.acoustic_tile_thickness + 2*a.acoustic_tile_air_gap
+a.foam_restraining_triangle_width = a.foam_thickness + a.thin_wall_thickness
+
+
+### 2d points ###
+
 a.below_fan = 0
 a.above_fan      =      a.below_fan + a.wall_thickness + a.foam_thickness + a.fan_depth + a.foam_thickness
-a.above_intake   =      a.above_fan + a.wall_thickness + a.foam_thickness + a.min_air_passage_thickness
+a.above_intake   =      a.above_fan + a.wall_thickness + a.foam_restraining_triangle_width  + a.min_air_passage_thickness
 a.below_entrance =   a.above_intake + a.wall_thickness + a.acoustic_tile_space
-a.above_entrance = a.below_entrance + a.wall_thickness + a.foam_thickness + a.min_air_passage_thickness
+a.above_entrance = a.below_entrance + a.wall_thickness + a.foam_restraining_triangle_width  + a.min_air_passage_thickness
+a.above_exit     = a.above_entrance + a.wall_thickness + a.acoustic_tile_space
+
+a.below_prefilter = a.above_entrance - a.foam_restraining_triangle_width #a.above_entrance
+a.above_prefilter = a.below_prefilter + a.wall_thickness + a.prefilter_thickness
 
 a.fan_right = 0
 a.entrance_right =      a.fan_right - a.wall_thickness - a.foam_thickness - a.fan_width - a.acoustic_tile_air_gap
 a.entrance_left  = a.entrance_right - a.wall_thickness - a.min_air_passage_thickness - a.foam_thickness
 a.exit_right     =  a.entrance_left - a.wall_thickness - a.acoustic_tile_space
-a.exit_left      =     a.exit_right - a.wall_thickness - a.min_air_passage_thickness - a.foam_thickness
+a.exit_left      =     a.exit_right - a.wall_thickness - a.min_air_passage_thickness - a.foam_restraining_triangle_width 
+a.prefilter_left = a.entrance_right + a.foam_restraining_lip_backoff #a.foam_thickness*2
+a.prefilter_right = a.fan_right + a.acoustic_tile_air_gap 
 
-a.thin_wall_thickness = 0.4
-a.thin_wall_radius = a.thin_wall_thickness / 2
-a.wall_groove_tolerance_one_sided = 0.15
-a.groove_depth = 3
-
-a.circular_intake_diameter = 70
-a.circular_intake_radius = a.circular_intake_diameter/2
-a.circular_intake_left = 57
-a.circular_intake_back = 69
+# Other inferred stuff
 a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.circular_intake_left - a.circular_intake_radius
 a.below_circular_intake = 0 + a.wall_radius + a.foam_thickness + a.fan_width - a.circular_intake_back
-
-a.bump_spacing = 12
-a.between_bumps = 20
 
 a.total_depth = a.wall_thickness + a.foam_thickness + a.fan_width + a.foam_thickness
 
 outer_wall = [
-    [a.exit_left, a.above_entrance],
+    [a.exit_left, a.above_exit],
     [a.exit_left, a.below_fan],
     [a.fan_right, a.below_fan],
     [a.fan_right, a.above_intake],
     [a.entrance_right, a.above_intake],
     [a.entrance_right, a.below_entrance],
-    [a.fan_right, a.below_entrance],
+    [a.prefilter_right, a.below_entrance],
+    [a.prefilter_right, a.above_prefilter],
+    [a.prefilter_right - a.prefilter_border, a.above_prefilter],
   ]
 entrance_wall =[
     [a.entrance_left, a.above_fan],
     [a.entrance_left, a.above_entrance],
-    [a.fan_right, a.above_entrance],
+    [a.prefilter_left, a.above_entrance],
+    [a.prefilter_left, a.above_prefilter],
+    [a.prefilter_left + a.prefilter_border, a.above_prefilter],
   ]
 exit_wall_partial = [
-    [a.exit_right, a.above_entrance],
+    [a.exit_right, a.above_exit],
     [a.exit_right, a.above_fan],
     
   ]
@@ -70,6 +95,15 @@ walls_source = [
   outer_wall,
   exit_wall_partial + [[a.left_of_circular_intake - a.wall_radius, a.above_fan]],
   entrance_wall,
+  [
+    [a.prefilter_left, a.above_entrance],
+    [a.prefilter_left, a.below_prefilter],
+    [a.prefilter_left + a.prefilter_border, a.below_prefilter],
+  ],
+  [
+    [a.prefilter_right, a.below_prefilter],
+    [a.prefilter_right - a.prefilter_border, a.below_prefilter],
+  ],
 ]
 a.floor_points = outer_wall + list (reversed (entrance_wall)) + list (reversed (exit_wall_partial))
 
@@ -92,6 +126,25 @@ module curve_flat(radius) {
   }
 }
 
+module foam_restraining_bracket(triangle) {
+  module origin_circle()
+    circle (r= thin_wall_radius);
+  module corner_circle()
+    translate ([0, foam_thickness + wall_radius + thin_wall_radius]) origin_circle(); 
+  hull() {
+    origin_circle();
+    corner_circle();
+  }
+  if(triangle) hull() {
+    corner_circle();
+    translate ([foam_thickness*2, 0]) origin_circle(); 
+  }
+  hull() {
+    corner_circle();
+    translate ([-foam_restraining_lip_length, 0]) corner_circle(); 
+  }
+}
+
 module walls_flat() {
   for (wall = walls) {
     hull() {
@@ -99,26 +152,49 @@ module walls_flat() {
       translate (wall[1]) square (wall_thickness, center = true);
     }
   }
+  exit_radius = foam_thickness*2 + fan_depth;
   translate ([entrance_left, above_fan]) curve_flat (foam_thickness + min_air_passage_thickness);
   translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (foam_thickness + min_air_passage_thickness);
-  translate ([exit_left, below_fan]) curve_flat (foam_thickness*2 + fan_depth);
+  translate ([exit_left, below_fan]) curve_flat (exit_radius);
+  
+  translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true);
+  translate ([entrance_right+foam_restraining_lip_backoff, above_entrance]) mirror ([0, 1]) foam_restraining_bracket(false);
+  translate ([exit_left+exit_radius+foam_restraining_lip_backoff, below_fan]) foam_restraining_bracket(true);
+  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff]) mirror ([-1, 1]) foam_restraining_bracket(true);
 }
 
 module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
 module interior() linear_extrude (height = total_depth, convexity = 10) floor_flat();
 
-module bumps() difference() {
+module bump() {
+  radius = wall_radius + acoustic_tile_air_gap;
+  module shape() intersection() {
+    cube(radius * 2, center = true);
+    rotate([0, 0, 45]) cube(radius * 2, center = true);
+    rotate([0, 45, 0]) cube(radius * 2, center = true);
+    rotate([45, 0, 0]) cube(radius * 2, center = true);
+  }
+  shape();
+  scale((radius - thin_wall_thickness)/radius) shape();
+}
+module bumps() difference() 
+{
+  $fn = 8;
+
   for (wall = walls) {
+    echo(wall);
+   center = (wall [1] + wall [0])/2;
+   if (center [0] < prefilter_left || center [1] <= below_entrance ) {
     delta = wall [1] - wall [0];
     length = norm (delta);
     tangent = delta/length;
     used_length = length - bump_spacing*2;
     used_depth = total_depth - bump_spacing*2;
-    rows = round(used_depth/between_bumps);
-    columns = round(used_length/between_bumps);
+    rows = 1+round(used_depth/between_bumps);
+    columns = 1+round(used_length/between_bumps);
     echo (rows, columns);
     for (column = [0: max(0, columns -1)]) {
-      horizontal_position = wall [0] + tangent*(columns < 1 ?
+      horizontal_position = wall [0] + tangent*((columns <= 1) ?
         (length / 2)
         : (bump_spacing + used_length*column/(columns -1)));
       for (row = [0: rows - 1]) {
@@ -126,11 +202,11 @@ module bumps() difference() {
         position = concat(horizontal_position, [vertical_position]);
         translate (position) difference() {
           radius = wall_radius + acoustic_tile_air_gap;
-          sphere (r= radius ) ;
-          scale((radius - thin_wall_thickness)/radius) sphere (r= radius ) ;
+          bump();
         }
       }
     }
+   }
   }
   interior();
 }
@@ -150,32 +226,41 @@ module fan_restricting_wall()
   rotate ([90, 0, 0])
   linear_extrude (height = wall_thickness, center = true, convexity = 10)
   fan_restricting_wall_flat();
-  
+
+module prefilter_side_walls(cutaway) {
+  for (y = [above_prefilter, below_prefilter]) {
+    translate ([prefilter_left + cutaway, y - wall_radius, 0])
+      cube ([- prefilter_left - 2*cutaway, wall_thickness, prefilter_border]);
+  }
+}
+
 module all_walls() {
   linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat();
   fan_restricting_wall();
+  translate ([0, 0, wall_radius]) prefilter_side_walls(0);
 }
 
 module lid() {
-  intersection() {
+  translate([0,0,-groove_depth]) intersection() {
     interior();
     linear_extrude (height = groove_depth, convexity = 10) difference () {
       offset(delta=wall_groove_tolerance_one_sided + wall_thickness) walls_flat();
       offset(delta=wall_groove_tolerance_one_sided) walls_flat();
     }
   }
-  translate([0,0,groove_depth]) linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
+  linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
+  translate ([0, 0, - prefilter_border - wall_thickness]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);
 }
 
-
+//!bump();
 union() {
 
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   all_walls();
-  //bumps();
+  bumps();
 }
 
-rotate([0, 180, 0]) lid();
+//rotate([0, 180, 0]) lid();
 
 //translate ([-165, 150, 120 -259/2]) cube ([165, 40.64, 259]);
 //color ("blue") translate ([-215, -5]) square (220);
