@@ -13,8 +13,8 @@ a = Foo()
 a.fan_width = 120.5
 a.fan_depth = 31.0
 a.foam_thickness = 9
-a.acoustic_tile_thickness = 13
-a.prefilter_thickness = 18
+a.acoustic_tile_thickness = 14
+a.prefilter_thickness = 16
 a.wall_groove_tolerance_one_sided = 0.15
 
 a.circular_intake_diameter = 70
