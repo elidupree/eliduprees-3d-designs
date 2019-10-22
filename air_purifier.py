@@ -186,8 +186,8 @@ module walls_flat(thin_wall_thickness_override) {
   
   translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
   translate ([entrance_right+foam_restraining_lip_backoff, above_entrance]) mirror ([0, 1]) foam_restraining_bracket(false, thin_wall_thickness_override);
-  translate ([exit_left+exit_radius+foam_restraining_lip_backoff, below_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
-  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff]) mirror ([-1, 1]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([exit_left+exit_radius+foam_restraining_lip_backoff+3, below_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff+25]) mirror ([-1, 1]) foam_restraining_bracket(true, thin_wall_thickness_override);
 }
 
 module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
@@ -351,7 +351,7 @@ lid();
 
 """
 
-print (a.exit_left, a.above_entrance)
+print (a.exit_left, a.above_entrance, a.total_depth)
 print (a.prefilter_right - a.prefilter_left)
 
 with open ("./target/generated.scad", "w") as file:
