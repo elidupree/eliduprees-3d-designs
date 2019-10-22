@@ -300,7 +300,7 @@ module lid() {
     }
   }
   linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
-  translate ([0, 0, - prefilter_border - wall_thickness]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);
+  translate ([0, 0, - prefilter_border]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);
 }
 
 module grating() {
