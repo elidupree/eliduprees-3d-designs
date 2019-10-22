@@ -65,7 +65,8 @@ a.prefilter_right = a.fan_right + a.acoustic_tile_air_gap
 
 # Other inferred stuff
 a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.circular_intake_left - a.circular_intake_radius
-a.below_circular_intake = 0 + a.wall_radius + a.foam_thickness + a.fan_width - a.circular_intake_back
+a.below_circular_intake = 0 + a.wall_radius + a.foam_thickness + a.fan_width - a.circular_intake_back - a.circular_intake_radius
+print(a.below_circular_intake )
 
 a.total_depth = a.wall_thickness + a.foam_thickness + a.fan_width + a.foam_thickness
 
