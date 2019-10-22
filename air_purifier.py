@@ -303,12 +303,36 @@ module lid() {
   translate ([0, 0, - prefilter_border - wall_thickness]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);
 }
 
+module grating() {
+  left = prefilter_left + prefilter_border + wall_radius;
+  right = prefilter_right - prefilter_border - wall_radius;
+  bottom = 0 + prefilter_border + wall_radius;
+  top = total_depth - prefilter_border - wall_radius - wall_groove_tolerance_one_sided;
+  width = right - left;
+  height = top - bottom;
+  increment = (left - right) / 3;
+  module area() {
+    translate ([left, bottom]) square ([width, height]) ;
+  }
+  module flat() intersection() {
+    for (direction = [-1, 1]) {
+      for (index = [-3:3]) {
+        center = (left + right)/2 + increment*index;
+        translate ([center, (top + bottom)/2]) rotate (atan2(increment, height/2)*direction) square ([wall_thickness, height*2], center = true);
+      }
+    }
+    area();
+  }
+  translate ([0, below_prefilter]) rotate ([90, 0, 0]) linear_extrude (height = wall_thickness, center = true, convexity = 10) flat();
+}
+
 //!bump();
 intersection() {
 union() {
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   all_walls();
   bumps();
+  grating();
 }
 *translate ([exit_right - 5, above_fan - 5, wall_radius-.56]) cube([left_of_circular_intake - exit_right - 53, 30, 21]);
 }
