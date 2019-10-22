@@ -94,10 +94,15 @@ exit_wall_partial = [
     
   ]
 exit_wall_partial.reverse()
+a.tile_stop_wall_near_prefilter = [
+  [a.prefilter_left, a.above_exit],
+  [a.prefilter_left, a.above_entrance],
+]
 walls_source = [
   outer_wall,
   [[a.left_of_circular_intake - a.wall_radius, a.above_fan]] + exit_wall_partial,
   entrance_wall,
+  a.tile_stop_wall_near_prefilter,
   [
     [a.prefilter_left, a.above_entrance],
     [a.prefilter_left, a.below_prefilter],
@@ -209,13 +214,18 @@ module bumps()// difference()
 {
   $fn = 8;
 
-  for (wall = exterior_walls) {
+  for (wall = concat(exterior_walls, [tile_stop_wall_near_prefilter])) {
     echo(wall);
    center = (wall [1] + wall [0])/2;
-   if (center [0] < prefilter_left || center [1] <= below_entrance ) {
-    delta = wall [1] - wall [0];
+   delta = wall [1] - wall [0];
+   length = norm (delta);
+   if (
+     (center [0] <= prefilter_left || center [1] <= below_entrance)
+     && length >= bump_spacing*1.2
+     ) {
+    
     angle = atan2(delta[1], delta[0]);
-    length = norm (delta);
+    
     tangent = delta/length;
     used_length = length - bump_spacing*2;
     used_depth = total_depth - bump_spacing*2;
