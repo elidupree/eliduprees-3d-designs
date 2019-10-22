@@ -12,7 +12,7 @@ a = Foo()
 
 a.fan_width = 120.5
 a.fan_depth = 31.0
-a.foam_thickness = 9
+a.foam_thickness = 6
 a.acoustic_tile_thickness = 15
 a.prefilter_thickness = 16
 a.wall_groove_tolerance_one_sided = 0.17
@@ -33,8 +33,8 @@ a.bump_spacing = 12
 a.between_bumps = 48
 a.prefilter_border = 9
 a.foam_restraining_lip_length = a.foam_thickness/2
-a.foam_restraining_lip_backoff = a.foam_thickness*1.5
-a.foam_restraining_triangle_tail = a.foam_thickness*1.9
+a.foam_restraining_lip_backoff = 10.5
+a.foam_restraining_triangle_tail = a.foam_thickness*2
 
 a.wall_radius = a.wall_thickness / 2
 a.thin_wall_radius = a.thin_wall_thickness / 2
@@ -334,15 +334,13 @@ union() {
   bumps();
   grating();
 }
-*translate ([exit_right - 5, above_fan - 5, wall_radius-.56]) cube([left_of_circular_intake - exit_right - 53, 30, 21]);
+*translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
 
 rotate([0, 180, 0]) intersection()
 {
 lid();
-*translate ([exit_right - 10
- + 20, above_fan - 5, -100]) cube([left_of_circular_intake - exit_right + 10
- - 20, 30, 100+0.56]);
+*translate ([prefilter_left - 5, below_prefilter - 5, -100]) cube([prefilter_right - prefilter_left + 10, 30, 100+0.56]);
 }
 
 //rotate([0, 180, 0]) lid();
@@ -354,6 +352,7 @@ lid();
 """
 
 print (a.exit_left, a.above_entrance)
+print (a.prefilter_right - a.prefilter_left)
 
 with open ("./target/generated.scad", "w") as file:
   file.write (scad);
