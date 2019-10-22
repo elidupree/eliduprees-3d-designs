@@ -30,7 +30,7 @@ a.min_air_passage_thickness = 19
 a.acoustic_tile_air_gap = 1.6
 a.groove_depth = 3
 a.bump_spacing = 12
-a.between_bumps = 24
+a.between_bumps = 48
 a.prefilter_border = 9
 a.foam_restraining_lip_length = a.foam_thickness/2
 a.foam_restraining_lip_backoff = a.foam_thickness*1.5
@@ -220,10 +220,12 @@ module bumps()// difference()
     used_length = length - bump_spacing*2;
     used_depth = total_depth - bump_spacing*2;
     rows = 1+round(used_depth/between_bumps);
-    columns = 1+round(used_length/between_bumps);
+    columns = max(
+      used_length > bump_spacing ? 2 : 1,
+      1+round(used_length/between_bumps)
+    );
     echo (rows, columns);
-    for (column = [0: max(0, columns -1)
-    ]) {
+    for (column = [0: columns -1]) {
       horizontal_position = wall [0] + tangent*((columns <= 1) ?
         (length / 2)
         : (bump_spacing + used_length*column/(columns -1)));
