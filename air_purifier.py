@@ -94,7 +94,8 @@ exit_wall_partial = [
     
   ]
 exit_wall_partial.reverse()
-a.tile_stop_wall_near_prefilter = [
+tile_stop_walls_near_prefilter_source = [
+  [a.exit_right, a.above_exit],
   [a.prefilter_left, a.above_exit],
   [a.prefilter_left, a.above_entrance],
 ]
@@ -102,7 +103,7 @@ walls_source = [
   outer_wall,
   [[a.left_of_circular_intake - a.wall_radius, a.above_fan]] + exit_wall_partial,
   entrance_wall,
-  a.tile_stop_wall_near_prefilter,
+  tile_stop_walls_near_prefilter_source,
   [
     [a.prefilter_left, a.above_entrance],
     [a.prefilter_left, a.below_prefilter],
@@ -124,6 +125,10 @@ for strip in walls_source:
   for index in range (len (strip) - 1):
     a.walls.append (strip [index: index +2])
 
+a.tile_stop_walls_near_prefilter = []
+for index in range (len (tile_stop_walls_near_prefilter_source) - 1):
+    a.tile_stop_walls_near_prefilter.append (tile_stop_walls_near_prefilter_source [index: index +2])
+    
 a.exterior_walls = []
 for strip in exterior_walls_source:
   for index in range (len (strip) - 1):
@@ -214,7 +219,7 @@ module bumps()// difference()
 {
   $fn = 8;
 
-  for (wall = concat(exterior_walls, [tile_stop_wall_near_prefilter])) {
+  for (wall = concat(exterior_walls, tile_stop_walls_near_prefilter)) {
     echo(wall);
    center = (wall [1] + wall [0])/2;
    delta = wall [1] - wall [0];
