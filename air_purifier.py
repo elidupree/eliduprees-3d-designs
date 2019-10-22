@@ -335,6 +335,7 @@ union() {
   bumps();
   *grating();
 }
+*translate ([entrance_right - 5, below_fan - 5, wall_radius-.56]) cube([fan_right - entrance_right + 10, above_fan - below_fan + 10, 200]);
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
 
