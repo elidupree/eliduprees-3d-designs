@@ -13,9 +13,9 @@ a = Foo()
 a.fan_width = 120.5
 a.fan_depth = 31.0
 a.foam_thickness = 9
-a.acoustic_tile_thickness = 14
+a.acoustic_tile_thickness = 15
 a.prefilter_thickness = 16
-a.wall_groove_tolerance_one_sided = 0.15
+a.wall_groove_tolerance_one_sided = 0.17
 
 a.circular_intake_diameter = 70
 a.circular_intake_left = 57
@@ -27,13 +27,14 @@ a.circular_intake_back = 69
 a.wall_thickness = 0.8
 a.thin_wall_thickness = 0.4
 a.min_air_passage_thickness = 19
-a.acoustic_tile_air_gap = 3
+a.acoustic_tile_air_gap = 1.6
 a.groove_depth = 3
 a.bump_spacing = 12
 a.between_bumps = 24
 a.prefilter_border = 9
 a.foam_restraining_lip_length = a.foam_thickness/2
 a.foam_restraining_lip_backoff = a.foam_thickness*1.5
+a.foam_restraining_triangle_tail = a.foam_thickness*1.9
 
 a.wall_radius = a.wall_thickness / 2
 a.thin_wall_radius = a.thin_wall_thickness / 2
@@ -125,38 +126,43 @@ for strip in exterior_walls_source:
 
 scad = scad_variables (vars(a)) +"""
 $fn = 64;
-module curve_flat(radius) {
+module curve_flat(radius, thin_wall_thickness_override) {
   intersection() {
     translate ([radius, radius]) difference() {
       //radius = wall_radius + acoustic_tile_air_gap;
       
-      circle (r= radius ) ;
-      scale((radius - thin_wall_thickness)/radius) circle (r= radius ) ;
+      outer_radius = radius + (thin_wall_thickness_override-thin_wall_thickness)/2;
+      inner_radius = outer_radius - thin_wall_thickness_override;
+      scale(outer_radius/radius) circle (r= radius ) ;
+      scale(inner_radius/radius) circle (r= radius ) ;
     }
     square(radius);
   }
 }
 
-module foam_restraining_bracket(triangle) {
+module foam_restraining_bracket(triangle, thin_wall_thickness_override) {
   module origin_circle()
-    circle (r= thin_wall_radius);
+    circle (r= thin_wall_thickness_override/2);
   module corner_circle()
     translate ([0, foam_thickness + wall_radius + thin_wall_radius]) origin_circle(); 
-  hull() {
+  intersection() {
+    translate([-foam_thickness*3, -wall_radius]) square([foam_thickness*6, foam_thickness*3]);
+  union() {hull() {
     origin_circle();
     corner_circle();
   }
   if(triangle) hull() {
     corner_circle();
-    translate ([foam_thickness*2, 0]) origin_circle(); 
+    translate ([foam_restraining_triangle_tail, 0]) origin_circle(); 
   }
   hull() {
     corner_circle();
     translate ([-foam_restraining_lip_length, 0]) corner_circle(); 
+  }}
   }
 }
 
-module walls_flat() {
+module walls_flat(thin_wall_thickness_override) {
   for (wall = walls) {
     hull() {
       translate (wall[0]) square (wall_thickness, center = true);
@@ -164,14 +170,14 @@ module walls_flat() {
     }
   }
   exit_radius = foam_thickness*2 + fan_depth;
-  translate ([entrance_left, above_fan]) curve_flat (foam_thickness + min_air_passage_thickness);
-  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (foam_thickness + min_air_passage_thickness);
-  translate ([exit_left, below_fan]) curve_flat (exit_radius);
+  translate ([entrance_left, above_fan]) curve_flat (foam_thickness + min_air_passage_thickness, thin_wall_thickness_override);
+  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (foam_thickness + min_air_passage_thickness, thin_wall_thickness_override);
+  translate ([exit_left, below_fan]) curve_flat (exit_radius, thin_wall_thickness_override);
   
-  translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true);
-  translate ([entrance_right+foam_restraining_lip_backoff, above_entrance]) mirror ([0, 1]) foam_restraining_bracket(false);
-  translate ([exit_left+exit_radius+foam_restraining_lip_backoff, below_fan]) foam_restraining_bracket(true);
-  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff]) mirror ([-1, 1]) foam_restraining_bracket(true);
+  translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([entrance_right+foam_restraining_lip_backoff, above_entrance]) mirror ([0, 1]) foam_restraining_bracket(false, thin_wall_thickness_override);
+  translate ([exit_left+exit_radius+foam_restraining_lip_backoff, below_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff]) mirror ([-1, 1]) foam_restraining_bracket(true, thin_wall_thickness_override);
 }
 
 module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
@@ -262,7 +268,7 @@ module prefilter_side_walls(cutaway) {
 }
 
 module all_walls() {
-  linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat();
+  linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat(thin_wall_thickness);
   fan_restricting_wall();
   translate ([0, 0, wall_radius]) prefilter_side_walls(0);
 }
@@ -270,9 +276,10 @@ module all_walls() {
 module lid() {
   translate([0,0,-groove_depth]) intersection() {
     interior();
+    thickness_override = wall_thickness * 2;
     linear_extrude (height = groove_depth, convexity = 10) difference () {
-      offset(delta=wall_groove_tolerance_one_sided + wall_thickness) walls_flat();
-      offset(delta=wall_groove_tolerance_one_sided) walls_flat();
+      offset(r=wall_groove_tolerance_one_sided + wall_thickness) walls_flat(thickness_override);
+      offset(r=wall_groove_tolerance_one_sided) walls_flat(thickness_override);
     }
   }
   linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
@@ -280,11 +287,21 @@ module lid() {
 }
 
 //!bump();
+intersection() {
 union() {
-
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   all_walls();
   bumps();
+}
+*translate ([exit_right - 5, above_fan - 5, wall_radius-.56]) cube([left_of_circular_intake - exit_right - 53, 30, 21]);
+}
+
+rotate([0, 180, 0]) intersection()
+{
+lid();
+*translate ([exit_right - 10
+ + 20, above_fan - 5, -100]) cube([left_of_circular_intake - exit_right + 10
+ - 20, 30, 100+0.56]);
 }
 
 //rotate([0, 180, 0]) lid();
