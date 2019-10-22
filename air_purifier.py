@@ -332,7 +332,7 @@ union() {
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   all_walls();
   bumps();
-  grating();
+  *grating();
 }
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
