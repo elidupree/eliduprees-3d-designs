@@ -280,7 +280,7 @@ module fan_restricting_wall()
 module prefilter_side_walls(cutaway) {
   for (y = [above_prefilter, below_prefilter]) {
     translate ([prefilter_left + cutaway, y - wall_radius, 0])
-      cube ([- prefilter_left - 2*cutaway, wall_thickness, prefilter_border]);
+      cube ([(prefilter_right - prefilter_left) - 2*cutaway, wall_thickness, prefilter_border]);
   }
 }
 
