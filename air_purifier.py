@@ -310,15 +310,15 @@ module grating() {
   top = total_depth - prefilter_border - wall_radius - wall_groove_tolerance_one_sided;
   width = right - left;
   height = top - bottom;
-  increment = (left - right) / 3;
+  increment = (left - right) / 6;
   module area() {
     translate ([left, bottom]) square ([width, height]) ;
   }
   module flat() intersection() {
     for (direction = [-1, 1]) {
-      for (index = [-3:3]) {
+      for (index = [-6:6]) {
         center = (left + right)/2 + increment*index;
-        translate ([center, (top + bottom)/2]) rotate (atan2(increment, height/2)*direction) square ([wall_thickness, height*2], center = true);
+        translate ([center, (top + bottom)/2]) rotate (atan2(increment, height/4)*direction) square ([wall_thickness, height*2], center = true);
       }
     }
     area();
