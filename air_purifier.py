@@ -27,13 +27,13 @@ a.circular_intake_back = 69
 a.wall_thickness = 0.8
 a.thin_wall_thickness = 0.4
 a.min_air_passage_thickness = 19
-a.acoustic_tile_air_gap = 1.6
+a.acoustic_tile_air_gap = 3
 a.groove_depth = 3
 a.bump_spacing = 12
-a.between_bumps = 48
+a.between_bumps = 36
 a.prefilter_border = 9
 a.foam_restraining_lip_length = a.foam_thickness/2
-a.foam_restraining_lip_backoff = 10.5
+a.foam_restraining_lip_backoff = 13.3
 a.foam_restraining_triangle_tail = a.foam_thickness*2
 
 a.wall_radius = a.wall_thickness / 2
@@ -245,7 +245,7 @@ module bumps()// difference()
       horizontal_position = wall [0] + tangent*((columns <= 1) ?
         (length / 2)
         : (bump_spacing + used_length*column/(columns -1)));
-      for (row = [0: rows - 1
+      /*for (row = [0: rows - 1
       ]) {
         vertical_position = (bump_spacing + used_depth*row/(rows -1));
         position = concat(horizontal_position, [vertical_position]);
@@ -255,7 +255,11 @@ module bumps()// difference()
         }
         //  interior();
         //}
-      }
+      }*/
+      
+      translate (concat(horizontal_position, [-wall_radius]))
+        rotate([0, 0, angle+180])
+        cube([wall_thickness, wall_radius + acoustic_tile_air_gap, total_depth]);
     }
    }
   }
@@ -335,11 +339,11 @@ union() {
   bumps();
   *grating();
 }
-*translate ([entrance_right - 5, below_fan - 5, wall_radius-.56]) cube([fan_right - entrance_right + 10, above_fan - below_fan + 10, 200]);
+*translate ([entrance_right - 5 + 5, below_fan - 5, wall_radius-.56]) cube([(fan_right - entrance_right)/2 + 10, 15, total_depth/2]);
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
 
-rotate([0, 180, 0]) intersection()
+*rotate([0, 180, 0]) intersection()
 {
 lid();
 *translate ([prefilter_left - 5, below_prefilter - 5, -100]) cube([prefilter_right - prefilter_left + 10, 30, 100+0.56]);
