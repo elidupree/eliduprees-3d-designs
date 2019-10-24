@@ -344,6 +344,7 @@ module bumps()// difference()
 
 module fan_restricting_wall_flat() {
   translate ([left_of_circular_intake, 0]) square ([fan_right - left_of_circular_intake, below_circular_intake]);
+  translate ([left_of_circular_intake-wall_thickness, 0]) square ([wall_thickness, total_depth-wall_radius]);
   difference() {
     translate ([left_of_circular_intake, 0]) square ([circular_intake_radius, below_circular_intake + circular_intake_radius]);
     translate ([left_of_circular_intake + circular_intake_radius, below_circular_intake + circular_intake_radius])
