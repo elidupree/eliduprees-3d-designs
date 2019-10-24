@@ -126,6 +126,8 @@ outer_wall = apply_zigzag ([
     zigzag,
     [a.fan_right, a.below_fan],
     zigzag,
+    [a.fan_right, a.above_fan],
+    zigzag,
     [a.fan_right, a.above_intake],
     zigzag,
     [a.entrance_right, a.above_intake],
