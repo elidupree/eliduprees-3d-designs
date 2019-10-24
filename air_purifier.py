@@ -361,14 +361,14 @@ module fan_restricting_wall()
 module prefilter_side_walls(cutaway) {
   for (y = [above_prefilter, below_prefilter]) {
     translate ([prefilter_left + cutaway, y - wall_radius, 0])
-      cube ([(prefilter_right - prefilter_left) - 2*cutaway, wall_thickness, prefilter_border]);
+      cube ([(prefilter_right - prefilter_left) - 2*cutaway, wall_thickness, prefilter_border+wall_thickness]);
   }
 }
 
 module all_walls() {
   linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat(thin_wall_thickness);
   fan_restricting_wall();
-  translate ([0, 0, wall_radius]) prefilter_side_walls(0);
+  translate ([0, 0, -wall_radius]) prefilter_side_walls(0);
 }
 
 module lid() {
