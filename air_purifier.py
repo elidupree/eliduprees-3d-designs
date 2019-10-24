@@ -34,7 +34,12 @@ a.between_bumps = 36
 a.prefilter_border = 9
 a.foam_restraining_lip_length = a.foam_thickness/2
 a.foam_restraining_lip_backoff = 13.3
+a.extra_exit_foam_restraining_lip_backoff = 25
 a.foam_restraining_triangle_tail = a.foam_thickness*2
+a.exit_connector_length = 12
+a.zigzag_slope = 0.5
+
+### Inferred stuff ###
 
 a.wall_radius = a.wall_thickness / 2
 a.thin_wall_radius = a.thin_wall_thickness / 2
@@ -51,6 +56,7 @@ a.above_intake   =      a.above_fan + a.wall_thickness + a.foam_restraining_tria
 a.below_entrance =   a.above_intake + a.wall_thickness + a.acoustic_tile_space
 a.above_entrance = a.below_entrance + a.wall_thickness + a.foam_restraining_triangle_width  + a.min_air_passage_thickness
 a.above_exit     = a.above_entrance + a.wall_thickness + a.acoustic_tile_space
+a.below_exit_connector = a.above_exit - a.exit_connector_length
 
 a.below_prefilter = a.above_entrance - a.foam_restraining_triangle_width #a.above_entrance
 a.above_prefilter = a.below_prefilter + a.wall_thickness + a.prefilter_thickness
@@ -63,46 +69,106 @@ a.exit_left      =     a.exit_right - a.wall_thickness - a.min_air_passage_thick
 a.prefilter_left = a.entrance_right + a.foam_restraining_lip_backoff #a.foam_thickness*2
 a.prefilter_right = a.fan_right + a.acoustic_tile_air_gap 
 
-# Other inferred stuff
+### More inferred stuff ###
+
 a.left_of_circular_intake = a.fan_right - a.wall_radius - a.foam_thickness - a.circular_intake_left - a.circular_intake_radius
 a.below_circular_intake = 0 + a.wall_radius + a.foam_thickness + a.fan_width - a.circular_intake_back - a.circular_intake_radius
 print(a.below_circular_intake )
+a.exit_radius = a.above_fan - a.below_fan
 
 a.total_depth = a.wall_thickness + a.foam_thickness + a.fan_width + a.foam_thickness
 
-outer_wall = [
+class zigzag():
+  pass
+def apply_zigzag(vertices):
+  result = []
+  for index, vertex in enumerate (vertices):
+    if vertex is not zigzag:
+      result.append (numpy.array (vertex, dtype= numpy.double))
+    else:
+      previous = numpy.array (vertices [index -1], dtype= numpy.double)
+      next = numpy.array (vertices [index +1], dtype = numpy.double)
+      delta = next - previous
+      length = numpy.linalg.norm (delta)
+      tangent = delta/length
+      normal = numpy.array ([tangent[1], - tangent[0]])
+      # because zig_length = length / (num_zigs*2),
+      # and we want a.acoustic_tile_air_gap / zig_length = a.zigzag_slope,
+      # we want a.acoustic_tile_air_gap / (length / (num_zigs*2)) = a.zigzag_slope
+      # a.acoustic_tile_air_gap*num_zigs*2 = a.zigzag_slope*length
+      # num_zigs = a.zigzag_slope*length/(a.acoustic_tile_air_gap*2)
+      num_zigs = int(round (a.zigzag_slope*length/(a.acoustic_tile_air_gap*2)))
+      zig_length = length / (num_zigs*2)
+      print(tangent, length, zig_length, normal)
+      for zig_index in range (num_zigs):
+        result.append (previous + tangent*zig_length*(zig_index+0.5)*2 + normal*a.acoustic_tile_air_gap)
+        if zig_index < num_zigs-1:
+          result.append (previous + tangent*zig_length*(zig_index+1)*2)
+  return result
+  
+outer_wall = apply_zigzag ([
     [a.exit_left, a.above_exit],
+    [a.exit_left, a.below_exit_connector],
+    zigzag,
+    [a.exit_left, a.below_fan + a.exit_radius + a.foam_restraining_lip_backoff + a.extra_exit_foam_restraining_lip_backoff + a.foam_restraining_triangle_tail],
+    zigzag,
+    [a.exit_left, a.below_fan + a.exit_radius + a.foam_restraining_lip_backoff + a.extra_exit_foam_restraining_lip_backoff],
+    zigzag,
+    [a.exit_left, a.above_fan],
+    zigzag,
     [a.exit_left, a.below_fan],
+    zigzag,
+    [a.exit_left + a.exit_radius, a.below_fan],
+    zigzag,
+    [a.exit_left + a.exit_radius + a.foam_restraining_lip_backoff, a.below_fan],
+    zigzag,
+    [a.exit_left + a.exit_radius + a.foam_restraining_lip_backoff + a.foam_restraining_triangle_tail, a.below_fan],
+    zigzag,
     [a.fan_right, a.below_fan],
+    zigzag,
     [a.fan_right, a.above_intake],
+    zigzag,
     [a.entrance_right, a.above_intake],
+    zigzag,
     [a.entrance_right, a.below_entrance],
+    zigzag,
     [a.prefilter_right, a.below_entrance],
     [a.prefilter_right, a.above_prefilter],
     [a.prefilter_right - a.prefilter_border, a.above_prefilter],
-  ]
-entrance_wall =[
-    [a.entrance_left, a.above_fan],
-    [a.entrance_left, a.above_entrance],
-    [a.prefilter_left, a.above_entrance],
-    [a.prefilter_left, a.above_prefilter],
+  ])
+entrance_wall = apply_zigzag ([
     [a.prefilter_left + a.prefilter_border, a.above_prefilter],
-  ]
-entrance_wall.reverse()
-exit_wall_partial = [
-    [a.exit_right, a.above_exit],
+    [a.prefilter_left, a.above_prefilter],
+    [a.prefilter_left, a.above_entrance],
+    zigzag,
+    [a.entrance_right, a.above_entrance],
+    zigzag,
+    [a.entrance_left, a.above_entrance],
+    zigzag,
+    [a.entrance_left, a.below_entrance],
+    zigzag,
+    [a.entrance_left, a.above_intake],
+    zigzag,
+    [a.entrance_left, a.above_fan],
+  ])
+exit_wall = apply_zigzag ([
+   [a.left_of_circular_intake - a.wall_radius, a.above_fan],
+   [a.entrance_left, a.above_fan],
+    zigzag,
     [a.exit_right, a.above_fan],
-    
-  ]
-exit_wall_partial.reverse()
-tile_stop_walls_near_prefilter_source = [
+    zigzag,
+    [a.exit_right, a.below_exit_connector],
+    [a.exit_right, a.above_exit],
+  ])
+tile_stop_walls_near_prefilter_source = apply_zigzag ([
   [a.exit_right, a.above_exit],
+  zigzag,
   [a.prefilter_left, a.above_exit],
   [a.prefilter_left, a.above_entrance],
-]
+])
 walls_source = [
   outer_wall,
-  [[a.left_of_circular_intake - a.wall_radius, a.above_fan]] + exit_wall_partial,
+  exit_wall,
   entrance_wall,
   tile_stop_walls_near_prefilter_source,
   [
@@ -117,9 +183,9 @@ walls_source = [
 ]
 exterior_walls_source = [
   outer_wall,
-  entrance_wall + exit_wall_partial,
+  entrance_wall + exit_wall[2:],
 ]
-a.floor_points = outer_wall + entrance_wall + exit_wall_partial
+a.floor_points = outer_wall + entrance_wall + exit_wall[2:]
 
 a.walls = []
 for strip in walls_source:
@@ -139,15 +205,19 @@ scad = scad_variables (vars(a)) +"""
 $fn = 64;
 module curve_flat(radius, thin_wall_thickness_override) {
   intersection() {
+    radius_boost = (thin_wall_thickness_override-thin_wall_thickness)/2;
+    outer_radius = radius + radius_boost;
+    inner_radius = outer_radius - thin_wall_thickness_override;
+    $fn=256;
     translate ([radius, radius]) difference() {
       //radius = wall_radius + acoustic_tile_air_gap;
       
-      outer_radius = radius + (thin_wall_thickness_override-thin_wall_thickness)/2;
-      inner_radius = outer_radius - thin_wall_thickness_override;
+      
       scale(outer_radius/radius) circle (r= radius ) ;
       scale(inner_radius/radius) circle (r= radius ) ;
     }
-    square(radius);
+    translate([-radius_boost,-radius_boost])
+      square(outer_radius + radius_boost);
   }
 }
 
@@ -173,25 +243,31 @@ module foam_restraining_bracket(triangle, thin_wall_thickness_override) {
   }
 }
 
-module walls_flat(thin_wall_thickness_override) {
-  for (wall = walls) {
+module naive_walls_flat(w) {
+  for (wall = w) {
     hull() {
-      translate (wall[0]) square (wall_thickness, center = true);
-      translate (wall[1]) square (wall_thickness, center = true);
+      translate (wall[0]) circle(wall_radius);
+      translate (wall[1]) circle(wall_radius);
     }
   }
-  exit_radius = foam_thickness*2 + fan_depth;
-  translate ([entrance_left, above_fan]) curve_flat (foam_thickness + min_air_passage_thickness, thin_wall_thickness_override);
-  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (foam_thickness + min_air_passage_thickness, thin_wall_thickness_override);
+}
+
+module walls_flat(thin_wall_thickness_override) {
+  naive_walls_flat(walls);
+  translate ([entrance_left, above_fan]) curve_flat (entrance_right - entrance_left, thin_wall_thickness_override);
+  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (entrance_right - entrance_left, thin_wall_thickness_override);
   translate ([exit_left, below_fan]) curve_flat (exit_radius, thin_wall_thickness_override);
   
   translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
   translate ([entrance_right+foam_restraining_lip_backoff, above_entrance]) mirror ([0, 1]) foam_restraining_bracket(false, thin_wall_thickness_override);
-  translate ([exit_left+exit_radius+foam_restraining_lip_backoff+3, below_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
-  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff+25]) mirror ([-1, 1]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([exit_left+exit_radius+foam_restraining_lip_backoff, below_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
+  translate ([exit_left, below_fan+exit_radius+foam_restraining_lip_backoff+extra_exit_foam_restraining_lip_backoff]) mirror ([-1, 1]) foam_restraining_bracket(true, thin_wall_thickness_override);
 }
 
-module floor_flat() offset (delta = wall_radius) polygon (points = floor_points);
+module floor_flat() union() {
+  polygon (points = floor_points);
+  naive_walls_flat(exterior_walls);
+}
 module interior() linear_extrude (height = total_depth, convexity = 10) floor_flat();
 
 module bump() {
@@ -221,7 +297,7 @@ module bumps()// difference()
   $fn = 8;
 
   for (wall = concat(exterior_walls, tile_stop_walls_near_prefilter)) {
-    echo(wall);
+    //echo(wall);
    center = (wall [1] + wall [0])/2;
    delta = wall [1] - wall [0];
    length = norm (delta);
@@ -240,7 +316,7 @@ module bumps()// difference()
       used_length > bump_spacing ? 2 : 1,
       1+round(used_length/between_bumps)
     );
-    echo (rows, columns);
+    //echo (rows, columns);
     for (column = [0: columns -1]) {
       horizontal_position = wall [0] + tangent*((columns <= 1) ?
         (length / 2)
@@ -339,14 +415,14 @@ union() {
   bumps();
   *grating();
 }
-*translate ([entrance_right - 5 + 5, below_fan - 5, wall_radius-.56]) cube([(fan_right - entrance_right)/2 + 10, 15, total_depth/2]);
+*translate ([entrance_right - 5 + 5, below_fan - 5, wall_radius-.56]) cube([(fan_right - entrance_right)/1 + 10, 25, total_depth/1]);
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
 
 *rotate([0, 180, 0]) intersection()
 {
 lid();
-*translate ([prefilter_left - 5, below_prefilter - 5, -100]) cube([prefilter_right - prefilter_left + 10, 30, 100+0.56]);
+*translate ([entrance_right - 5 + 5, below_fan - 5, -100]) cube([(fan_right - entrance_right)/1 + 10, 10, 100+0.56]);
 }
 
 //rotate([0, 180, 0]) lid();
