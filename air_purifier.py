@@ -256,8 +256,8 @@ module naive_walls_flat(w) {
 
 module walls_flat(thin_wall_thickness_override) {
   naive_walls_flat(walls);
-  translate ([entrance_left, above_fan]) curve_flat (entrance_right - entrance_left, thin_wall_thickness_override);
-  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (entrance_right - entrance_left, thin_wall_thickness_override);
+  translate ([entrance_left, above_fan]) curve_flat (above_intake - above_fan, thin_wall_thickness_override);
+  translate ([entrance_left, above_entrance]) mirror ([0, 1]) curve_flat (above_entrance - below_entrance, thin_wall_thickness_override);
   translate ([exit_left, below_fan]) curve_flat (exit_radius, thin_wall_thickness_override);
   
   translate ([entrance_right+foam_restraining_lip_backoff, above_fan]) foam_restraining_bracket(true, thin_wall_thickness_override);
