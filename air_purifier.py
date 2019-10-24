@@ -369,7 +369,7 @@ module prefilter_side_walls(cutaway) {
 }
 
 module all_walls() {
-  linear_extrude (height = total_depth - wall_radius, convexity = 10) walls_flat(thin_wall_thickness);
+  translate([0, 0, -wall_radius]) linear_extrude (height = total_depth, convexity = 10) walls_flat(thin_wall_thickness);
   fan_restricting_wall();
   translate ([0, 0, -wall_radius]) prefilter_side_walls(0);
 }
@@ -417,6 +417,11 @@ union() {
   all_walls();
   bumps();
   *grating();
+}
+*difference() {
+  translate ([exit_right - 5, above_fan - 5, wall_radius-.56]) cube([(left_of_circular_intake - exit_right)/1 + 10, 35, total_depth/1]);
+  translate ([entrance_right - 5, above_fan + 10, wall_radius-.56]) cube([(left_of_circular_intake - exit_right)/1 + 10, 35, total_depth/1]);
+  translate ([exit_right - 5, above_fan - 5, 25]) cube([22, 35, total_depth/1]);
 }
 *translate ([entrance_right - 5 + 5, below_fan - 5, wall_radius-.56]) cube([(fan_right - entrance_right)/1 + 10, 25, total_depth/1]);
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
