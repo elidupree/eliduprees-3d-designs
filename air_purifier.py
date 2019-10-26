@@ -375,7 +375,7 @@ module all_walls() {
 }
 
 module lid() {
-  translate([0,0,-groove_depth]) intersection() {
+  difference() {union() {translate([0,0,-groove_depth]) intersection() {
     interior();
     thickness_override = wall_thickness * 2;
     linear_extrude (height = groove_depth, convexity = 10) difference () {
@@ -384,7 +384,9 @@ module lid() {
     }
   }
   linear_extrude (height = wall_thickness, convexity = 10) floor_flat();
-  translate ([0, 0, - prefilter_border]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);
+  translate ([0, 0, - prefilter_border]) prefilter_side_walls(prefilter_border + wall_radius + wall_groove_tolerance_one_sided);}
+  translate([fan_right-1.2, below_fan+1.2]) cylinder(r=2.2, h=15, center=true);
+  }
 }
 
 module grating() {
@@ -411,7 +413,7 @@ module grating() {
 }
 
 //!bump();
-intersection() {
+*intersection() {
 union() {
   linear_extrude (height = wall_thickness, center = true, convexity = 10) floor_flat();
   all_walls();
@@ -427,9 +429,10 @@ union() {
 *translate ([prefilter_left - 5, below_prefilter - 5, wall_radius-.56]) cube([prefilter_right - prefilter_left + 10, 30, 200]);
 }
 
-*rotate([0, 180, 0]) intersection()
+rotate([0, 180, 0]) intersection()
 {
 lid();
+*translate([fan_right-1.5, below_fan+1.5]) cube([14, 14, 15], center= true);
 *translate ([entrance_right - 5 + 5, below_fan - 5, -100]) cube([(fan_right - entrance_right)/1 + 10, 10, 100+0.56]);
 }
 

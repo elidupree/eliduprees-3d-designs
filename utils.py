@@ -4,6 +4,12 @@ import json
 def normalize (vector):
   return vector/numpy.linalg.norm(vector)
   
+def linear_step(left, right, x):
+  f = (x - left) / (right - left)
+  if f <= 0: return 0
+  if f >= 1: return 1
+  return f
+    
 def smootherstep(left, right, x):
   f = (x - left) / (right - left)
   if f <= 0: return 0
