@@ -42,8 +42,8 @@ class Rectangle:
   def inner_size(self, thickness):
     if self.inner_size_source is None:
       return (
-        self.inner_size_source[0] - thickness,
-        self.inner_size_source[1] - thickness,
+        self.outer_size_source[0] - thickness,
+        self.outer_size_source[1] - thickness,
       )
     return self.inner_size_source
   
@@ -79,7 +79,7 @@ class Rectangle:
   def inner_distance(self, angle, thickness):
     return self.distance (self.inner_size(thickness), angle)
 
-def adapt_anything(first, second, thickness, num_angles, num_slices, step_function, shallowest_angle_allowed):
+def adapt_anything(first, second, thickness, num_angles, num_slices, step_function, min_height = 1, shallowest_angle_allowed = math.tau / 32):
  assert (num_slices % 2 == 1)
  a.adapter_outer_points = []
  a.adapter_inner_points = []
@@ -102,7 +102,7 @@ def adapt_anything(first, second, thickness, num_angles, num_slices, step_functi
   if slice_index == 0:
     a.adapter_faces.append (list (range (len (angles))))
   
-  vertical_position = numpy.array ([0, 0, slice_fraction])
+  vertical_position = numpy.array ([0, 0, slice_fraction*min_height])
 
   
   for side_index in range (len (angles)):
@@ -179,19 +179,97 @@ def elidupree_4in_intake():
   return Circle(inner_radius = elidupree_4in_threshold + elidupree_4in_leeway_one_sided)
 def elidupree_4in_output():
   return Circle(outer_radius = elidupree_4in_threshold - elidupree_4in_leeway_one_sided)
+def cpap_connector():
+  return Circle(outer_radius = 21.5/2)
 def hepa_filter():
   return Rectangle(inner_size=[165, 259])
-
-with open ("./target/generated.scad", "w") as file:
-  file.write (adapt_anything(
+  
+HEPA_4in_too_big = adapt_anything(
     hepa_filter(),
     elidupree_4in_output(),
     0.8,
     65,
     65,
     smootherstep,
-    math.tau/8,
-    ));
+    shallowest_angle_allowed = math.tau / 8
+    )
+HEPA_4in_component_adapt = adapt_anything(
+    elidupree_4in_output(),
+    Rectangle(outer_size=[140, 165]),
+    
+    0.8,
+    64,
+    33,
+    lambda a,b,c: smootherstep(0, 0.8, c),
+    min_height = 75,
+    )
+HEPA_4in_component = (
+ """
+elidupree_4in_threshold = 51.416;
+filter_width = 165;
+elidupree_4in_leeway_one_sided = 0.2;
+wall_thickness = 0.8;
+module outer_cylinder() cylinder (r = elidupree_4in_threshold - elidupree_4in_leeway_one_sided, h = 25);
+module inner_cylinder() cylinder (r = elidupree_4in_threshold - elidupree_4in_leeway_one_sided - wall_thickness, h = 25);
+
+diagonals_offset = 15;
+bah = 140;
+
+positions = [
+  [ bah/2-wall_thickness/2 + diagonals_offset, -diagonals_offset],
+  [ bah/2-wall_thickness/2, 0],
+  [- bah/2+wall_thickness/2, 0],
+  [- bah/2+wall_thickness/2 - diagonals_offset, - diagonals_offset],
+];
+
+module wall_circle (point) translate (point
+ //+ [0, -wall_thickness]
+) circle ( r= wall_thickness/2);
+module wall_segment (first, second) hull() { wall_circle (first); wall_circle (second);}
+
+module wall() {
+  wall_segment (positions [0], positions [1]);
+  //wall_segment (positions [1], positions [2]);
+  wall_segment (positions [2], positions [3]);
+}
+foo = 2.2;
+module wall_plus() {
+  wall();
+  //
+  //wall_segment (positions [1], positions [1] + [ foo, 0]);
+  //wall_segment (positions [2], positions [2] - [ foo, 0]);
+}
+module side_wall() {
+  rotate ([90, 0, 0]) linear_extrude (height = wall_thickness, convexity = 10, center = true) hull() wall();
+}
+
+baz = bah + (foo)*2;
+intersection() {
+difference() {
+  union() {
+    """+HEPA_4in_component_adapt+"""
+    //outer_cylinder();
+    rotate([90,0,0]) linear_extrude (height = filter_width, convexity = 10, center = true) wall_plus();
+    //translate([0, 0, -wall_thickness/2]) cube([bah+foo * 2, filter_width + foo*2, wall_thickness], center = true);
+    translate([0, 0, -foo])linear_extrude(height = foo, convexity = 10, scale = [(baz+foo * 2)/baz, (filter_width + foo*2)/filter_width]) square([baz, filter_width], center = true);
+    translate([0, -(filter_width - wall_thickness)/2,0]) side_wall();
+    translate([0, (filter_width - wall_thickness)/2,0]) side_wall();
+    //translate (-[filter_width, filter_width, 0]/2) cube ([filter_width, filter_width, wall_thickness]);
+  }
+  //inner_cylinder();
+  //translate([0, 0, -50]) cube([bah-wall_thickness*2, filter_width-wall_thickness*2, 100], center=true);
+  rotate ([90, 0, 0]) linear_extrude (height = filter_width-wall_thickness*2, convexity = 10, center = true)difference() {
+    polygon(points = positions);
+    wall();
+  }
+}
+//translate([0,0,165])cube([200, 200, 200], center = true);
+}
+
+""")
+
+with open ("./target/generated.scad", "w") as file:
+  file.write (HEPA_4in_component);
 
 print("done building air purifier stuff")
 
