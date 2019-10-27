@@ -173,8 +173,10 @@ def adapt_anything(first, second, thickness, num_angles, num_slices, step_functi
  """
 
 
-elidupree_4in_threshold = 51.416
-elidupree_4in_leeway_one_sided = 0.2
+elidupree_4in_threshold = 51.616
+elidupree_4in_leeway_one_sided = 0.12
+hepa_filter_width = 165
+hepa_filter_length = 259
 def elidupree_4in_intake():
   return Circle(inner_radius = elidupree_4in_threshold + elidupree_4in_leeway_one_sided)
 def elidupree_4in_output():
@@ -182,7 +184,7 @@ def elidupree_4in_output():
 def cpap_connector():
   return Circle(outer_radius = 21.5/2)
 def hepa_filter():
-  return Rectangle(inner_size=[165, 259])
+  return Rectangle(inner_size=[hepa_filter_width, hepa_filter_length])
   
 HEPA_4in_too_big = adapt_anything(
     hepa_filter(),
@@ -194,7 +196,7 @@ HEPA_4in_too_big = adapt_anything(
     shallowest_angle_allowed = math.tau / 8
     )
 HEPA_4in_component_adapt = adapt_anything(
-    elidupree_4in_output(),
+    elidupree_4in_intake(),
     Rectangle(outer_size=[140, 165]),
     
     0.8,
@@ -205,8 +207,8 @@ HEPA_4in_component_adapt = adapt_anything(
     )
 HEPA_4in_component = (
  """
-elidupree_4in_threshold = 51.416;
-filter_width = 165;
+elidupree_4in_threshold = """+str(elidupree_4in_threshold)+""";
+filter_width = """+str(hepa_filter_width)+""";
 elidupree_4in_leeway_one_sided = 0.2;
 wall_thickness = 0.8;
 module outer_cylinder() cylinder (r = elidupree_4in_threshold - elidupree_4in_leeway_one_sided, h = 25);
