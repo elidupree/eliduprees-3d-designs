@@ -196,7 +196,7 @@ HEPA_4in_too_big = adapt_anything(
     shallowest_angle_allowed = math.tau / 8
     )
 HEPA_4in_component_adapt = adapt_anything(
-    elidupree_4in_intake(),
+    elidupree_4in_output(),
     Rectangle(outer_size=[140, 165]),
     
     0.8,
