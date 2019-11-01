@@ -177,6 +177,7 @@ elidupree_4in_threshold = 51.616
 elidupree_4in_leeway_one_sided = 0.12
 hepa_filter_width = 165
 hepa_filter_length = 259
+dryer_hose_insert_radius = 50
 def elidupree_4in_intake():
   return Circle(inner_radius = elidupree_4in_threshold + elidupree_4in_leeway_one_sided)
 def elidupree_4in_output():
@@ -185,7 +186,29 @@ def cpap_connector():
   return Circle(outer_radius = 21.5/2)
 def hepa_filter():
   return Rectangle(inner_size=[hepa_filter_width, hepa_filter_length])
-  
+def dryer_hose_insert():
+  return Circle(outer_radius = dryer_hose_insert_radius)
+
+dryer_hose_intake_insert = adapt_anything(
+    elidupree_4in_intake(),
+    dryer_hose_insert(),
+    0.8,
+    256,
+    65,
+    lambda a,b,c: smootherstep(1/3, 2/3, c),
+    min_height = 75,
+    )
+    
+dryer_hose_output_insert = adapt_anything(
+    elidupree_4in_output(),
+    dryer_hose_insert(),
+    0.8,
+    256,
+    65,
+    lambda a,b,c: smootherstep(1/3, 2/3, c),
+    min_height = 75,
+    )
+    
 HEPA_4in_too_big = adapt_anything(
     hepa_filter(),
     elidupree_4in_output(),
@@ -271,7 +294,7 @@ difference() {
 """)
 
 with open ("./target/generated.scad", "w") as file:
-  file.write (HEPA_4in_component);
+  file.write (dryer_hose_output_insert);
 
 print("done building air purifier stuff")
 
