@@ -9,7 +9,18 @@ eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().
 exec(open(eliduprees_3d_designs_path+"freecad_autorun.py").read())
 autorun(eliduprees_3d_designs_path+"freecad_experiments.py")
 
+run(eliduprees_3d_designs_path+"freecad_experiments.py")
+
 '''
+
+import PartDesignGui
+
+def run(source_path):
+  with open (source_path) as file:
+    shared_globals = ['App', 'Log', 'Msg', 'Err', 'Wrn', 'traceback', 'FreeCADGui', 'Gui', 'Workbench', 'Part', 'PathCommandGroup', 'Sketcher', 'WebGui', 'sys', 'Start', 'StartPage', 'WebPage', 'WebView', 'webView']
+    exec (file.read(), {
+      g: globals()[g] for g in shared_globals
+    })
 
 def autorun(source_path):
  from PyQt5 import QtCore
@@ -33,11 +44,7 @@ def autorun(source_path):
     App.Console.PrintError(traceback.format_exc())
     
  def on_change(source_path):
-  with open (source_path) as file:
-    shared_globals = ['App', 'Log', 'Msg', 'Err', 'Wrn', 'traceback', 'FreeCADGui', 'Gui', 'Workbench', 'PathCommandGroup', 'WebGui', 'sys', 'Start', 'StartPage', 'WebPage', 'WebView', 'webView']
-    exec (file.read(), {
-      g: globals()[g] for g in shared_globals
-    })
+   run(source_path)
 
  if "autorun_timer" in globals():
    globals()["autorun_timer"].stop()
