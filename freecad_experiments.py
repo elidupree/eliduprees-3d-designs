@@ -33,7 +33,10 @@ App.newDocument("Something")
 
 
 band_width = 6
+band_thickness = 1
+band_leeway = 1
 claw_length = band_width + 2
+claw_deflect_distance = claw_length + 1
 flex_length = 40
 flex_thickness = 1
 flex_support_length = 6
@@ -46,8 +49,10 @@ channel_wall_thickness = 3
 deflector_peg_diameter = 2
 deflector_peg_length = 2
 deflector_thickness = 1
+deflector_slope = 0.2
 
 deflector_peg_radius = deflector_peg_diameter/2
+deflector_radius = deflector_thickness/2
 
 claw_right = 0
 claw_left = claw_right - claw_thickness
@@ -60,17 +65,27 @@ flex_top = 0
 claw_top = flex_top + claw_length
 flex_bottom = flex_top - flex_thickness
 deflector_peg_bottom = flex_top - deflector_thickness - deflector_peg_diameter
-slider_top = deflector_peg_bottom - claw_length
+slider_top = deflector_peg_bottom - claw_deflect_distance - slider_channel_tolerance
 slider_bottom = slider_top - channel_depth
 channel_floor_bottom = slider_bottom - channel_wall_thickness
 slider_vertical_middle = (slider_top + slider_bottom)/2
-deflector_peg_horizontal_middle = (claw_left + claw_right)/2
+deflector_peg_horizontal_middle = claw_left + deflector_peg_radius
+deflector_peg_vertical_middle = deflector_peg_bottom + deflector_peg_radius
 
 claw_front = - claw_width/2
 claw_back = claw_front + claw_width
 slider_protrusions_front = claw_front - deflector_peg_length
 slider_protrusions_back = claw_back + deflector_peg_length
 
+
+channel_left_stop = claw_left
+channel_right_stop = flex_support_right + motion_distance
+deflector_left_end = deflector_peg_right
+deflector_left_end_center = deflector_left_end + deflector_radius
+deflector_fully_down = claw_right + band_thickness*2 + band_leeway*2 + (deflector_peg_horizontal_middle - claw_left)
+deflector_right_end_center = deflector_fully_down + claw_deflect_distance/deflector_slope
+releaser_fully_down = claw_left + motion_distance
+releaser_left_end_center = releaser_fully_down - claw_deflect_distance/deflector_slope
 
 slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
   start_at (flex_support_right, slider_bottom),
@@ -80,10 +95,11 @@ slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, 
   vertical_to (claw_top), horizontal_to (claw_right), vertical_to (flex_top), horizontal_to (flex_support_right), close()
 ])
 
-slider_part = Part.Face (Part.Wire (slider_shape.Edges)).extrude (FreeCAD.Vector (0, 0, claw_width))
+slider_main_part = Part.Face (Part.Wire (slider_shape.Edges)).extrude (FreeCAD.Vector (0, 0, claw_width))
 
 slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (claw_left, whatever [1], whatever [0])).build ([
-  start_at(claw_front, slider_top), horizontal_to (claw_back),
+  start_at(claw_front, slider_top),
+  horizontal_to (claw_back),
   diagonal_to (slider_protrusions_back, slider_vertical_middle),
   diagonal_to (claw_back, slider_bottom),
   horizontal_to (claw_front),
@@ -91,11 +107,68 @@ slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (claw_lef
   close(),
 ])
 
-
 slider_triangle_part = Part.Face (Part.Wire (slider_triangle_shape.Edges)).extrude (FreeCAD.Vector (flex_support_right - claw_left, 0, 0))
 
+deflector_peg_part = Part.makeCylinder (
+  deflector_peg_radius, claw_width + deflector_peg_length*2,
+  vector (deflector_peg_horizontal_middle, deflector_peg_vertical_middle, claw_front - deflector_peg_length),
+  vector (0, 0, 1),
+)
+
+#document().addObject ("Part::MultiFuse", "slider_part").Shapes=[slider_main_part, slider_triangle_part, deflector_peg_part]
+
+#Part.show (document().slider_part)
+#Part.show (slider_triangle_part)
+
+slider_part = slider_main_part.fuse ((slider_triangle_part, deflector_peg_part))
+
+
+wide_channel_shape = FreeCAD_shape_builder (lambda whatever: vector (channel_left_stop, whatever [1], whatever [0])).build ([
+  start_at(claw_front, slider_top),
+  horizontal_to (slider_protrusions_front),
+  vertical_to (flex_bottom),
+  horizontal_to (slider_protrusions_back),
+  vertical_to (slider_top),
+  horizontal_to (claw_back),
+  diagonal_to (slider_protrusions_back, slider_vertical_middle),
+  diagonal_to (claw_back, slider_bottom),
+  horizontal_to (claw_front),
+  diagonal_to (slider_protrusions_front, slider_vertical_middle),
+  close(),
+])
+wide_channel_wire = Part.Wire (wide_channel_shape.Edges)
+wide_channel_wire = wide_channel_wire.makeOffset2D (slider_channel_tolerance)
+wide_channel_part = Part.Face (wide_channel_wire).extrude (FreeCAD.Vector (channel_right_stop - channel_left_stop, 0, 0))
+
+narrow_channel_shape = FreeCAD_shape_builder (lambda whatever: vector (channel_left_stop, whatever [1], whatever [0])).build ([
+  start_at(claw_front, slider_top),
+  vertical_to (flex_top),
+  horizontal_to (claw_back),
+  vertical_to (slider_top),
+  diagonal_to (slider_protrusions_back, slider_vertical_middle),
+  diagonal_to (claw_back, slider_bottom),
+  horizontal_to (claw_front),
+  diagonal_to (slider_protrusions_front, slider_vertical_middle),
+  close(),
+])
+narrow_channel_wire = Part.Wire (narrow_channel_shape.Edges)
+narrow_channel_wire = narrow_channel_wire.makeOffset2D (slider_channel_tolerance)
+narrow_channel_part = Part.Face (narrow_channel_wire).extrude (FreeCAD.Vector (channel_right_stop - channel_left_stop, 0, 0))
+
+body_part = Part.makeBox (
+  channel_right_stop - channel_left_stop + channel_wall_thickness,
+  flex_top - slider_bottom + channel_wall_thickness,
+  slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2)
+body_part.translate (vector (
+  channel_left_stop - channel_wall_thickness,
+  slider_bottom - channel_wall_thickness,
+  slider_protrusions_front - channel_wall_thickness))
+body_part = body_part.cut(wide_channel_part).cut(narrow_channel_part)
+
 Part.show (slider_part)
-Part.show (slider_triangle_part)
+
+Part.show (body_part)
+
 
 '''document().addObject ("PartDesign::Body", "Body")
 document().Body.newObject ("Sketcher::SketchObject", "Sketch")
