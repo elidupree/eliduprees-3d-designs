@@ -13,10 +13,16 @@ import time
 time.sleep(5)'''
 
 import PartDesignGui
+import importlib
+import shape_builder
+importlib.reload(shape_builder)
+from shape_builder import *
 
 FreeCAD = App
 def document():
   return App.activeDocument()
+def vector(*arguments):
+  return FreeCAD.Vector (*arguments)
 
 for document_name in list(FreeCAD.listDocuments().keys()):
   FreeCAD.closeDocument (document_name)
@@ -45,24 +51,53 @@ deflector_peg_radius = deflector_peg_diameter/2
 
 claw_right = 0
 claw_left = claw_right - claw_thickness
+deflector_peg_left = claw_left
+deflector_peg_right = deflector_peg_left + deflector_peg_diameter
 flex_right = claw_right + flex_length
 flex_support_right = flex_right + flex_support_length
 
 flex_top = 0
 claw_top = flex_top + claw_length
 flex_bottom = flex_top - flex_thickness
-peg_bottom = flex_top - deflector_thickness - deflector_peg_diameter
-slider_top = peg_bottom - claw_length
+deflector_peg_bottom = flex_top - deflector_thickness - deflector_peg_diameter
+slider_top = deflector_peg_bottom - claw_length
 slider_bottom = slider_top - channel_depth
 channel_floor_bottom = slider_bottom - channel_wall_thickness
 slider_vertical_middle = (slider_top + slider_bottom)/2
+deflector_peg_horizontal_middle = (claw_left + claw_right)/2
 
 claw_front = - claw_width/2
 claw_back = claw_front + claw_width
 slider_protrusions_front = claw_front - deflector_peg_length
 slider_protrusions_back = claw_back + deflector_peg_length
 
-document().addObject ("PartDesign::Body", "Body")
+
+slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
+  start_at (flex_support_right, slider_bottom),
+  horizontal_to (claw_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (deflector_peg_right),
+  vertical_to (deflector_peg_bottom + deflector_peg_radius),
+  arc_through_to ((deflector_peg_horizontal_middle, deflector_peg_bottom), (deflector_peg_left, deflector_peg_bottom + deflector_peg_radius)),
+  vertical_to (claw_top), horizontal_to (claw_right), vertical_to (flex_top), horizontal_to (flex_support_right), close()
+])
+
+slider_part = Part.Face (Part.Wire (slider_shape.Edges)).extrude (FreeCAD.Vector (0, 0, claw_width))
+
+slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (claw_left, whatever [1], whatever [0])).build ([
+  start_at(claw_front, slider_top), horizontal_to (claw_back),
+  diagonal_to (slider_protrusions_back, slider_vertical_middle),
+  diagonal_to (claw_back, slider_bottom),
+  horizontal_to (claw_front),
+  diagonal_to (slider_protrusions_front, slider_vertical_middle),
+  close(),
+])
+
+
+slider_triangle_part = Part.Face (Part.Wire (slider_triangle_shape.Edges)).extrude (FreeCAD.Vector (flex_support_right - claw_left, 0, 0))
+
+Part.show (slider_part)
+Part.show (slider_triangle_part)
+
+'''document().addObject ("PartDesign::Body", "Body")
 document().Body.newObject ("Sketcher::SketchObject", "Sketch")
 #document().Sketch.Support = (App.activeDocument().XY_Plane, [''])
 #document().Sketch.MapMode = "FlatFace"
@@ -176,7 +211,7 @@ add_constraint ("Coincident", last, 2, 0, 1)
 
 document().Body.newObject ("PartDesign::Pad", "slider_triangle_pad")
 document().slider_triangle_pad.Profile = document().slider_triangle_sketch
-document().slider_triangle_pad.Length = flex_support_right - claw_left
+document().slider_triangle_pad.Length = flex_support_right - claw_left'''
 
 #object = document.addObject("Part::Box","Box")
 #object.Label = "Cube"
@@ -185,6 +220,6 @@ document().slider_triangle_pad.Length = flex_support_right - claw_left
 
 document().recompute()
 #Gui.SendMsgToActiveView("ViewFit")
-Gui.activeDocument().setEdit("Sketch")
+#Gui.activeDocument().setEdit("Sketch")
 #Gui.activeDocument().activeView().viewIsometric()
 

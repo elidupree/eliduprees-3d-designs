@@ -14,13 +14,15 @@ eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().
 '''
 
 import PartDesignGui
+import sys
 
 '''import os.path
-
 if "eliduprees_3d_designs_path" not in globals():
   if os.path.isdir("/n/elidupree-autobuild"):
-    eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().strip() + "/eliduprees-3d-designs/"
-  '''
+    eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().strip() + "/eliduprees-3d-designs/"'''
+
+if eliduprees_3d_designs_path not in sys.path:
+  sys.path.append(eliduprees_3d_designs_path)
 
 def run(source_path):
   with open (source_path) as file:
