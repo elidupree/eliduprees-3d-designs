@@ -9,11 +9,18 @@ eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().
 exec(open(eliduprees_3d_designs_path+"freecad_autorun.py").read())
 autorun(eliduprees_3d_designs_path+"freecad_experiments.py")
 
-run(eliduprees_3d_designs_path+"freecad_experiments.py")
+eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().strip() + "/eliduprees-3d-designs/"; exec(open(eliduprees_3d_designs_path+"freecad_autorun.py").read()); run(eliduprees_3d_designs_path+"freecad_experiments.py")
 
 '''
 
 import PartDesignGui
+
+'''import os.path
+
+if "eliduprees_3d_designs_path" not in globals():
+  if os.path.isdir("/n/elidupree-autobuild"):
+    eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().strip() + "/eliduprees-3d-designs/"
+  '''
 
 def run(source_path):
   with open (source_path) as file:
