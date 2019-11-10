@@ -62,6 +62,7 @@ deflector_radius = deflector_thickness/2
 
 claw_right = 0
 claw_left = claw_right - claw_thickness
+slider_left = claw_left - flex_perpendicular_leeway/2
 deflector_peg_left = claw_left
 deflector_peg_right = deflector_peg_left + deflector_peg_diameter
 claw_solid_right = claw_left + claw_solid_length
@@ -89,7 +90,7 @@ slider_protrusions_front = claw_front - deflector_peg_length
 slider_protrusions_back = claw_back + deflector_peg_length
 
 
-channel_left_stop = claw_left - flex_perpendicular_leeway/2
+channel_left_stop = slider_left
 channel_right_stop = flex_support_right + motion_distance
 deflector_left_end = deflector_peg_right + flex_perpendicular_leeway/2
 deflector_left_end_center = deflector_left_end + deflector_radius
@@ -101,7 +102,7 @@ releaser_right_end_center = releaser_fully_down_horizontal + releaser_extra_leng
 
 slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
   start_at (flex_support_right, slider_bottom),
-  horizontal_to (claw_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (flex_left), diagonal_to (claw_solid_right, claw_solid_bottom), horizontal_to (deflector_peg_right),
+  horizontal_to (slider_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (flex_left), diagonal_to (claw_solid_right, claw_solid_bottom), horizontal_to (deflector_peg_right),
   
   #vertical_to (deflector_peg_bottom + deflector_peg_radius),
   #arc_through_to ((deflector_peg_horizontal_middle, deflector_peg_bottom), (deflector_peg_left, deflector_peg_bottom + deflector_peg_radius)),
@@ -113,7 +114,7 @@ slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, 
 
 slider_main_part = Part.Face (Part.Wire (slider_shape.Edges)).extrude (FreeCAD.Vector (0, 0, claw_width))
 
-slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (claw_left, whatever [1], whatever [0])).build ([
+slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (slider_left, whatever [1], whatever [0])).build ([
   start_at(claw_front, slider_top),
   horizontal_to (claw_back),
   diagonal_to (slider_protrusions_back, slider_vertical_middle),
@@ -123,7 +124,7 @@ slider_triangle_shape = FreeCAD_shape_builder (lambda whatever: vector (claw_lef
   close(),
 ])
 
-slider_triangle_part = Part.Face (Part.Wire (slider_triangle_shape.Edges)).extrude (FreeCAD.Vector (flex_support_right - claw_left, 0, 0))
+slider_triangle_part = Part.Face (Part.Wire (slider_triangle_shape.Edges)).extrude (FreeCAD.Vector (flex_support_right - slider_left, 0, 0))
 
 deflector_peg_part = Part.makeCylinder (
   deflector_peg_radius, claw_width + deflector_peg_length*2,
