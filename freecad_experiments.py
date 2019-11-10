@@ -132,11 +132,6 @@ deflector_peg_part = Part.makeCylinder (
   vector (0, 0, 1),
 )
 
-#document().addObject ("Part::MultiFuse", "slider_part").Shapes=[slider_main_part, slider_triangle_part, deflector_peg_part]
-
-#Part.show (document().slider_part)
-#Part.show (slider_triangle_part)
-
 slider_part = slider_main_part.fuse ((slider_triangle_part, deflector_peg_part))
 FreeCAD.Console.PrintMessage ([edge
   for edge in slider_part.Edges
@@ -202,9 +197,6 @@ deflector_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 
   start_at (deflector_left_end_center, deflector_fully_down_center),
   horizontal_to (deflector_fully_down_horizontal),
   diagonal_to (deflector_right_end_center, deflector_top_center),
-  #start_at (channel_right_stop, deflector_fully_down_center),
-  #horizontal_to (releaser_fully_down_horizontal),
-  #diagonal_to (releaser_left_end_center, deflector_top_center),
 ])
 deflector_wire = Part.Wire (deflector_shape.Edges).makeOffset2D (deflector_radius)
 deflector_part = Part.Face (deflector_wire).extrude (FreeCAD.Vector (0, 0, slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2))
@@ -231,142 +223,11 @@ Part.show (slider_part, "SliderSquare")
 
 Part.show (body_part)
 
-'''document().addObject ("Part::Fillet", "Slider")
-document().Slider.Base = document().SliderSquare
-FreeCAD.Console.PrintMessage ([(index, 1.0, 1.0)
-  for index, edge in enumerate (document().SliderSquare.Shape.Edges)
-  if FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox) or FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)])
-document().Slider.Edges = [(22, 1.0, 1.0)]
-[(index, 1.0, 1.0)
-  for index, edge in enumerate (document().SliderSquare.Shape.Edges)
-  if FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox) or FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)]
-Gui.ActiveDocument.SliderSquare.Visibility = False'''
-
 crop_box = Part.makeBox (5, 100, 100)
 crop_box.translate (vector (5, -50, -50))
 Part.show (body_part.common(crop_box))
 
 
-'''document().addObject ("PartDesign::Body", "Body")
-document().Body.newObject ("Sketcher::SketchObject", "Sketch")
-#document().Sketch.Support = (App.activeDocument().XY_Plane, [''])
-#document().Sketch.MapMode = "FlatFace"
-current_sketch = "Sketch"
-
-hack_offset = 0
-def add_geometry(geometry, *constraints, coincident = True):
-  index = document().getObject (current_sketch).GeometryCount
-  document().getObject (current_sketch).addGeometry (geometry, False)
-  if index > 0 and coincident:
-    add_constraint ("Coincident", index - 1, 2, index, 1);
-  for constraint in constraints:
-    if isinstance(constraint, str):
-      constraint = [constraint]
-    else:
-      constraint = list(constraint)
-    constraint.insert(1, index)
-    add_constraint (*constraint);
-  return index
-
-def add_line(*constraints, **kwargs):
-  global hack_offset
-  hack_offset += 1
-  line = Part.LineSegment (FreeCAD.Vector (-5+hack_offset, 23+hack_offset), FreeCAD.Vector (-5+hack_offset*2, -4+hack_offset))
-  return add_geometry(line, *constraints, **kwargs)
-
-
-
-def vertical_to(coordinate, **kwargs):
-  global hack_offset
-  hack_offset += 1
-  line = Part.LineSegment (FreeCAD.Vector (-5+hack_offset, 23+hack_offset), FreeCAD.Vector (-5+hack_offset*2, coordinate))
-  index = add_geometry(line, "Vertical", **kwargs)
-  add_constraint ("DistanceY", index, 2, coordinate)
-  return index
-
-
-def horizontal_to(coordinate, **kwargs):
-  global hack_offset
-  hack_offset += 1
-  line = Part.LineSegment (FreeCAD.Vector (-5+hack_offset, 23+hack_offset), FreeCAD.Vector (coordinate, -5+hack_offset*2))
-  index = add_geometry(line, "Horizontal", **kwargs)
-  add_constraint ("DistanceX", index, 2, coordinate)
-  return index
-  
-def diagonal_to(*coordinates, **kwargs):
-  global hack_offset
-  hack_offset += 1
-  line = Part.LineSegment (FreeCAD.Vector (-5+hack_offset, 23+hack_offset), FreeCAD.Vector (coordinates [0], coordinates [1]))
-  index = add_geometry(line, **kwargs)
-  add_constraint ("DistanceX", index, 2, coordinates [0])
-  add_constraint ("DistanceY", index, 2, coordinates [1])
-  return index
-  
-
-def add_arc(*constraints, **kwargs):
-  global hack_offset
-  hack_offset += 1
-  arc = Part.ArcOfCircle(Part.Circle(FreeCAD.Vector (-5+hack_offset, 23+hack_offset*1.1, 0), FreeCAD.Vector (0,0,1), 2+hack_offset), 2+hack_offset*1.2, 3+hack_offset*1.3)
-  return add_geometry(arc, *constraints, **kwargs)
-  
-def add_constraint(*args):
-  document().getObject (current_sketch).addConstraint(Sketcher.Constraint (*args))
-
-slider_bottom_line = horizontal_to (claw_left)
-#add_constraint ("DistanceY", slider_bottom_line, 1, slider_bottom);
-slider_left_line = vertical_to (slider_top)
-slider_top_line = horizontal_to (flex_right)
-flex_support_left_line = vertical_to (flex_bottom)
-#flex_inner_arc = add_arc(coincident = False)
-#add_constraint ("DistanceY", flex_inner_arc, 2, flex_bottom);
-#add_constraint ("DistanceX", flex_inner_arc, 2, flex_right);
-flex_bottom_line = horizontal_to (claw_right)
-peg_right_line = vertical_to (peg_bottom)
-peg_bottom_line = horizontal_to (claw_left)
-claw_left_line = vertical_to (claw_top)
-claw_top_line = horizontal_to (claw_right)
-claw_right_line = vertical_to (flex_top)
-flex_top_line = horizontal_to (flex_support_right)
-flex_support_right_line = vertical_to (slider_bottom)
-#flex_outer_arc = add_arc(coincident = False)
-#add_constraint ("DistanceY", flex_outer_arc, 2, slider_bottom);
-#add_constraint ("DistanceX", flex_outer_arc, 2, flex_right);
-
-add_constraint ("Coincident", flex_support_right_line, 2, slider_bottom_line, 1)
-
-#add_constraint ("DistanceX", flex_bottom, 1, flex_top, 2, 0);
-#add_constraint ("DistanceX", flex_bottom, 2, flex_top, 1, 0);
-#add_constraint ("DistanceY", flex_top, 1, flex_bottom, 1, flex_thickness);
-#add_constraint ("DistanceY", peg_bottom, 1, slider_top, 1, claw_length);
-#add_constraint ("DistanceY", peg_bottom, 1, flex_top, 1, deflector_thickness + deflector_peg_diameter);
-#add_constraint ("Tangent", flex_outer_arc, 1, flex_top_line, 2);
-#add_constraint ("Tangent", flex_inner_arc, 2, flex_bottom_line, 1);
-#add_constraint ("Tangent", slider_top_line, 2, flex_inner_arc, 1);
-
-document().Body.newObject ("PartDesign::Pad", "slider_pad")
-document().slider_pad.Profile = document().Sketch
-document().slider_pad.Length = claw_width
-
-
-document().Body.newObject ("Sketcher::SketchObject", "slider_triangle_sketch")
-current_sketch = "slider_triangle_sketch"
-document().slider_triangle_sketch.Support = (document().YZ_Plane, [""])
-horizontal_to (claw_back)
-diagonal_to (slider_protrusions_back, slider_vertical_middle)
-diagonal_to (claw_back, slider_bottom)
-horizontal_to (claw_front)
-diagonal_to (slider_protrusions_front, slider_vertical_middle)
-last = diagonal_to (claw_front, slider_top)
-add_constraint ("Coincident", last, 2, 0, 1)
-
-document().Body.newObject ("PartDesign::Pad", "slider_triangle_pad")
-document().slider_triangle_pad.Profile = document().slider_triangle_sketch
-document().slider_triangle_pad.Length = flex_support_right - claw_left'''
-
-#object = document.addObject("Part::Box","Box")
-#object.Label = "Cube"
-
-#App.getDocument("Something").Cut.Placement=App.Placement(App.Vector(5,0,0), App.Rotation(App.Vector(0,0,1),0), App.Vector(0,0,0))
 
 document().recompute()
 #Gui.SendMsgToActiveView("ViewFit")
