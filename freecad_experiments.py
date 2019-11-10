@@ -49,6 +49,7 @@ motion_distance = 100
 channel_depth = 6
 slider_channel_tolerance = 0.4
 channel_wall_thickness = 3
+channel_stop_thickness = 0.5
 deflector_peg_diameter = 2
 deflector_peg_length = 2
 deflector_thickness = 1
@@ -96,7 +97,7 @@ deflector_fully_down_horizontal = claw_right + band_thickness*2 + band_leeway*2 
 deflector_right_end_center = deflector_fully_down_horizontal + claw_deflect_distance/deflector_slope
 releaser_fully_down_horizontal = deflector_peg_horizontal_middle + motion_distance
 releaser_left_end_center = releaser_fully_down_horizontal - claw_deflect_distance/releaser_slope
-releaser_right_end_center = releaser_fully_down_horizontal + releasor_extra_length
+releaser_right_end_center = releaser_fully_down_horizontal + release r_extra_length
 
 slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
   start_at (flex_support_right, slider_bottom),
@@ -156,11 +157,11 @@ edges = [edge
 slider_part = slider_part.makeFillet(1, edges) #[slider_part.Edges [index] for index in range (0, len (slider_part.Edges), 3)])
 
 channel_box = Part.makeBox (
-  channel_right_stop - channel_left_stop + channel_wall_thickness,
+  channel_right_stop - channel_left_stop + channel_stop_thickness,
   flex_top - slider_bottom + channel_wall_thickness,
   slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2)
 channel_box.translate (vector (
-  channel_left_stop - channel_wall_thickness,
+  channel_left_stop - channel_stop_thickness,
   slider_bottom - channel_wall_thickness,
   slider_protrusions_front - channel_wall_thickness))
 
