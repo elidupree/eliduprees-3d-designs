@@ -37,14 +37,16 @@ band_thickness = 1
 band_leeway = 1
 claw_length = band_width + 2
 claw_deflect_distance = claw_length + 1
-flex_length = 40
+claw_arm_length = 40
+claw_solid_length = 18
+flex_length = 12
 flex_thickness = 1
 flex_support_length = 6
 claw_thickness = 2
 claw_width = 6
 motion_distance = 100
 channel_depth = 6
-slider_channel_tolerance = 0.2
+slider_channel_tolerance = 0.4
 channel_wall_thickness = 3
 deflector_peg_diameter = 2
 deflector_peg_length = 2
@@ -58,13 +60,16 @@ claw_right = 0
 claw_left = claw_right - claw_thickness
 deflector_peg_left = claw_left
 deflector_peg_right = deflector_peg_left + deflector_peg_diameter
-flex_right = claw_right + flex_length
+claw_solid_right = claw_left + claw_solid_length
+flex_right = claw_right + claw_arm_length
+flex_left = flex_right - flex_length
 flex_support_right = flex_right + flex_support_length
 
 flex_top = 0
 claw_top = flex_top + claw_length
 flex_bottom = flex_top - flex_thickness
-deflector_peg_bottom = flex_top - deflector_thickness - deflector_peg_diameter
+claw_solid_bottom = flex_top - claw_thickness
+deflector_peg_bottom = flex_top - deflector_thickness - deflector_peg_diameter - slider_channel_tolerance
 slider_top = deflector_peg_bottom - claw_deflect_distance - slider_channel_tolerance
 slider_bottom = slider_top - channel_depth
 channel_floor_bottom = slider_bottom - channel_wall_thickness
@@ -89,7 +94,7 @@ releaser_left_end_center = releaser_fully_down - claw_deflect_distance/deflector
 
 slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
   start_at (flex_support_right, slider_bottom),
-  horizontal_to (claw_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (deflector_peg_right),
+  horizontal_to (claw_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (flex_left), diagonal_to (claw_solid_right, claw_solid_bottom), horizontal_to (deflector_peg_right),
   vertical_to (deflector_peg_bottom + deflector_peg_radius),
   arc_through_to ((deflector_peg_horizontal_middle, deflector_peg_bottom), (deflector_peg_left, deflector_peg_bottom + deflector_peg_radius)),
   vertical_to (claw_top), horizontal_to (claw_right), vertical_to (flex_top), horizontal_to (flex_support_right), close()
@@ -121,12 +126,31 @@ deflector_peg_part = Part.makeCylinder (
 #Part.show (slider_triangle_part)
 
 slider_part = slider_main_part.fuse ((slider_triangle_part, deflector_peg_part))
+FreeCAD.Console.PrintMessage ([edge
+  for edge in slider_part.Edges
+  if FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox) or FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)])
+edges = [edge
+  for edge in slider_part.Edges
+  if #FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox)
+  # or
+   FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)
+  #and not
+   or FreeCAD.BoundBox (claw_right, claw_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox)
+   or FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 0).isInside (edge.BoundBox)
+   or FreeCAD.BoundBox (claw_right, flex_top, 0, claw_right, claw_top, 100).isInside (edge.BoundBox)
+   or FreeCAD.BoundBox (claw_left, claw_top, -100, claw_right, claw_top, 0).isInside (edge.BoundBox)
+   or FreeCAD.BoundBox (claw_left, claw_top, 0, claw_right, claw_top, 100).isInside (edge.BoundBox)
+   
+  ]
+
+slider_part = slider_part.makeFillet(1, edges) #[slider_part.Edges [index] for index in range (0, len (slider_part.Edges), 3)])
+
 
 
 wide_channel_shape = FreeCAD_shape_builder (lambda whatever: vector (channel_left_stop, whatever [1], whatever [0])).build ([
   start_at(claw_front, slider_top),
   horizontal_to (slider_protrusions_front),
-  vertical_to (flex_bottom),
+  vertical_to (flex_top),
   horizontal_to (slider_protrusions_back),
   vertical_to (slider_top),
   horizontal_to (claw_back),
@@ -165,9 +189,25 @@ body_part.translate (vector (
   slider_protrusions_front - channel_wall_thickness))
 body_part = body_part.cut(wide_channel_part).cut(narrow_channel_part)
 
-Part.show (slider_part)
 
-Part.show (body_part)
+Part.show (slider_part, "SliderSquare")
+
+#Part.show (body_part)
+
+'''document().addObject ("Part::Fillet", "Slider")
+document().Slider.Base = document().SliderSquare
+FreeCAD.Console.PrintMessage ([(index, 1.0, 1.0)
+  for index, edge in enumerate (document().SliderSquare.Shape.Edges)
+  if FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox) or FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)])
+document().Slider.Edges = [(22, 1.0, 1.0)]
+[(index, 1.0, 1.0)
+  for index, edge in enumerate (document().SliderSquare.Shape.Edges)
+  if FreeCAD.BoundBox (claw_right, flex_top, -100, claw_right, claw_top, 100).isInside (edge.BoundBox) or FreeCAD.BoundBox (flex_right, flex_bottom, -100, flex_right, flex_bottom, 100).isInside (edge.BoundBox)]
+Gui.ActiveDocument.SliderSquare.Visibility = False'''
+
+crop_box = Part.makeBox (5, 100, 100)
+crop_box.translate (vector (5, -50, -50))
+Part.show (body_part.common(crop_box))
 
 
 '''document().addObject ("PartDesign::Body", "Body")
