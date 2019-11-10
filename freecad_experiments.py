@@ -35,7 +35,7 @@ layer_height = 0.12
 band_width = 6
 band_thickness = 1
 band_leeway = 1
-flex_perpendicular_leeway = 2
+flex_perpendicular_leeway = 3
 claw_length = band_width + 2
 claw_deflect_distance = claw_length + 1
 claw_arm_length = 40
@@ -50,7 +50,7 @@ channel_depth = 6
 slider_channel_tolerance = 0.4
 channel_wall_thickness = 3
 channel_stop_thickness = 0.5
-deflector_peg_diameter = 2
+deflector_peg_diameter = 3
 deflector_peg_length = 2
 deflector_thickness = 1
 deflector_slope = 0.2
@@ -89,15 +89,15 @@ slider_protrusions_front = claw_front - deflector_peg_length
 slider_protrusions_back = claw_back + deflector_peg_length
 
 
-channel_left_stop = claw_left
+channel_left_stop = claw_left - flex_perpendicular_leeway/2
 channel_right_stop = flex_support_right + motion_distance
-deflector_left_end = deflector_peg_right + flex_perpendicular_leeway
+deflector_left_end = deflector_peg_right + flex_perpendicular_leeway/2
 deflector_left_end_center = deflector_left_end + deflector_radius
 deflector_fully_down_horizontal = claw_right + band_thickness*2 + band_leeway*2 + (deflector_peg_horizontal_middle - claw_left)
 deflector_right_end_center = deflector_fully_down_horizontal + claw_deflect_distance/deflector_slope
 releaser_fully_down_horizontal = deflector_peg_horizontal_middle + motion_distance
 releaser_left_end_center = releaser_fully_down_horizontal - claw_deflect_distance/releaser_slope
-releaser_right_end_center = releaser_fully_down_horizontal + release r_extra_length
+releaser_right_end_center = releaser_fully_down_horizontal + releaser_extra_length
 
 slider_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, claw_front)).build ([
   start_at (flex_support_right, slider_bottom),
@@ -154,7 +154,7 @@ edges = [edge
    
   ]
 
-slider_part = slider_part.makeFillet(1, edges) #[slider_part.Edges [index] for index in range (0, len (slider_part.Edges), 3)])
+slider_part = slider_part.makeFillet(1.5, edges) #[slider_part.Edges [index] for index in range (0, len (slider_part.Edges), 3)])
 
 channel_box = Part.makeBox (
   channel_right_stop - channel_left_stop + channel_stop_thickness,
