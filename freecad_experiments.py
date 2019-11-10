@@ -31,7 +31,7 @@ for document_name in list(FreeCAD.listDocuments().keys()):
 App.newDocument("Something")
 #App.setActiveDocument("Something")
 
-
+layer_height = 0.12
 band_width = 6
 band_thickness = 1
 band_leeway = 1
@@ -214,7 +214,13 @@ releaser_wire = Part.Wire (releaser_shape.Edges).makeOffset2D (deflector_radius)
 releaser_part = Part.Face (releaser_wire).extrude (FreeCAD.Vector (0, 0, slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2)).common (channel_box)
 
 
-body_part = channel_box.cut(wide_channel_part).fuse ((deflector_part, releaser_part)).cut(narrow_channel_part)
+deflector_sacrificial_bridges_wire = Part.Wire (deflector_shape.Edges).makeOffset2D (layer_height/2)
+releaser_sacrificial_bridges_wire = Part.Wire (releaser_shape.Edges).makeOffset2D (layer_height/2)
+
+sacrificial_bridges_part = Part.Face (deflector_sacrificial_bridges_wire).fuse (Part.Face ( releaser_sacrificial_bridges_wire)).extrude (FreeCAD.Vector (0, 0, slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2)).common (channel_box)
+sacrificial_bridges_part.translate (vector (0, - deflector_radius + layer_height/2, 0))
+
+body_part = channel_box.cut(wide_channel_part).fuse ((deflector_part, releaser_part)).cut(narrow_channel_part).fuse (sacrificial_bridges_part)
 
 
 Part.show (slider_part, "SliderSquare")
