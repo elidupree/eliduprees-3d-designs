@@ -34,6 +34,8 @@ App.newDocument("Something")
 layer_height = 0.12
 band_width = 6
 band_thickness = 1
+band_slack_length = 90
+band_lengthwise_stretch_distance = 100
 band_leeway = 1
 flex_perpendicular_leeway = 3
 claw_length = band_width + 2
@@ -48,6 +50,7 @@ claw_width = 6
 motion_distance = 100
 channel_depth = 6
 slider_channel_tolerance = 0.4
+additional_deflector_leeway = 0.3
 channel_wall_thickness = 3
 channel_stop_thickness = 0.5
 deflector_peg_diameter = 3
@@ -56,6 +59,7 @@ deflector_thickness = 1
 deflector_slope = 0.2
 releaser_slope = 0.6
 releaser_extra_length = 5
+sacrifical_bridges_radius = layer_height / 2
 
 deflector_peg_radius = deflector_peg_diameter/2
 deflector_radius = deflector_thickness/2
@@ -183,14 +187,10 @@ narrow_channel_shape = FreeCAD_shape_builder (lambda whatever: vector (channel_l
   vertical_to (flex_top),
   horizontal_to (claw_back),
   vertical_to (slider_top),
-  diagonal_to (slider_protrusions_back, slider_vertical_middle),
-  diagonal_to (claw_back, slider_bottom),
-  horizontal_to (claw_front),
-  diagonal_to (slider_protrusions_front, slider_vertical_middle),
   close(),
 ])
 narrow_channel_wire = Part.Wire (narrow_channel_shape.Edges)
-narrow_channel_wire = narrow_channel_wire.makeOffset2D (slider_channel_tolerance)
+narrow_channel_wire = narrow_channel_wire.makeOffset2D (slider_channel_tolerance + additional_deflector_leeway)
 narrow_channel_part = Part.Face (narrow_channel_wire).extrude (FreeCAD.Vector (channel_right_stop - channel_left_stop, 0, 0))
 
 deflector_shape = FreeCAD_shape_builder (lambda whatever: whatever + vector (0, 0, slider_protrusions_front - channel_wall_thickness)).build ([
@@ -210,11 +210,11 @@ releaser_wire = Part.Wire (releaser_shape.Edges).makeOffset2D (deflector_radius)
 releaser_part = Part.Face (releaser_wire).extrude (FreeCAD.Vector (0, 0, slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2))
 
 
-deflector_sacrificial_bridges_wire = Part.Wire (deflector_shape.Edges).makeOffset2D (layer_height/2)
-releaser_sacrificial_bridges_wire = Part.Wire (releaser_shape.Edges).makeOffset2D (layer_height/2)
+deflector_sacrificial_bridges_wire = Part.Wire (deflector_shape.Edges).makeOffset2D (sacrifical_bridges_radius)
+releaser_sacrificial_bridges_wire = Part.Wire (releaser_shape.Edges).makeOffset2D (sacrifical_bridges_radius)
 
 sacrificial_bridges_part = Part.Face (deflector_sacrificial_bridges_wire).fuse (Part.Face ( releaser_sacrificial_bridges_wire)).extrude (FreeCAD.Vector (0, 0, slider_protrusions_back - slider_protrusions_front + channel_wall_thickness*2))
-sacrificial_bridges_part.translate (vector (0, - deflector_radius + layer_height/2, 0))
+sacrificial_bridges_part.translate (vector (0, - deflector_radius + sacrifical_bridges_radius, 0))
 
 body_part = channel_box.cut(wide_channel_part).fuse ((deflector_part, releaser_part)).cut(narrow_channel_part).fuse (sacrificial_bridges_part)
 
@@ -223,7 +223,7 @@ Part.show (slider_part, "SliderSquare")
 
 Part.show (body_part)
 
-crop_box = Part.makeBox (5, 100, 100)
+crop_box = Part.makeBox (5, 45, 100)
 crop_box.translate (vector (5, -50, -50))
 Part.show (body_part.common(crop_box))
 
