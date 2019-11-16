@@ -240,6 +240,7 @@ wheel_axle_length = wheel_thickness + 7
 wheel_housing_radius = (wheel_thickness/2) + 4
 wheel_slider_radius = wheel_shadow_radius + 4
 wheel_drag_bar_height = wheel_middle_radius + band_width/2
+wheel_drag_bar_right = wheel_slider_radius
 wheel_housing_offset = 4
 wheel_loose_leeway = 1
 wheel_axle_leeway = 0.3
@@ -281,7 +282,7 @@ wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [
   start_at(- wheel_slider_radius + wheel_housing_offset, 0),
   diagonal_to (0, wheel_middle_radius - wheel_housing_offset),
   diagonal_to (wheel_middle_radius + wheel_housing_offset, wheel_middle_radius - wheel_housing_offset),
-  diagonal_to (wheel_slider_radius, wheel_drag_bar_height),
+  diagonal_to (wheel_drag_bar_right, wheel_drag_bar_height),
   diagonal_to (wheel_slider_radius - wheel_housing_offset, 0),
   diagonal_to (catch_flex_left, - wheel_shadow_radius),
   close(),
@@ -321,10 +322,19 @@ axle_cut_part.translate(vector (-100 - wheel_axle_radius*math.sin(math.tau / 6),
 axle_part = Part.makeCylinder (wheel_axle_radius, wheel_axle_length, vector (0, 0, - wheel_axle_length/2), vector (0, 0, 1)).cut(axle_cut_part)
 axle_hole_part = axle_part.makeOffsetShape (wheel_axle_leeway, 0.03)
 
-#axles = []
+def do_axle (horizontal, vertical, angle):
+  global wheel_housing_part
+  cut = axle_hole_part.copy()
+  cut.rotate (vector (0, 0, 0), vector (0, 0, 1), angle)
+  cut.translate (vector (horizontal, vertical, 0))
+  wheel_housing_part = wheel_housing_part.cut(cut)
+  
+do_axle (0, 0, 0)
+do_axle (wheel_drag_bar_right, wheel_drag_bar_height, 180)
+do_axle (catch_flex_left + wheel_axle_hole_radius, -wheel_shadow_radius + wheel_axle_hole_radius + 2, 180)
 
-
-wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part).cut(axle_hole_part)
+wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part)
+wheel_housing_part = wheel_housing_part.cut(Part.makeCylinder (wheel_housing_offset+3, wheel_thickness, vector (wheel_drag_bar_right, wheel_drag_bar_height, wheel_front), vector (0, 0, 1)).makeOffsetShape (wheel_loose_leeway, 0.1))
 wheel_housing_split = Part.makeBox (100,100, 100)
 wheel_housing_split.translate(vector (-50, -50, wheel_thickness/2))
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
