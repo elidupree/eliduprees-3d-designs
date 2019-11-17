@@ -231,23 +231,23 @@ Part.show (body_part.common(crop_box))
 
 
 wheel_thickness = claw_width
-wheel_paddle_length = claw_length
-wheel_paddle_thickness = claw_thickness
-wheel_axle_hole_radius = 2
-wheel_middle_radius = 6
+wheel_paddle_length = band_width*1.5
+wheel_paddle_thickness = 5
+wheel_axle_hole_radius = 3.5
+wheel_middle_radius = 12
 wheel_shadow_radius = wheel_middle_radius + wheel_paddle_length
-wheel_axle_length = wheel_thickness + 7
 wheel_housing_radius = (wheel_thickness/2) + 4
 wheel_slider_radius = wheel_shadow_radius + 4
 wheel_drag_bar_height = wheel_middle_radius + band_width/2
 wheel_drag_bar_right = wheel_slider_radius
-wheel_housing_offset = 4
+wheel_housing_offset = 5
 wheel_loose_leeway = 1
-wheel_axle_leeway = 0.3
-catch_flex_left = -20
-catch_flex_length = 10
+wheel_axle_leeway = 0.4
+wheel_axle_length = wheel_thickness + 7 - wheel_axle_leeway*2
+catch_flex_left = -30
+catch_flex_length = 15
 catch_diagonal_length = 5
-catch_depth = 1.6
+catch_depth = 2.5
 catch_solid_thickness = claw_thickness
 catch_flex_thickness = flex_thickness
 
@@ -262,7 +262,13 @@ edges = [edge
   for edge in paddle_part.Edges
   if not FreeCAD.BoundBox (-100, 0, -100, 100, 100, 100).isInside (edge.BoundBox)]
 
-paddle_part = paddle_part.makeChamfer(0.8, edges)
+paddle_part = paddle_part.makeChamfer(1, edges)
+
+paddle_chamfer = Part.makeBox (wheel_paddle_thickness, wheel_paddle_thickness, wheel_thickness)
+paddle_chamfer.translate (vector (- wheel_paddle_thickness/2, - wheel_paddle_thickness/2, wheel_front))
+paddle_chamfer.rotate (vector (0, 0, 0), vector (0, 0, 1), 45)
+paddle_chamfer.translate (vector (wheel_middle_radius - 0.5, 0, 0))
+paddle_part = paddle_part.fuse (paddle_chamfer)
 
 num_paddles = 12
 paddles = []
@@ -275,6 +281,9 @@ for index in range (num_paddles):
 wheel_shadow = Part.makeCylinder (wheel_shadow_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
 wheel_axle_hole = Part.makeCylinder (wheel_axle_hole_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
 wheel = Part.makeCylinder (wheel_middle_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1)).fuse (paddles).common (wheel_shadow ).cut (wheel_axle_hole )
+
+#hack = Part.makeLine ((0, 0, 0), (0, 0, 0.1))
+#wheel = wheel.makeChamfer(0.8, [edge for edge in wheel.Edges if edge.distToShape(hack)[0] <= wheel_middle_radius + 0.1])
 
 wheel_middle_extended = Part.makeCylinder (wheel_middle_radius, wheel_thickness + wheel_loose_leeway*2, vector (0, 0, wheel_front - wheel_loose_leeway), vector (0, 0, 1))
 
@@ -313,11 +322,11 @@ catch_shadow_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0
   close(),
 ])
 catch_shadow_part = Part.Face (Part.Wire (catch_shadow_shape.Edges)).extrude (FreeCAD.Vector (0, 0, wheel_thickness + wheel_loose_leeway*2))
-catch_shadow_part.translate(vector (0, wheel_loose_leeway, 0))
+catch_shadow_part.translate(vector (0, 3, 0))
 
 
 axle_cut_part = Part.makeBox (100,100, 100)
-axle_cut_part.translate(vector (-100 - wheel_axle_radius*math.sin(math.tau / 6), -50, -50))
+axle_cut_part.translate(vector (-100 - wheel_axle_radius*math.sin(math.tau / 8), -50, -50))
 
 axle_part = Part.makeCylinder (wheel_axle_radius, wheel_axle_length, vector (0, 0, - wheel_axle_length/2), vector (0, 0, 1)).cut(axle_cut_part)
 axle_hole_part = axle_part.makeOffsetShape (wheel_axle_leeway, 0.03)
@@ -331,7 +340,7 @@ def do_axle (horizontal, vertical, angle):
   
 do_axle (0, 0, 0)
 do_axle (wheel_drag_bar_right, wheel_drag_bar_height, 180)
-do_axle (catch_flex_left + wheel_axle_hole_radius, -wheel_shadow_radius + wheel_axle_hole_radius + 2, 180)
+do_axle (catch_flex_left + wheel_axle_hole_radius+2, -wheel_shadow_radius + wheel_axle_hole_radius + 5, 180)
 
 wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part)
 wheel_housing_part = wheel_housing_part.cut(Part.makeCylinder (wheel_housing_offset+3, wheel_thickness, vector (wheel_drag_bar_right, wheel_drag_bar_height, wheel_front), vector (0, 0, 1)).makeOffsetShape (wheel_loose_leeway, 0.1))
