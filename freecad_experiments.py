@@ -253,6 +253,7 @@ catch_flex_left = -30
 catch_flex_length = 15
 catch_diagonal_length = 5
 catch_depth = 2.5
+catch_slope = 2
 catch_solid_thickness = claw_thickness
 catch_flex_thickness = flex_thickness
 slider_thickness = 1
@@ -266,11 +267,18 @@ wheel_front = - wheel_thickness/2
 paddle_part = Part.makeBox (wheel_shadow_radius, wheel_paddle_thickness, wheel_thickness)
 paddle_part.translate (vector (0, - wheel_paddle_thickness/2, wheel_front))
 
-edges = [edge
-  for edge in paddle_part.Edges
-  if not FreeCAD.BoundBox (-100, 0, -100, 100, 100, 100).isInside (edge.BoundBox)]
+paddle_catch_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], - wheel_thickness/2)).build ([
+  start_at (wheel_shadow_radius, wheel_paddle_thickness/2),
+  vertical_to (wheel_paddle_thickness/2 + catch_depth/catch_slope),
+  diagonal_to (wheel_shadow_radius - catch_depth, wheel_paddle_thickness/2),
+  close(),
+])
+paddle_catch_part = Part.Face (Part.Wire (paddle_catch_shape.Edges)).extrude (FreeCAD.Vector (0, 0, wheel_thickness))
+paddle_part = paddle_part.fuse (paddle_catch_part)
 
-paddle_part = paddle_part.makeChamfer(1, edges)
+paddle_part = paddle_part.makeChamfer(1, [edge
+  for edge in paddle_part.Edges
+  if not FreeCAD.BoundBox (-100, 0, -100, 100, 100, 100).isInside (edge.BoundBox)])
 
 paddle_chamfer = Part.makeBox (wheel_paddle_thickness, wheel_paddle_thickness, wheel_thickness)
 paddle_chamfer.translate (vector (- wheel_paddle_thickness/2, - wheel_paddle_thickness/2, wheel_front))
@@ -288,7 +296,7 @@ for index in range (num_paddles):
 
 wheel_shadow = Part.makeCylinder (wheel_shadow_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
 wheel_axle_hole = Part.makeCylinder (wheel_axle_hole_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
-wheel = Part.makeCylinder (wheel_middle_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1)).fuse (paddles).common (wheel_shadow ).cut (wheel_axle_hole )
+wheel = Part.makeCylinder (wheel_middle_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1)).fuse (paddles).cut (wheel_axle_hole )
 
 #hack = Part.makeLine ((0, 0, 0), (0, 0, 0.1))
 #wheel = wheel.makeChamfer(0.8, [edge for edge in wheel.Edges if edge.distToShape(hack)[0] <= wheel_middle_radius + 0.1])
@@ -316,8 +324,8 @@ slider_part = slider_part.common (slider_part_box)
 
 
 catch_top = [start_at(catch_flex_left, - wheel_shadow_radius),
-  horizontal_to (0 + wheel_paddle_thickness/2),
-  vertical_to (- wheel_shadow_radius + catch_depth),
+  horizontal_to (0 + wheel_paddle_thickness/2 + catch_depth/catch_slope),
+  diagonal_to (0 + wheel_paddle_thickness/2,- wheel_shadow_radius + catch_depth),
   diagonal_to (0 + wheel_shadow_radius, - wheel_shadow_radius),]
 
 
