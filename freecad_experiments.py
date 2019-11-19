@@ -376,7 +376,8 @@ wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
 channel_holder_outside = 2
 channel_holder_hole_depth = popsicle_stick_width*0.7
-channel_holder_horizontal_radius = wheel_housing_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
+wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 14 wide, observed 14.6 after printing and assembly, give it an extra 0.1 on each side
+channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
 channel_holder_vertical_radius = slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width + tight_leeway + channel_holder_outside
 
 channel_holder_part = Part.makeBox (channel_holder_outside + channel_holder_hole_depth, channel_holder_vertical_radius*2, channel_holder_horizontal_radius*2)
@@ -394,7 +395,7 @@ def channel_holder_hole(horizontal, vertical):
   ))
   hole.translate (vector (0,
     vertical*(slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width/2),
-    horizontal*(wheel_housing_radius + wheel_axle_leeway + popsicle_stick_thickness/2)
+    horizontal*(wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness/2)
   ))
   return hole
   
