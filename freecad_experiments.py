@@ -230,6 +230,10 @@ Part.show (body_part.common(crop_box))
 
 
 
+
+popsicle_stick_width = 9.5
+popsicle_stick_thickness = 2.0
+
 wheel_thickness = claw_width
 wheel_paddle_length = band_width*1.5
 wheel_paddle_thickness = 5
@@ -244,12 +248,16 @@ wheel_housing_offset = 5
 wheel_loose_leeway = 1
 wheel_axle_leeway = 0.4
 wheel_axle_length = wheel_thickness + 7 - wheel_axle_leeway*2
+tight_leeway = 0.2
 catch_flex_left = -30
 catch_flex_length = 15
 catch_diagonal_length = 5
 catch_depth = 2.5
 catch_solid_thickness = claw_thickness
 catch_flex_thickness = flex_thickness
+slider_thickness = 1
+slider_width = popsicle_stick_thickness + 1
+
 
 wheel_axle_radius = wheel_axle_hole_radius - wheel_axle_leeway
 
@@ -287,7 +295,7 @@ wheel = Part.makeCylinder (wheel_middle_radius, wheel_thickness, vector (0, 0, w
 
 wheel_middle_extended = Part.makeCylinder (wheel_middle_radius, wheel_thickness + wheel_loose_leeway*2, vector (0, 0, wheel_front - wheel_loose_leeway), vector (0, 0, 1))
 
-wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], - wheel_housing_radius)).build ([
+wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], 0)).build ([
   start_at(- wheel_slider_radius + wheel_housing_offset, 0),
   diagonal_to (0, wheel_middle_radius - wheel_housing_offset),
   diagonal_to (wheel_middle_radius + wheel_housing_offset, wheel_middle_radius - wheel_housing_offset),
@@ -298,8 +306,14 @@ wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [
 ])
 wheel_housing_wire = Part.Wire (wheel_housing_shape.Edges).makeOffset2D (wheel_housing_offset)
 wheel_housing_part = Part.Face (wheel_housing_wire).extrude (FreeCAD.Vector (0, 0, wheel_housing_radius*2))
-wheel_housing_part = wheel_housing_part.cut (wheel_shadow.makeOffsetShape (wheel_loose_leeway, 0.1))
-wheel_housing_part = wheel_housing_part.fuse (wheel_middle_extended.cut (wheel_shadow.makeOffsetShape (wheel_axle_leeway, 0.1)))
+wheel_housing_part.translate (vector (0, 0, - wheel_housing_radius))
+
+slider_part = Part.Face (wheel_housing_wire).extrude (FreeCAD.Vector (0, 0, (wheel_housing_radius + slider_width)*2))
+slider_part.translate (vector (0, 0, - (wheel_housing_radius + slider_width)))
+slider_part_box = Part.makeBox (100, slider_thickness, 100)
+slider_part_box.translate (vector (-50, - slider_thickness/2, -50))
+slider_part = slider_part.common (slider_part_box)
+
 
 catch_top = [start_at(catch_flex_left, - wheel_shadow_radius),
   horizontal_to (0 + wheel_paddle_thickness/2),
@@ -329,7 +343,7 @@ axle_cut_part = Part.makeBox (100,100, 100)
 axle_cut_part.translate(vector (-100 - wheel_axle_radius*math.sin(math.tau / 8), -50, -50))
 
 axle_part = Part.makeCylinder (wheel_axle_radius, wheel_axle_length, vector (0, 0, - wheel_axle_length/2), vector (0, 0, 1)).cut(axle_cut_part)
-axle_hole_part = axle_part.makeOffsetShape (wheel_axle_leeway, 0.03)
+axle_hole_part = axle_part.makeOffsetShape (tight_leeway, 0.03)
 
 def do_axle (horizontal, vertical, angle):
   global wheel_housing_part
@@ -338,16 +352,49 @@ def do_axle (horizontal, vertical, angle):
   cut.translate (vector (horizontal, vertical, 0))
   wheel_housing_part = wheel_housing_part.cut(cut)
   
+
+wheel_housing_part = wheel_housing_part.fuse (slider_part)
+wheel_housing_part = wheel_housing_part.cut (wheel_shadow.makeOffsetShape (wheel_loose_leeway, 0.1))
+wheel_housing_part = wheel_housing_part.fuse (wheel_middle_extended.cut (wheel_shadow.makeOffsetShape (wheel_axle_leeway, 0.1)))
 do_axle (0, 0, 0)
 do_axle (wheel_drag_bar_right, wheel_drag_bar_height, 180)
 do_axle (catch_flex_left + wheel_axle_hole_radius+2, -wheel_shadow_radius + wheel_axle_hole_radius + 5, 180)
-
 wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part)
 wheel_housing_part = wheel_housing_part.cut(Part.makeCylinder (wheel_housing_offset+3, wheel_thickness, vector (wheel_drag_bar_right, wheel_drag_bar_height, wheel_front), vector (0, 0, 1)).makeOffsetShape (wheel_loose_leeway, 0.1))
 wheel_housing_split = Part.makeBox (100,100, 100)
 wheel_housing_split.translate(vector (-50, -50, wheel_thickness/2))
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
 wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
+
+channel_holder_outside = 2
+channel_holder_hole_depth = popsicle_stick_width*0.7
+channel_holder_horizontal_radius = wheel_housing_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
+channel_holder_vertical_radius = slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width + tight_leeway + channel_holder_outside
+
+channel_holder_part = Part.makeBox (channel_holder_outside + channel_holder_hole_depth, channel_holder_vertical_radius*2, channel_holder_horizontal_radius*2)
+channel_holder_part.translate (vector (0, - channel_holder_vertical_radius, - channel_holder_horizontal_radius))
+def channel_holder_hole(horizontal, vertical):
+  hole = Part.makeBox (
+    channel_holder_hole_depth,
+    popsicle_stick_width + tight_leeway*2,
+    popsicle_stick_thickness + tight_leeway*2
+  )
+  hole.translate (vector (
+    0,
+    -popsicle_stick_width/2 - tight_leeway,
+    - popsicle_stick_thickness/2 - tight_leeway
+  ))
+  hole.translate (vector (0,
+    vertical*(slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width/2),
+    horizontal*(wheel_housing_radius + wheel_axle_leeway + popsicle_stick_thickness/2)
+  ))
+  return hole
+  
+  
+channel_holder_part = channel_holder_part.cut ([
+  channel_holder_hole (horizontal, vertical)
+  for horizontal in [-1, 1] for vertical in [-1, 1]
+])
 
 wheel.translate (vector (0, 0, 30))
 Part.show (wheel, "Wheel")
@@ -361,6 +408,12 @@ Part.show (wheel_housing_other, "WheelHousingOther")
 axle_part.translate (vector (0, 0, 30))
 Part.show (axle_part, "Axle")
 
+channel_holder_part.translate (vector (-50, 0, 30))
+Part.show (channel_holder_part, "ChannelHolder")
+
+box = Part.makeBox (12, 12, 100)
+box.translate (vector (wheel_drag_bar_right -6, wheel_drag_bar_height -6, 0))
+Part.show (wheel_housing_other.common(box), "AxleHoleTest")
 
 
 
