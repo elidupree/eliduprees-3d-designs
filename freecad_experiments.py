@@ -250,35 +250,28 @@ wheel_axle_radius = wheel_axle_hole_radius - wheel_axle_leeway
 
 wheel_front = - wheel_thickness/2
 
-paddle_part = Part.makeBox (wheel_shadow_radius, wheel_paddle_thickness, wheel_thickness)
-paddle_part.translate (vector (0, - wheel_paddle_thickness/2, wheel_front))
+paddle_part = box (wheel_shadow_radius, centered (wheel_paddle_thickness), centered (wheel_thickness))
 
-paddle_catch_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], - wheel_thickness/2)).build ([
+paddle_catch_part = FreeCAD_shape_builder ().build ([
   start_at (wheel_shadow_radius, wheel_paddle_thickness/2),
   vertical_to (wheel_paddle_thickness/2 + catch_depth/catch_slope),
   diagonal_to (wheel_shadow_radius - catch_depth, wheel_paddle_thickness/2),
   close(),
-])
-paddle_catch_part = Part.Face (Part.Wire (paddle_catch_shape.Edges)).extrude (FreeCAD.Vector (0, 0, wheel_thickness))
+]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (wheel_thickness))
 paddle_part = paddle_part.fuse (paddle_catch_part)
 
 paddle_part = paddle_part.makeChamfer(1, [edge
   for edge in paddle_part.Edges
   if not FreeCAD.BoundBox (-100, 0, -100, 100, 100, 100).isInside (edge.BoundBox)])
 
-paddle_chamfer = Part.makeBox (wheel_paddle_thickness, wheel_paddle_thickness, wheel_thickness)
-paddle_chamfer.translate (vector (- wheel_paddle_thickness/2, - wheel_paddle_thickness/2, wheel_front))
-paddle_chamfer.rotate (vector (0, 0, 0), vector (0, 0, 1), 45)
-paddle_chamfer.translate (vector (wheel_middle_radius - 0.5, 0, 0))
+paddle_chamfer = box (centered (wheel_paddle_thickness), centered (wheel_paddle_thickness), centered (wheel_thickness)).rotated (vector (0, 0, 0), vector (0, 0, 1), 45).translated (vector (wheel_middle_radius - 0.5, 0, 0))
 paddle_part = paddle_part.fuse (paddle_chamfer)
 
 num_paddles = 12
 paddles = []
 for index in range (num_paddles):
   angle = index*360/num_paddles
-  new_paddle = paddle_part.copy()
-  new_paddle.rotate (vector (0, 0, 0), vector (0, 0, 1), angle)
-  paddles.append (new_paddle)
+  paddles.append (paddle_part.rotated (vector (0, 0, 0), vector (0, 0, 1), angle))
 
 wheel_shadow = Part.makeCylinder (wheel_shadow_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
 wheel_axle_hole = Part.makeCylinder (wheel_axle_hole_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
@@ -289,7 +282,7 @@ wheel = Part.makeCylinder (wheel_middle_radius, wheel_thickness, vector (0, 0, w
 
 wheel_middle_extended = Part.makeCylinder (wheel_middle_radius, wheel_thickness + wheel_loose_leeway*2, vector (0, 0, wheel_front - wheel_loose_leeway), vector (0, 0, 1))
 
-wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], 0)).build ([
+wheel_housing_face = FreeCAD_shape_builder ().build ([
   start_at(- wheel_slider_radius + wheel_housing_offset, 0),
   diagonal_to (0, wheel_middle_radius - wheel_housing_offset),
   diagonal_to (wheel_middle_radius + wheel_housing_offset, wheel_middle_radius - wheel_housing_offset),
@@ -297,15 +290,11 @@ wheel_housing_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [
   diagonal_to (wheel_slider_radius - wheel_housing_offset, 0),
   diagonal_to (catch_flex_left, - wheel_shadow_radius),
   close(),
-])
-wheel_housing_wire = Part.Wire (wheel_housing_shape.Edges).makeOffset2D (wheel_housing_offset)
-wheel_housing_part = Part.Face (wheel_housing_wire).extrude (FreeCAD.Vector (0, 0, wheel_housing_radius*2))
-wheel_housing_part.translate (vector (0, 0, - wheel_housing_radius))
+]).to_wire().makeOffset2D (wheel_housing_offset).to_face()
+wheel_housing_part = wheel_housing_face.fancy_extrude (vector (0, 0, 1), centered (wheel_housing_radius*2))
 
-slider_part = Part.Face (wheel_housing_wire).extrude (FreeCAD.Vector (0, 0, (wheel_housing_radius + slider_width)*2))
-slider_part.translate (vector (0, 0, - (wheel_housing_radius + slider_width)))
-slider_part_box = Part.makeBox (100, slider_thickness, 100)
-slider_part_box.translate (vector (-50, - slider_thickness/2, -50))
+slider_part = wheel_housing_face.fancy_extrude (vector (0, 0, 1), centered ((wheel_housing_radius + slider_width)*2))
+slider_part_box = box (centered (100), centered (slider_thickness), centered (100))
 slider_part = slider_part.common (slider_part_box)
 
 
@@ -315,36 +304,31 @@ catch_top = [start_at(catch_flex_left, - wheel_shadow_radius),
   diagonal_to (0 + wheel_shadow_radius, - wheel_shadow_radius),]
 
 
-catch_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], - wheel_thickness/2)).build (catch_top + [
+catch_part = FreeCAD_shape_builder ().build (catch_top + [
   vertical_to (- wheel_shadow_radius - catch_solid_thickness),
   horizontal_to (catch_flex_left + catch_flex_length + catch_diagonal_length),
   diagonal_to (catch_flex_left + catch_flex_length, - wheel_shadow_radius - catch_flex_thickness),
   horizontal_to (catch_flex_left),
   close(),
-])
-catch_part = Part.Face (Part.Wire (catch_shape.Edges)).extrude (FreeCAD.Vector (0, 0, wheel_thickness))
+]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (wheel_thickness))
 
-catch_shadow_shape = FreeCAD_shape_builder (lambda whatever: vector (whatever [0], whatever [1], - wheel_thickness/2 - wheel_loose_leeway)).build (catch_top + [
+catch_shadow_part = FreeCAD_shape_builder ().build (catch_top + [
   vertical_to (- wheel_shadow_radius - 100),
   horizontal_to (catch_flex_left),
   close(),
-])
-catch_shadow_part = Part.Face (Part.Wire (catch_shadow_shape.Edges)).extrude (FreeCAD.Vector (0, 0, wheel_thickness + wheel_loose_leeway*2))
-catch_shadow_part.translate(vector (0, 3, 0))
+]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered ( wheel_thickness + wheel_loose_leeway*2)).translated (vector (0, 3, 0))
 
 
-axle_cut_part = Part.makeBox (100,100, 100)
-axle_cut_part.translate(vector (-100 - wheel_axle_radius*math.sin(math.tau / 8), -50, -50))
+axle_cut_part = box (bounds (-100, - wheel_axle_radius*math.sin(math.tau / 8)), centered (100), centered (100))
 
 axle_part = Part.makeCylinder (wheel_axle_radius, wheel_axle_length, vector (0, 0, - wheel_axle_length/2), vector (0, 0, 1)).cut(axle_cut_part)
 axle_hole_part = axle_part.makeOffsetShape (tight_leeway, 0.03)
 
 def do_axle (horizontal, vertical, angle):
   global wheel_housing_part
-  cut = axle_hole_part.copy()
-  cut.rotate (vector (0, 0, 0), vector (0, 0, 1), angle)
-  cut.translate (vector (horizontal, vertical, 0))
-  wheel_housing_part = wheel_housing_part.cut(cut)
+  wheel_housing_part = wheel_housing_part.cut(axle_hole_part
+    .rotated (vector (0, 0, 0), vector (0, 0, 1), angle)
+    .translated (vector (horizontal, vertical, 0)))
   
 
 wheel_housing_part = wheel_housing_part.fuse (slider_part)
@@ -355,8 +339,7 @@ do_axle (wheel_drag_bar_right, wheel_drag_bar_height, 180)
 do_axle (catch_flex_left + wheel_axle_hole_radius+2, -wheel_shadow_radius + wheel_axle_hole_radius + 5, 180)
 wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part)
 wheel_housing_part = wheel_housing_part.cut(Part.makeCylinder (wheel_housing_offset+3, wheel_thickness, vector (wheel_drag_bar_right, wheel_drag_bar_height, wheel_front), vector (0, 0, 1)).makeOffsetShape (wheel_loose_leeway, 0.1))
-wheel_housing_split = Part.makeBox (100,100, 100)
-wheel_housing_split.translate(vector (-50, -50, wheel_thickness/2))
+wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickness/2, 100))
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
 wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
@@ -366,19 +349,17 @@ wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 1
 channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
 channel_holder_vertical_radius = slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width + tight_leeway + channel_holder_outside
 
-channel_holder_part = Part.makeBox (channel_holder_outside + channel_holder_hole_depth, channel_holder_vertical_radius*2, channel_holder_horizontal_radius*2)
-channel_holder_part.translate (vector (0, - channel_holder_vertical_radius, - channel_holder_horizontal_radius))
+channel_holder_part = box (
+  channel_holder_outside + channel_holder_hole_depth,
+  centered (channel_holder_vertical_radius*2),
+  centered (channel_holder_horizontal_radius*2),
+)
 def channel_holder_hole(horizontal, vertical):
-  hole = Part.makeBox (
+  hole = box (
     channel_holder_hole_depth,
-    popsicle_stick_width + tight_leeway*2,
-    popsicle_stick_thickness + tight_leeway*2
+    centered (popsicle_stick_width + tight_leeway*2),
+    centered (popsicle_stick_thickness + tight_leeway*2),
   )
-  hole.translate (vector (
-    0,
-    -popsicle_stick_width/2 - tight_leeway,
-    - popsicle_stick_thickness/2 - tight_leeway
-  ))
   hole.translate (vector (0,
     vertical*(slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width/2),
     horizontal*(wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness/2)

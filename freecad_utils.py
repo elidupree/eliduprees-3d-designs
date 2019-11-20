@@ -64,11 +64,14 @@ operations_to_make_applied_version_of = [
 ]
 
 for operation_name, applied_name in operations_to_make_applied_version_of:
-  def applied (self,*arguments,**keyword_arguments):
-    result = self.copy()
-    result.translate (*arguments)
-    return result
-  globals() [applied_name] = applied
+  def applied(operation_name, applied_name):
+    def applied (self,*arguments,**keyword_arguments):
+      result = self.copy()
+      print (operation_name)
+      getattr(result, operation_name) (*arguments)
+      return result
+    return applied
+  globals() [applied_name] = applied(operation_name, applied_name)
 
 def curse_freecad_types():
   for value in vars (Part).values():
