@@ -31,7 +31,7 @@ class FreeCAD_shape_builder:
           endpoints[1]*mid_frac + endpoints[0]*(1-mid_frac) + sideways,
           endpoints[1]*end_frac + endpoints[0]*(1-end_frac),
         ]
-        print(endpoints, points)
+        #print(endpoints, points)
         assert((points[1]-points[0]).Length < self.zigzag_length_limit)
         self.add_line_impl (points[0:2])
         self.add_line_impl (points[1:3])

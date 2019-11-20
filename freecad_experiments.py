@@ -107,7 +107,7 @@ releaser_fully_down_horizontal = deflector_peg_horizontal_middle + motion_distan
 releaser_left_end_center = releaser_fully_down_horizontal - claw_deflect_distance/releaser_slope
 releaser_right_end_center = releaser_fully_down_horizontal + releaser_extra_length
 
-slider_main_part = FreeCAD_shape_builder ().build ([
+"""slider_main_part = FreeCAD_shape_builder ().build ([
   start_at (flex_support_right, slider_bottom),
   horizontal_to (slider_left), vertical_to (slider_top), horizontal_to (flex_right), vertical_to (flex_bottom), horizontal_to (flex_left), diagonal_to (claw_solid_right, claw_solid_bottom), horizontal_to (deflector_peg_right),
   
@@ -212,7 +212,7 @@ Part.show (slider_part, "SliderSquare")
 
 Part.show (body_part)
 
-Part.show (body_part.common(box (bounds (5, 10), bounds (-50, -5), centered (100))))
+Part.show (body_part.common(box (bounds (5, 10), bounds (-50, -5), centered (100))))"""
 
 
 
@@ -375,19 +375,15 @@ channel_holder_part = channel_holder_part.cut ([
   for horizontal in [-1, 1] for vertical in [-1, 1]
 ])
 
-wheel.translate (vector (0, 0, 30))
-Part.show (wheel, "Wheel")
 
-wheel_housing_main.translate (vector (0, 0, 30))
+Part.show (wheel, "Wheel")
 Part.show (wheel_housing_main, "WheelHousingMain")
 
-wheel_housing_other.translate (vector (0, 0, 40))
+wheel_housing_other.translate (vector (0, 0, 10))
 Part.show (wheel_housing_other, "WheelHousingOther")
-
-axle_part.translate (vector (0, 0, 30))
 Part.show (axle_part, "Axle")
 
-channel_holder_part.translate (vector (-50, 0, 30))
+channel_holder_part.translate (vector (-50, 0, 0))
 Part.show (channel_holder_part, "ChannelHolder")
 
 box = Part.makeBox (12, 12, 100)
