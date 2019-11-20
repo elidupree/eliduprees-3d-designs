@@ -1,16 +1,44 @@
 import FreeCAD
 import Part
+import math
 
 class FreeCAD_shape_builder:
-  def __init__(self, transform = lambda vector: vector):
+  def __init__(self, zigzag_depth = 2, zigzag_length_limit = None):
+    if zigzag_length_limit is not None:
+      discriminant = zigzag_length_limit**2 - zigzag_depth**2
+      if discriminant <= 0:
+        raise InputError ("unreasonable zigzag requirements")
+      self.zigzag_max_split_length = math.sqrt (discriminant)*2 * 0.99
+    self.zigzag_depth = zigzag_depth
+    self.zigzag_length_limit = zigzag_length_limit
     self.components = []
     self.current_position = None
     self.last_start_position = None
-    self.transform = transform
   def vector (self, coordinates):
-    return self.transform (FreeCAD.Vector (*coordinates, 0))
+    return FreeCAD.Vector (*coordinates, 0)
+  def add_line_impl (self, endpoints):
+    segment = Part.LineSegment (*endpoints)
+    if self.zigzag_length_limit is not None and segment.length() > self.zigzag_length_limit:
+      splits = math.ceil(segment.length()/self.zigzag_max_split_length)
+      delta = endpoints [1] - endpoints [0]
+      sideways = FreeCAD.Vector (delta[1], -delta[0], 0).normalized() * self.zigzag_depth
+      for split in range (splits):
+        start_frac = split / splits
+        end_frac = (split + 1) / splits
+        mid_frac = (split + 0.5) / splits
+        points = [
+          endpoints[1]*start_frac + endpoints[0]*(1-start_frac),
+          endpoints[1]*mid_frac + endpoints[0]*(1-mid_frac) + sideways,
+          endpoints[1]*end_frac + endpoints[0]*(1-end_frac),
+        ]
+        print(endpoints, points)
+        assert((points[1]-points[0]).Length < self.zigzag_length_limit)
+        self.add_line_impl (points[0:2])
+        self.add_line_impl (points[1:3])
+      return
+    self.components.append (segment)
   def add_line (self,*endpoints):
-    self.components.append (Part.LineSegment (*[self.vector (coordinates) for coordinates in endpoints]))
+    self.add_line_impl([self.vector (coordinates) for coordinates in endpoints])
   def line_to (self, coordinates):
     self.add_line (self.current_position, coordinates)
     self.current_position = coordinates

@@ -119,7 +119,7 @@ slider_main_part = FreeCAD_shape_builder ().build ([
   vertical_to (claw_top), horizontal_to (claw_right), vertical_to (flex_top), horizontal_to (flex_support_right), close()
 ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (claw_width))
 
-slider_triangle_part = FreeCAD_shape_builder (lambda whatever: vector (0, whatever [1], whatever [0])).build ([
+slider_triangle_part = FreeCAD_shape_builder ().build ([
   start_at(claw_front, slider_top),
   horizontal_to (claw_back),
   diagonal_to (slider_protrusions_back, slider_vertical_middle),
@@ -127,7 +127,7 @@ slider_triangle_part = FreeCAD_shape_builder (lambda whatever: vector (0, whatev
   horizontal_to (claw_front),
   diagonal_to (slider_protrusions_front, slider_vertical_middle),
   close(),
-]).to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (slider_left, flex_support_right))
+]).rotated(vector(), vector (0, 1, 0), 90).to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (slider_left, flex_support_right))
 
 deflector_peg_part = Part.makeCylinder (
   deflector_peg_radius, claw_width + deflector_peg_length*2,
@@ -159,7 +159,7 @@ channel_box = box (
   bounds (slider_protrusions_front - channel_wall_thickness, slider_protrusions_back + channel_wall_thickness)
 )
 
-wide_channel_part = FreeCAD_shape_builder (lambda whatever: vector (0, whatever [1], whatever [0])).build ([
+wide_channel_part = FreeCAD_shape_builder ().build ([
   start_at(claw_front, slider_top),
   horizontal_to (slider_protrusions_front),
   vertical_to (flex_top),
@@ -171,15 +171,15 @@ wide_channel_part = FreeCAD_shape_builder (lambda whatever: vector (0, whatever 
   horizontal_to (claw_front),
   diagonal_to (slider_protrusions_front, slider_vertical_middle),
   close(),
-]).to_wire().makeOffset2D (slider_channel_tolerance).to_face().fancy_extrude (vector (1, 0, 0), bounds (channel_left_stop, channel_right_stop))
+]).rotated(vector(), vector (0, 1, 0), 90).to_wire().makeOffset2D (slider_channel_tolerance).to_face().fancy_extrude (vector (1, 0, 0), bounds (channel_left_stop, channel_right_stop))
 
-narrow_channel_part = FreeCAD_shape_builder (lambda whatever: vector (0, whatever [1], whatever [0])).build ([
+narrow_channel_part = FreeCAD_shape_builder ().build ([
   start_at(claw_front, slider_top),
   vertical_to (flex_top),
   horizontal_to (claw_back),
   vertical_to (slider_top),
   close(),
-]).to_wire().makeOffset2D (slider_channel_tolerance + additional_deflector_leeway).to_face().fancy_extrude (vector (1, 0, 0), bounds (channel_left_stop, channel_right_stop))
+]).rotated(vector(), vector (0, 1, 0), 90).to_wire().makeOffset2D (slider_channel_tolerance + additional_deflector_leeway).to_face().fancy_extrude (vector (1, 0, 0), bounds (channel_left_stop, channel_right_stop))
 
 deflector_bounds = bounds (slider_protrusions_front - channel_wall_thickness, slider_protrusions_back + channel_wall_thickness)
 
@@ -264,14 +264,14 @@ paddle_part = paddle_part.makeChamfer(1, [edge
   for edge in paddle_part.Edges
   if not FreeCAD.BoundBox (-100, 0, -100, 100, 100, 100).isInside (edge.BoundBox)])
 
-paddle_chamfer = box (centered (wheel_paddle_thickness), centered (wheel_paddle_thickness), centered (wheel_thickness)).rotated (vector (0, 0, 0), vector (0, 0, 1), 45).translated (vector (wheel_middle_radius - 0.5, 0, 0))
+paddle_chamfer = box (centered (wheel_paddle_thickness), centered (wheel_paddle_thickness), centered (wheel_thickness)).rotated (vector (), vector (0, 0, 1), 45).translated (vector (wheel_middle_radius - 0.5, 0, 0))
 paddle_part = paddle_part.fuse (paddle_chamfer)
 
 num_paddles = 12
 paddles = []
 for index in range (num_paddles):
   angle = index*360/num_paddles
-  paddles.append (paddle_part.rotated (vector (0, 0, 0), vector (0, 0, 1), angle))
+  paddles.append (paddle_part.rotated (vector (), vector (0, 0, 1), angle))
 
 wheel_shadow = Part.makeCylinder (wheel_shadow_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
 wheel_axle_hole = Part.makeCylinder (wheel_axle_hole_radius, wheel_thickness, vector (0, 0, wheel_front), vector (0, 0, 1))
@@ -327,7 +327,7 @@ axle_hole_part = axle_part.makeOffsetShape (tight_leeway, 0.03)
 def do_axle (horizontal, vertical, angle):
   global wheel_housing_part
   wheel_housing_part = wheel_housing_part.cut(axle_hole_part
-    .rotated (vector (0, 0, 0), vector (0, 0, 1), angle)
+    .rotated (vector (), vector (0, 0, 1), angle)
     .translated (vector (horizontal, vertical, 0)))
   
 
@@ -349,11 +349,14 @@ wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 1
 channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
 channel_holder_vertical_radius = slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width + tight_leeway + channel_holder_outside
 
-channel_holder_part = box (
-  channel_holder_outside + channel_holder_hole_depth,
-  centered (channel_holder_vertical_radius*2),
-  centered (channel_holder_horizontal_radius*2),
-)
+channel_holder_part = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
+  start_at(- channel_holder_horizontal_radius, - channel_holder_vertical_radius),
+  horizontal_to (channel_holder_horizontal_radius),
+  vertical_to (channel_holder_vertical_radius),
+  horizontal_to (- channel_holder_horizontal_radius),
+  close(),
+]).rotated(vector(), vector (0, 1, 0), 90).to_wire().to_face().fancy_extrude (vector (channel_holder_outside + channel_holder_hole_depth, 0, 0))
+
 def channel_holder_hole(horizontal, vertical):
   hole = box (
     channel_holder_hole_depth,
