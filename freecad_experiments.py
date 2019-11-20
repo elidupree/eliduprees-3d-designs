@@ -343,7 +343,7 @@ wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickne
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
 wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
-channel_holder_outside = 2
+channel_holder_outside = 1
 channel_holder_hole_depth = popsicle_stick_width*0.7
 wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 14 wide, observed 14.6 after printing and assembly, give it an extra 0.1 on each side
 channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
