@@ -377,41 +377,43 @@ channel_holder_part = channel_holder_part.cut ([
 
 
 
-wheel_housing_left = catch_flex_left
 farthest_left = -75
 handle_motion_distance = 25
-string_motion_distance = handle_motion_distance*2
+string_motion_distance = handle_motion_distance
 band_lever_wall = 1
 band_lever_thickness = band_width + band_lever_wall*2
-band_lever_peg_to_tip = 20
-band_lever_peg = vector (0 + wheel_paddle_thickness*1.5, -50)
-band_lever_peg_stretched = vector (farthest_left + (band_lever_peg_to_tip*math.sin (math.tau/4*0.9)), -100)
-band_lever_length = 90
-band_lever_pivot = arc_center ([band_lever_peg, band_lever_peg_stretched], band_lever_length - band_lever_peg_to_tip)
 band_lever_tip_circle_radius = 5
 band_lever_peg_radius = wheel_axle_radius
-band_lever_peg_room_radius = band_lever_peg_radius + band_thickness*3
-band_center_height = wheel_middle_radius + wheel_paddle_length/2
+band_lever_peg_to_tip = band_lever_tip_circle_radius*math.tau*0.75
+band_lever_tip_xz = vector (0 + wheel_paddle_thickness*1.5, -50 + band_lever_peg_to_tip)
+band_lever_tip_stretched_xz = vector (farthest_left, -100) # yes, not exact, that's fine
+band_lever_length = 90
+band_lever_pivot_xz = arc_center ([band_lever_tip_xz, band_lever_tip_stretched_xz], band_lever_length)
+band_lever_pivot_to_tip_xz = band_lever_tip_xz - band_lever_pivot_xz
+band_lever_pivot_to_tip_stretched_xz = band_lever_tip_stretched_xz - band_lever_pivot_xz
 
 
-band_lever_angle = math.atan2 (band_lever_peg[1]-band_lever_pivot[1], band_lever_peg[0]-band_lever_pivot[0])
-band_lever_stretched_angle = math.atan2 (band_lever_peg_stretched[1]-band_lever_pivot[1], band_lever_peg_stretched[0]-band_lever_pivot[0])
+band_center_z = wheel_middle_radius + wheel_paddle_length/2
+
+
+band_lever_angle = band_lever_pivot_to_tip_xz.angle()
+band_lever_stretched_angle = band_lever_pivot_to_tip_stretched_xz.angle()
 band_lever_rotation_angle = band_lever_stretched_angle - band_lever_angle
-# we need handle_motion_distance to cause band_lever_rotation_angle
+# we need string_motion_distance to cause band_lever_rotation_angle
 # this angle is in radians, so conveniently,
-band_lever_string_radius = band_lever_rotation_angle*handle_motion_distance
-print (band_lever_peg, band_lever_peg_stretched , band_lever_pivot, band_lever_angle, band_lever_stretched_angle)
+band_lever_string_radius = band_lever_rotation_angle*string_motion_distance
 print (band_lever_rotation_angle*360/math.tau)
 
+band_lever_pivot_center = vector (band_lever_pivot_xz [0], band_center_z, band_lever_pivot_xz [1])
 def along_band_lever (distance):
-  return (band_lever_peg - band_lever_pivot)*(distance)/(band_lever_length - band_lever_peg_to_tip)
+  return (band_lever_pivot_to_tip_xz)*(distance)/(band_lever_length)
   
 band_lever_tip_circle = (
   along_band_lever (band_lever_length -band_lever_tip_circle_radius),
   band_lever_tip_circle_radius
 )
 band_lever_string_circle = (vector(), band_lever_string_radius)
-band_lever_peg_room_circle = (band_lever_peg - band_lever_pivot, band_lever_peg_room_radius)
+#band_lever_peg_room_circle = (band_lever_peg - band_lever_pivot, band_lever_peg_room_radius)
 
 a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_string_circle)
 d,c = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_string_circle, -1, -1)
@@ -421,7 +423,7 @@ band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth =
   arc_radius_to(- band_lever_string_radius, c, -1),
   diagonal_to (d),
   arc_radius_to(band_lever_tip_circle_radius, a, 1),
-]).rotated(vector(), vector (1, 0, 0), 90).to_wire().to_face().fancy_extrude (vector (0, band_lever_thickness, 0))
+]).rotated(vector(), vector (1, 0, 0), 90).to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_lever_thickness))
 #print(band_lever_part)
 
 string_holder_radius = band_lever_thickness*0.5/math.sin (math.tau/8)
@@ -434,13 +436,13 @@ band_lever_string_holder = FreeCAD_shape_builder ().build ([
   ),
   horizontal_to(10),
   close(),
-]).to_wire().to_face().revolve (vector(), vector (0, 1, 0), 360)
+]).to_wire().to_face().revolve (vector(), vector (0, 1, 0), 360).translated (vector (0, - band_lever_thickness/2, 0))
 #hack = band_lever_part
 band_lever_part = band_lever_part.fuse (band_lever_string_holder)
 #print(band_lever_part)
 #band_lever_part = band_lever_part.fuse (Part.makeCylinder (band_lever_string_radius, band_lever_thickness, vector(), vector (0, 1, 0)))
 
-a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_peg_room_circle, 1, -1)
+'''a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_peg_room_circle, 1, -1)
 d = vector (-1000, 1000)
 c = point_circle_tangent (d, band_lever_peg_room_circle)
 band_lever_band_room_part = FreeCAD_shape_builder ().build ([
@@ -460,11 +462,11 @@ band_lever_peg_hole_part = band_lever_peg_part.makeOffsetShape (tight_leeway, 0.
 band_lever_peg_part = band_lever_peg_part.fuse (Part.makeCylinder (band_lever_peg_radius + 1, 1, vector(0, band_lever_thickness, 0), vector (0, 1, 0))).cut(band_lever_peg_cut_part).rotated (vector(), vector (0, 1, 0), 65).translated (vector((band_lever_peg - band_lever_pivot)[0], 0, (band_lever_peg - band_lever_pivot)[1]))
 band_lever_peg_hole_part = band_lever_peg_hole_part.rotated (vector(), vector (0, 1, 0), 65).translated (vector((band_lever_peg - band_lever_pivot)[0], 0, (band_lever_peg - band_lever_pivot)[1]))
 
-band_lever_part = band_lever_part.cut (band_lever_peg_hole_part)
+band_lever_part = band_lever_part.cut (band_lever_peg_hole_part)'''
 
-real_band_lever_pivot_center = vector (band_lever_pivot [0], band_center_height - band_lever_thickness/2, band_lever_pivot [1])
-band_lever_part.translate (real_band_lever_pivot_center)
-band_lever_peg_part.translate (real_band_lever_pivot_center)
+
+band_lever_part.translate (band_lever_pivot_center)
+#band_lever_peg_part.translate (band_lever_pivot_center)
 
 
 
@@ -494,10 +496,10 @@ test_box.translate (vector (wheel_drag_bar_right -6, wheel_drag_bar_height -6, 0
 Part.show (wheel_housing_other.common(test_box), "AxleHoleTest")
 
 Part.show (band_lever_part, "BandLever")
-Part.show (band_lever_part.rotated (real_band_lever_pivot_center, vector (0, 1, 0), -band_lever_rotation_angle*360/math.tau), "BandLeverStretched")
-Part.show (band_lever_peg_part, "BandLeverPeg")
+Part.show (band_lever_part.rotated (band_lever_pivot_center, vector (0, 1, 0), -band_lever_rotation_angle*360/math.tau), "BandLeverStretched")
+#Part.show (band_lever_peg_part, "BandLeverPeg")
 
-#Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = band_center_height), centered (300)), "PutativeTarget")
+Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = band_center_z), centered (300)), "PutativeTarget")
 
 #Part.show (band_lever_peg_cut_part, "Debug")
 #Part.show (band_lever_peg_part.cut(band_lever_peg_cut_part), "Debug2")

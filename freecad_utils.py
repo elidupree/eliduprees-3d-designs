@@ -128,4 +128,5 @@ def curse_freecad_types():
   curse (Part.Shape, "to_wire", lambda part: Part.Wire (part.Edges))
   curse (FreeCAD.Vector, "copy", lambda v: v + vector())
   curse (FreeCAD.Vector, "normalized", lambda v: v.copy().normalize())
+  curse (FreeCAD.Vector, "angle", lambda v: math.atan2(v[1],v[0]))
 
