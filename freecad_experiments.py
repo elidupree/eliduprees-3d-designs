@@ -398,6 +398,7 @@ print(band_lever_pivot_xz)
 
 band_center_y = wheel_middle_radius + wheel_paddle_length/2
 band_lever_bottom_y = band_center_y - band_lever_thickness/2
+band_lever_top_y = band_center_y + band_lever_thickness/2
 main_frame_bottom_y = slider_bottom_y - wheel_axle_radius - 1
 wheel_housing_right_z = -wheel_housing_space_needed_radius
 wheel_housing_front_x = catch_flex_left - wheel_housing_offset
@@ -537,8 +538,17 @@ main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth =
 ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
 
 main_frame_overhead_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = -1).build ([
+  start_at (band_lever_top_y + wheel_axle_leeway, wheel_housing_right_z - wheel_axle_leeway),
+  vertical_to (band_lever_pivot_xz [1] - 5),
+  horizontal_to (band_lever_top_y + wheel_axle_leeway + 5),
+  diagonal_to (wheel_part_top_y + wheel_loose_leeway + 5, wheel_housing_right_z - wheel_axle_leeway),
+  vertical_to (0),
+  horizontal_to (wheel_part_top_y + wheel_loose_leeway),
+  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
+  close(),
+]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (band_lever_tip_xz [0], main_frame_back_x))
 
-])
+main_frame_part = main_frame_part.fuse (main_frame_overhead_part)
 
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
   start_at(0,0),
