@@ -1,6 +1,7 @@
 import FreeCAD
 import Part
 import math
+import freecad_utils
 
 class FreeCAD_shape_builder:
   def __init__(self, zigzag_depth = 2, zigzag_length_limit = None):
@@ -15,6 +16,8 @@ class FreeCAD_shape_builder:
     self.current_position = None
     self.last_start_position = None
   def vector (self, coordinates):
+    if type (coordinates) is FreeCAD.Vector:
+      return coordinates
     return FreeCAD.Vector (*coordinates, 0)
   def add_line_impl (self, endpoints):
     segment = Part.LineSegment (*endpoints)
@@ -46,6 +49,15 @@ class FreeCAD_shape_builder:
     points = (self.current_position, through, to)
     self.components.append (Part.Arc (*[self.vector (coordinates) for coordinates in points]))
     self.current_position = to
+  def arc_radius_to (self, radius, to, direction = 1):
+    points = (self.current_position,
+      freecad_utils.arc_midpoint (
+        (self.vector (self.current_position), self.vector (to)),
+        radius, direction
+      ),
+    to)
+    self.components.append (Part.Arc (*[self.vector (coordinates) for coordinates in points]))
+    self.current_position = to
   def finish(self):
     return Part.Shape (self.components)
   def build(self, components):
@@ -71,7 +83,7 @@ class vertical_to:
     
 class diagonal_to:
   def __init__(self, *coordinates):
-    self.coordinates = coordinates
+    self.coordinates = coordinates if len (coordinates) >1 else [coordinates [0] [0], coordinates [0] [1]]
   def apply(self, builder):
     builder.line_to (self.coordinates)
     
@@ -82,9 +94,17 @@ class arc_through_to:
   def apply(self, builder):
     builder.arc_through_to (self.through, self.to)
 
+class arc_radius_to:
+  def __init__(self, radius, to, direction = 1):
+    self.radius = radius
+    self.to = to
+    self.direction = direction
+  def apply(self, builder):
+    builder.arc_radius_to (self.radius, self.to, self.direction)
+
 class start_at:
   def __init__(self, *coordinates):
-    self.coordinates = coordinates
+    self.coordinates = coordinates if len (coordinates) >1 else [coordinates [0] [0], coordinates [0] [1]]
   def apply(self, builder):
     builder.current_position = self.coordinates
     builder.last_start_position = self.coordinates

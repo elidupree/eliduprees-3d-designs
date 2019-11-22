@@ -1,5 +1,7 @@
 import inspect
 import numbers
+import math
+import numpy
 
 import FreeCAD
 import Part
@@ -54,6 +56,47 @@ class bounds():
     return self.max - self.min
   def minimum (self):
     return self.min
+
+def arc_center (endpoints, radius):
+  delta = (endpoints [1] - endpoints [0])/2
+  adjacent = delta.Length
+  opposite = math.sqrt (radius**2 - adjacent**2)
+  return endpoints [0] + delta + vector (- delta [1], delta [0]).normalized()*(opposite*numpy.sign (radius))
+
+def arc_midpoint (endpoints, radius, direction = 1):
+  delta = (endpoints [1] - endpoints [0])/2
+  adjacent = delta.Length
+  #print (radius, adjacent)
+  opposite = math.sqrt (radius**2 - adjacent**2)
+  return endpoints [0] + delta + vector (- delta [1], delta [0]).normalized()*(opposite*numpy.sign (radius) - radius*direction)
+
+def point_circle_tangent (point, circle, direction = 1):
+  center, radius = circle
+  delta = point - center
+  distance = delta.Length
+  angle = math.atan2 (delta [1], delta [0])
+  radius = radius*direction
+  flip = numpy.sign (radius)
+  radius = abs (radius)
+  angle_offset = math.acos (radius/distance)
+  tangent_angle = angle + angle_offset*flip
+  return center + vector (radius*math.cos (tangent_angle), radius*math.sin (tangent_angle))
+
+def circle_circle_tangent_segment (circle_1, circle_2, direction_1 = 1, direction_2 = 1):
+  center_1, radius_1 = circle_1
+  center_2, radius_2 = circle_2
+  radius_1 = radius_1*direction_1
+  radius_2 = radius_2*direction_2
+  center = (center_1*radius_2 - center_2*radius_1)/(radius_2 - radius_1)
+  flip_1 = 1
+  flip_2 = 1
+  if numpy.sign (radius_1) == numpy.sign (radius_2):
+    if abs (radius_1) < abs (radius_2):
+      flip_1 = -1
+    else:
+      flip_2 = -1
+  return point_circle_tangent (center, (center_1, - flip_1*radius_1)), point_circle_tangent (center, (center_2, flip_2*radius_2))
+
 
 operations_to_make_applied_version_of = [
   ("translate", "translated"),
