@@ -394,6 +394,7 @@ band_lever_pivot_xz = arc_center ([band_lever_tip_xz, band_lever_tip_stretched_x
 band_lever_pivot_to_tip_xz = band_lever_tip_xz - band_lever_pivot_xz
 band_lever_pivot_to_tip_stretched_xz = band_lever_tip_stretched_xz - band_lever_pivot_xz
 
+print(band_lever_pivot_xz)
 
 band_center_y = wheel_middle_radius + wheel_paddle_length/2
 band_lever_bottom_y = band_center_y - band_lever_thickness/2
@@ -402,8 +403,11 @@ wheel_housing_right_z = -wheel_housing_space_needed_radius
 wheel_housing_front_x = catch_flex_left - wheel_housing_offset
 wheel_housing_back_x = wheel_drag_bar_right + wheel_housing_offset
 wheel_housing_back_stretched_x = wheel_housing_back_x + string_motion_distance
+wheel_housing_bottom_y = - wheel_shadow_radius - wheel_housing_offset
+wheel_part_top_y = wheel_shadow_radius
 main_frame_front_x = wheel_housing_front_x - wheel_axle_leeway - 1
 main_frame_back_x = wheel_housing_back_stretched_x + wheel_axle_leeway + 1
+
 
 
 band_lever_angle = band_lever_pivot_to_tip_xz.angle()
@@ -478,7 +482,7 @@ band_lever_part = band_lever_part.cut (band_lever_peg_hole_part)'''
 band_lever_part.translate (band_lever_pivot_center)
 #band_lever_peg_part.translate (band_lever_pivot_center)
 
-main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
+"""main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
   start_at(wheel_housing_front_x - wheel_axle_leeway, 0),
   vertical_to (wheel_housing_right_z - wheel_axle_leeway),
   horizontal_to (wheel_housing_back_stretched_x + wheel_axle_leeway),
@@ -515,7 +519,26 @@ main_frame_part = main_frame_part.fuse (box (
   bounds (wheel_housing_front_x - wheel_axle_leeway, wheel_housing_back_stretched_x + wheel_axle_leeway),
   bounds (slider_thickness/2 + wheel_axle_leeway, slider_thickness/2 + wheel_axle_leeway + 0.28),
   bounds (wheel_housing_right_z - slider_width - wheel_axle_leeway, 0),
-))
+))"""
+
+main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = - 1).build ([
+  start_at (wheel_housing_bottom_y - wheel_loose_leeway, 0),
+  horizontal_to (wheel_housing_bottom_y - wheel_loose_leeway - 5),
+  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
+  diagonal_to (band_lever_bottom_y - wheel_axle_leeway - 5, band_lever_pivot_xz [1] - 5),
+  horizontal_to (band_lever_bottom_y - wheel_axle_leeway),
+  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
+  horizontal_to (slider_top_y + wheel_axle_leeway),
+  vertical_to (wheel_housing_right_z - slider_width - wheel_loose_leeway),
+  horizontal_to (slider_bottom_y - wheel_axle_leeway),
+  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
+  horizontal_to (wheel_housing_bottom_y - wheel_loose_leeway),
+  close(),
+]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
+
+main_frame_overhead_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = -1).build ([
+
+])
 
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
   start_at(0,0),
