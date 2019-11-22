@@ -124,6 +124,8 @@ def curse_freecad_types():
         curse (part_class, applied_name, globals() [applied_name])
       curse (part_class, "to_face", lambda part: Part.Face (part))
       curse (part_class, "fancy_extrude", fancy_extrude)
+      curse (part_class, "as_xz", lambda part: part.rotated(vector(), vector (1, 0, 0), 90))
+      curse (part_class, "as_yz", lambda part: part.rotated(vector(), vector (0, 1, 0), 90))
   
   curse (Part.Shape, "to_wire", lambda part: Part.Wire (part.Edges))
   curse (FreeCAD.Vector, "copy", lambda v: v + vector())
