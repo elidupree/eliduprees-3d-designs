@@ -599,7 +599,7 @@ perpendicular_yz = along_yz.rotated (90)
 close_inner_corner_yz = close_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [1])/along_yz [1])
 outer_inner_corner_yz = outer_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [0])/along_yz [0])
 
-main_frame_outer_wire = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = - 1).build ([
+main_frame_outer_wire = FreeCAD_shape_builder (zigzag_length_limit = main_frame_strut_thickness+0.01, zigzag_depth = - 1).build ([
   start_at (wheel_housing_bottom_y - wheel_loose_leeway, 0),
   horizontal_to (close_corner_yz [0]),
   vertical_to (close_corner_yz [1]),
@@ -698,6 +698,8 @@ prong_part = FreeCAD_shape_builder ().build ([
 ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (wheel_thickness))
 
 main_frame_part = main_frame_part.fuse (prong_part)
+
+main_frame_part = main_frame_part.fuse (main_frame_part.mirror(vector(), vector(0,0,1)))
 
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
   start_at(0,0),

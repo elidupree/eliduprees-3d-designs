@@ -105,7 +105,6 @@ operations_to_make_applied_version_of = [
   ("scale", "scaled"),
   ("rotate", "rotated"),
   ("reverse", "reversed"),
-  ("mirror", "mirrored"),
 ]
 
 for operation_name, applied_name in operations_to_make_applied_version_of:
