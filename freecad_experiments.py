@@ -600,14 +600,14 @@ main_frame_part = main_frame_part.fuse (box (
   bounds (wheel_housing_right_z - slider_width - wheel_axle_leeway, 0),
 ))"""
 
-outer_corner_yz = vector (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness, band_lever_pivot_xz [1] - main_frame_around_pivot_radius - 2)
+outer_corner_yz = vector (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness, band_lever_pivot_xz [1] - main_frame_around_pivot_radius - 1.1)
 close_corner_yz = vector (wheel_housing_bottom_y - wheel_loose_leeway - main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)
 along_yz = (outer_corner_yz - close_corner_yz).normalized()
 perpendicular_yz = along_yz.rotated (90)
 close_inner_corner_yz = close_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [1])/along_yz [1])
 outer_inner_corner_yz = outer_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [0])/along_yz [0])
 
-main_frame_outer_wire = FreeCAD_shape_builder (zigzag_length_limit = main_frame_strut_thickness+0.01, zigzag_depth = - 1).build ([
+main_frame_outer_wire = FreeCAD_shape_builder (zigzag_length_limit = main_frame_around_pivot_radius*2.4, zigzag_depth = - 1).build ([
   start_at (wheel_housing_bottom_y - wheel_loose_leeway, 0),
   horizontal_to (close_corner_yz [0]),
   vertical_to (close_corner_yz [1]),
@@ -637,9 +637,9 @@ main_frame_part = Part.Face([main_frame_outer_wire,
   #main_frame_inner_wire
 ]).fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
 
-main_frame_missing_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
+main_frame_missing_part = FreeCAD_shape_builder (zigzag_length_limit = main_frame_around_pivot_radius*2.2, zigzag_depth = 1).build ([
   start_at (band_lever_bottom_y - wheel_axle_leeway, 0),
-  vertical_to (band_lever_pivot_xz [1] - 10),
+  vertical_to (outer_corner_yz[1]),
   horizontal_to (band_lever_top_y + wheel_axle_leeway),
   
   vertical_to (0),
@@ -713,7 +713,7 @@ band_lever_axle_part = FreeCAD_shape_builder().build ([
   start_at (vector (angle = math.tau*5/8, length = wheel_axle_radius)),
   arc_radius_to (-wheel_axle_radius,vector (angle = math.tau*3/8, length = wheel_axle_radius), -1),
   close(),
-]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), bounds (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness/2, band_lever_top_y + wheel_axle_leeway + main_frame_strut_thickness)).translated (vector (band_lever_pivot_xz [0], 0, band_lever_pivot_xz [1]))
+]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), bounds (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness*1.5, band_lever_top_y + wheel_axle_leeway + main_frame_strut_thickness)).translated (vector (band_lever_pivot_xz [0], 0, band_lever_pivot_xz [1]))
 
 main_frame_part = main_frame_part.cut (band_lever_axle_part.makeOffsetShape (tight_leeway, 0.03))
 
@@ -764,6 +764,9 @@ Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = ba
   close(),
 ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (200))
 Part.show (main_frame_part.common(test_box), "Test")"""
+
+test_box = box(centered (20), centered (90), centered (20)).translated (band_lever_pivot_center)
+Part.show (main_frame_part.common(test_box), "Test")
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
