@@ -133,4 +133,4 @@ def curse_freecad_types():
   curse (FreeCAD.Vector, "copy", lambda v: v + vector())
   curse (FreeCAD.Vector, "normalized", lambda v: v.copy().normalize())
   curse (FreeCAD.Vector, "angle", lambda v: math.atan2(v[1],v[0]))
-
+  curse (FreeCAD.Vector, "rotated", lambda v, amount: vector (angle = v.angle() + amount, length = v.Length))

@@ -299,11 +299,12 @@ slider_part = wheel_housing_face.fancy_extrude (vector (0, 0, 1), centered ((whe
 slider_part_box = box (centered (100), centered (slider_thickness), centered (100))
 slider_part = slider_part.common (slider_part_box)
 
+catch_tip_xy = vector (0 + wheel_shadow_radius, - wheel_shadow_radius)
 
 catch_top = [start_at(catch_flex_left, - wheel_shadow_radius),
   horizontal_to (0 + wheel_paddle_thickness/2 + catch_depth/catch_slope),
   diagonal_to (0 + wheel_paddle_thickness/2,- wheel_shadow_radius + catch_depth),
-  diagonal_to (0 + wheel_shadow_radius, - wheel_shadow_radius),]
+  diagonal_to (catch_tip_xy),]
 
 
 catch_part = FreeCAD_shape_builder ().build (catch_top + [
@@ -409,6 +410,7 @@ wheel_part_top_y = wheel_shadow_radius
 main_frame_front_x = wheel_housing_front_x - wheel_axle_leeway - 1
 main_frame_back_x = wheel_housing_back_stretched_x + wheel_axle_leeway + 1
 main_frame_around_pivot_radius = 5
+main_frame_strut_thickness = 6
 band_room_radius = band_lever_tip_circle_radius + band_thickness*3
 
 
@@ -590,13 +592,20 @@ main_frame_part = main_frame_part.fuse (box (
   bounds (wheel_housing_right_z - slider_width - wheel_axle_leeway, 0),
 ))"""
 
-main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = - 1).build ([
+outer_corner_yz = vector (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness, band_lever_pivot_xz [1] - main_frame_around_pivot_radius - 2)
+close_corner_yz = vector (wheel_housing_bottom_y - wheel_loose_leeway - main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)
+along_yz = (outer_corner_yz - close_corner_yz).normalized()
+perpendicular_yz = along_yz.rotated (90)
+close_inner_corner_yz = close_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [1])/along_yz [1])
+outer_inner_corner_yz = outer_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [0])/along_yz [0])
+
+main_frame_outer_wire = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = - 1).build ([
   start_at (wheel_housing_bottom_y - wheel_loose_leeway, 0),
-  horizontal_to (wheel_housing_bottom_y - wheel_loose_leeway - 5),
-  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
-  diagonal_to (band_lever_bottom_y - wheel_axle_leeway - 5, band_lever_pivot_xz [1] - main_frame_around_pivot_radius - 2),
-  horizontal_to (band_lever_top_y + wheel_axle_leeway + 5),
-  diagonal_to (wheel_part_top_y + wheel_loose_leeway + 5, wheel_housing_right_z - wheel_axle_leeway),
+  horizontal_to (close_corner_yz [0]),
+  vertical_to (close_corner_yz [1]),
+  diagonal_to (outer_corner_yz),
+  horizontal_to (band_lever_top_y + wheel_axle_leeway + main_frame_strut_thickness),
+  diagonal_to (wheel_part_top_y + wheel_loose_leeway + main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway),
   vertical_to (0),
   horizontal_to (wheel_part_top_y + wheel_loose_leeway),
   vertical_to (wheel_housing_right_z - wheel_axle_leeway),
@@ -606,7 +615,19 @@ main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth =
   vertical_to (wheel_housing_right_z - wheel_axle_leeway),
   horizontal_to (wheel_housing_bottom_y - wheel_loose_leeway),
   close(),
-]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
+]).as_yz().to_wire()
+
+'''main_frame_inner_wire = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = - 1).build ([
+  start_at (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness),
+  diagonal_to (outer_inner_corner_yz),
+  diagonal_to (close_inner_corner_yz),
+  close(),
+]).as_yz().to_wire()'''
+
+main_frame_part = Part.Face([main_frame_outer_wire, 
+  # Note: Saves material, but increases printing time because there's more outer surfaces
+  #main_frame_inner_wire
+]).fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
 
 main_frame_missing_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
   start_at (band_lever_bottom_y - wheel_axle_leeway, 0),
