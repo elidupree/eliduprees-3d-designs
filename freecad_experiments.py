@@ -422,9 +422,10 @@ print (band_lever_rotation_angle*360/math.tau)
 band_lever_pivot_center = vector (band_lever_pivot_xz [0], band_center_y, band_lever_pivot_xz [1])
 def along_band_lever (distance):
   return (band_lever_pivot_to_tip_xz)*(distance)/(band_lever_length)
-  
+
+band_lever_tip_circle_center_xz = band_lever_pivot_xz + along_band_lever (band_lever_length -band_lever_tip_circle_radius)
 band_lever_tip_circle = (
-  along_band_lever (band_lever_length -band_lever_tip_circle_radius),
+  band_lever_tip_circle_center_xz - band_lever_pivot_xz,
   band_lever_tip_circle_radius
 )
 band_lever_string_circle = (vector(), band_lever_string_radius)
@@ -442,11 +443,12 @@ band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth =
 #print(band_lever_part)
 
 string_holder_radius = band_lever_thickness*0.5/math.sin (math.tau/8)
+string_holder_edges_radius =band_lever_string_radius + string_holder_radius*(1 - math.sin (math.tau/8))
 band_lever_string_holder = FreeCAD_shape_builder ().build ([
   start_at(vector(10)),
-  horizontal_to (band_lever_string_radius + string_holder_radius*(1 - math.sin (math.tau/8))),
+  horizontal_to (string_holder_edges_radius),
   arc_radius_to (-string_holder_radius,
-    (band_lever_string_radius + string_holder_radius*(1 - math.sin (math.tau/8)), band_lever_thickness),
+    (string_holder_edges_radius, band_lever_thickness),
     1,
   ),
   horizontal_to(10),
@@ -527,7 +529,10 @@ main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth =
   horizontal_to (wheel_housing_bottom_y - wheel_loose_leeway - 5),
   vertical_to (wheel_housing_right_z - wheel_axle_leeway),
   diagonal_to (band_lever_bottom_y - wheel_axle_leeway - 5, band_lever_pivot_xz [1] - 5),
-  horizontal_to (band_lever_bottom_y - wheel_axle_leeway),
+  horizontal_to (band_lever_top_y + wheel_axle_leeway + 5),
+  diagonal_to (wheel_part_top_y + wheel_loose_leeway + 5, wheel_housing_right_z - wheel_axle_leeway),
+  vertical_to (0),
+  horizontal_to (wheel_part_top_y + wheel_loose_leeway),
   vertical_to (wheel_housing_right_z - wheel_axle_leeway),
   horizontal_to (slider_top_y + wheel_axle_leeway),
   vertical_to (wheel_housing_right_z - slider_width - wheel_loose_leeway),
@@ -537,18 +542,35 @@ main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth =
   close(),
 ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
 
-main_frame_overhead_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = -1).build ([
-  start_at (band_lever_top_y + wheel_axle_leeway, wheel_housing_right_z - wheel_axle_leeway),
-  vertical_to (band_lever_pivot_xz [1] - 5),
-  horizontal_to (band_lever_top_y + wheel_axle_leeway + 5),
-  diagonal_to (wheel_part_top_y + wheel_loose_leeway + 5, wheel_housing_right_z - wheel_axle_leeway),
+main_frame_missing_part = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
+  start_at (band_lever_bottom_y - wheel_axle_leeway, 0),
+  vertical_to (band_lever_pivot_xz [1] - 10),
+  horizontal_to (band_lever_top_y + wheel_axle_leeway),
+  
   vertical_to (0),
-  horizontal_to (wheel_part_top_y + wheel_loose_leeway),
-  vertical_to (wheel_housing_right_z - wheel_axle_leeway),
+  
   close(),
-]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (band_lever_tip_xz [0], main_frame_back_x))
+]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), bounds (main_frame_front_x, main_frame_back_x))
 
-main_frame_part = main_frame_part.fuse (main_frame_overhead_part)
+a,b = circle_circle_tangent_segment (
+  (band_lever_pivot_xz, string_holder_edges_radius + 2),
+  (band_lever_tip_circle_center_xz, band_lever_tip_circle_radius + 2),
+)
+main_frame_missing_part_filter = FreeCAD_shape_builder ().build ([
+  start_at (b),
+  #diagonal_to (
+  diagonal_to (band_lever_tip_xz [0] + string_motion_distance + 10, 0),
+  horizontal_to (main_frame_front_x),
+  vertical_to (-1000),
+  horizontal_to (band_lever_pivot_xz [0] + string_holder_edges_radius + 2),
+  vertical_to (band_lever_pivot_xz [1]),
+  arc_radius_to (string_holder_edges_radius + 2, a),
+  close(),
+]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+
+main_frame_missing_part = main_frame_missing_part.common (main_frame_missing_part_filter)
+
+main_frame_part = main_frame_part.cut (main_frame_missing_part)
 
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
   start_at(0,0),
@@ -583,7 +605,7 @@ Part.show (main_frame_part, "MainFrame")
 
 Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = band_center_y), centered (300)), "PutativeTarget")
 
-#Part.show (band_lever_peg_cut_part, "Debug")
+Part.show (main_frame_missing_part_filter, "Debug")
 #Part.show (band_lever_peg_part.cut(band_lever_peg_cut_part), "Debug2")
 
 document().recompute()
