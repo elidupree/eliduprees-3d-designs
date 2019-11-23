@@ -532,6 +532,7 @@ band_lever_peg_part = FreeCAD_shape_builder().build ([
 ).rotated (vector (), vector (0, 1, 0), -(direction + math.tau/4)*360/math.tau).translated (vector (whatever_xz [0], 0, whatever_xz [1]))
 
 band_lever_part = band_lever_part.cut (band_lever_cut_part)
+band_lever_part = band_lever_part.cut (Part.makeCylinder (wheel_axle_hole_radius, 100, vector (0, -50, 0), vector (0, 1, 0)))
 
 
 '''a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_peg_room_circle, 1, -1)
@@ -708,6 +709,14 @@ prong_part = FreeCAD_shape_builder ().build ([
 
 main_frame_part = main_frame_part.fuse (prong_part)
 
+band_lever_axle_part = FreeCAD_shape_builder().build ([
+  start_at (vector (angle = math.tau*5/8, length = wheel_axle_radius)),
+  arc_radius_to (-wheel_axle_radius,vector (angle = math.tau*3/8, length = wheel_axle_radius), -1),
+  close(),
+]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), bounds (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness/2, band_lever_top_y + wheel_axle_leeway + main_frame_strut_thickness)).translated (vector (band_lever_pivot_xz [0], 0, band_lever_pivot_xz [1]))
+
+main_frame_part = main_frame_part.cut (band_lever_axle_part.makeOffsetShape (tight_leeway, 0.03))
+
 main_frame_part = main_frame_part.fuse (main_frame_part.mirror(vector(), vector(0,0,1)))
 
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
@@ -738,6 +747,7 @@ Part.show (wheel_housing_other.common(test_box), "AxleHoleTest")
 Part.show (band_lever_part, "BandLever")
 Part.show (band_lever_part.rotated (band_lever_pivot_center, vector (0, 1, 0), -band_lever_rotation_angle*360/math.tau), "BandLeverStretched")
 Part.show (band_lever_peg_part, "BandLeverPeg")
+Part.show (band_lever_axle_part, "BandLeverAxle")
 
 Part.show (main_frame_part, "MainFrame")
 
