@@ -687,6 +687,18 @@ def main_frame_profile_filter(front):
  
 main_frame_part = main_frame_part.cut (main_frame_missing_part).common (main_frame_profile_filter (True).fuse (main_frame_profile_filter (False)))
 
+prong_tip_xy = vector (catch_tip_xy + vector (string_motion_distance, 0) - vector (catch_depth, - catch_depth))
+prong_part = FreeCAD_shape_builder ().build ([
+  start_at (prong_tip_xy),
+  diagonal_to(catch_tip_xy + vector (string_motion_distance, 0) + vector (catch_depth, - catch_depth)),
+  vertical_to (wheel_housing_bottom_y - main_frame_strut_thickness/2),
+  horizontal_to (main_frame_back_x),
+  vertical_to (prong_tip_xy [1]),
+  close(),
+]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (wheel_thickness))
+
+main_frame_part = main_frame_part.fuse (prong_part)
+
 stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
   start_at(0,0),
   horizontal_to (100),
