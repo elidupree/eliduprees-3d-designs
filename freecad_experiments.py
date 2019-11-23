@@ -442,19 +442,33 @@ perpendicular_xz =vector (angle = direction + math.tau/4)
 something_xz = (band_lever_tip_circle_center_xz - band_lever_pivot_xz) + normal_xz*(band_lever_tip_circle_radius + band_room_radius/2)
 whatever_xz = something_xz + perpendicular_xz*band_lever_tip_circle_radius
 half_exit_offset_xz = normal_xz*(band_thickness + band_lever_peg_radius)
-half_exit_outer_offset_xz = normal_xz*(band_thickness + band_lever_peg_radius*3)
 
 other_xz = whatever_xz + half_exit_offset_xz
 other_2_xz = whatever_xz - half_exit_offset_xz
 
-band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
+mid_xz = point_circle_tangent (
+      other_xz,
+      (
+  band_lever_tip_circle_center_xz - band_lever_pivot_xz,
+  band_room_radius
+),
+      -1,
+    )
+mid_2_xz = point_circle_tangent (
+    other_2_xz,
+    band_lever_tip_circle,
+    -1,
+  )
+
+band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 8, zigzag_depth = 1).build ([
   start_at(a),
-  diagonal_to (a - (a-b).normalized() * 9),
+  diagonal_to (a - (a-b).normalized() * 7),
   diagonal_to (b),
   arc_radius_to(- band_lever_string_radius, c, -1),
-  diagonal_to (whatever_xz + half_exit_outer_offset_xz),
-  diagonal_to (whatever_xz),
-  diagonal_to (whatever_xz - half_exit_outer_offset_xz),
+  diagonal_to (other_xz),
+  diagonal_to (other_xz + (mid_xz - other_xz).normalized()*band_lever_peg_radius),
+  diagonal_to (other_2_xz + (mid_2_xz - other_2_xz).normalized()*band_lever_peg_radius),
+  diagonal_to (other_2_xz),
   diagonal_to (d),
   arc_radius_to(band_lever_tip_circle_radius, a, 1),
 ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_lever_thickness))
@@ -480,24 +494,13 @@ band_lever_part = band_lever_part.fuse (band_lever_string_holder)
 
 band_lever_cut_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
   start_at(other_2_xz),
-  diagonal_to (point_circle_tangent (
-    other_2_xz,
-    band_lever_tip_circle,
-    -1,
-  )),
+  diagonal_to (mid_2_xz),
   arc_radius_to(band_lever_tip_circle_radius, d, -1),
   diagonal_to (
   (band_lever_tip_circle_center_xz - band_lever_pivot_xz) - vector (band_room_radius, 0)
 ),
   arc_radius_to(band_room_radius, 
-    point_circle_tangent (
-      other_xz,
-      (
-  band_lever_tip_circle_center_xz - band_lever_pivot_xz,
-  band_room_radius
-),
-      -1,
-    )
+    mid_xz
   , 1),
   
   diagonal_to (other_xz),
@@ -506,16 +509,20 @@ band_lever_cut_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_de
 ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_width))
 
 band_lever_peg_part = FreeCAD_shape_builder().build ([
-  start_at (whatever_xz + half_exit_outer_offset_xz),
-  diagonal_to (whatever_xz - half_exit_outer_offset_xz),
-  diagonal_to (other_2_xz - perpendicular_xz*band_lever_peg_radius*2),
-  diagonal_to (other_xz - perpendicular_xz*band_lever_peg_radius*2),
+  start_at (-band_lever_peg_radius*2, band_width/2-wheel_axle_leeway),
+  vertical_to (- band_width/2 + wheel_axle_leeway),
+  horizontal_to (- band_lever_peg_radius),
+  vertical_to (-band_lever_thickness/2),
+  horizontal_to(0),
+  vertical_to (band_lever_thickness/2),
+  horizontal_to(- band_lever_peg_radius),
+  vertical_to (band_width/2-wheel_axle_leeway),
   close(),
-]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_lever_thickness))
-center_xz = whatever_xz - perpendicular_xz*band_lever_peg_radius
-band_lever_peg_part = band_lever_peg_part.cut (band_lever_cut_part).fuse(Part.makeCylinder (band_lever_peg_radius, band_lever_thickness, vector (center_xz[0], -band_lever_thickness/2, center_xz[1]), vector (0, 1, 0) ))
+]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (100)).common (
+  Part.makeCylinder (band_lever_peg_radius, band_lever_thickness, vector (- band_lever_peg_radius, -band_lever_thickness/2, 0), vector (0, 1, 0))
+).rotated (vector (), vector (0, 1, 0), -(direction + math.tau/4)*360/math.tau).translated (vector (whatever_xz [0], 0, whatever_xz [1]))
 
-band_lever_part = band_lever_part.cut (band_lever_cut_part).cut (band_lever_peg_part)
+band_lever_part = band_lever_part.cut (band_lever_cut_part)
 
 
 '''a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_peg_room_circle, 1, -1)
