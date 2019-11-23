@@ -10,7 +10,9 @@ from forbiddenfruit import curse
 
 def document():
   return FreeCAD.activeDocument()
-def vector(*arguments):
+def vector(*arguments, angle = None, length = 1):
+  if angle is not None:
+    return FreeCAD.Vector (length*math.cos(angle), length*math.sin (angle))
   return FreeCAD.Vector (*arguments)
   
 def width (argument):

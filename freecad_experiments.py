@@ -345,9 +345,9 @@ wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickne
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
 wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
-channel_holder_outside = 1
-channel_holder_hole_depth = popsicle_stick_width*0.7
 wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 14 wide, observed 14.6 after printing and assembly, give it an extra 0.1 on each side
+"""channel_holder_outside = 1
+channel_holder_hole_depth = popsicle_stick_width*0.7
 channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
 channel_holder_vertical_radius = slider_thickness/2 + wheel_axle_leeway + popsicle_stick_width + tight_leeway + channel_holder_outside
 
@@ -375,7 +375,7 @@ def channel_holder_hole(horizontal, vertical):
 channel_holder_part = channel_holder_part.cut ([
   channel_holder_hole (horizontal, vertical)
   for horizontal in [-1, 1] for vertical in [-1, 1]
-])
+])"""
 
 
 
@@ -385,7 +385,7 @@ string_motion_distance = handle_motion_distance
 band_lever_wall = 1
 band_lever_thickness = band_width + band_lever_wall*2
 band_lever_tip_circle_radius = 5
-band_lever_peg_radius = wheel_axle_radius
+band_lever_peg_radius = 1.5
 band_lever_peg_to_tip = band_lever_tip_circle_radius*math.tau*0.75
 band_lever_tip_xz = vector (0 + wheel_paddle_thickness*1.5, -50 + band_lever_peg_to_tip)
 band_lever_tip_stretched_xz = vector (farthest_left, -100) # yes, not exact, that's fine
@@ -409,6 +409,7 @@ wheel_part_top_y = wheel_shadow_radius
 main_frame_front_x = wheel_housing_front_x - wheel_axle_leeway - 1
 main_frame_back_x = wheel_housing_back_stretched_x + wheel_axle_leeway + 1
 main_frame_around_pivot_radius = 5
+band_room_radius = band_lever_tip_circle_radius + band_thickness*3
 
 
 
@@ -434,10 +435,26 @@ band_lever_string_circle = (vector(), band_lever_string_radius)
 
 a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_string_circle)
 d,c = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_string_circle, -1, -1)
-band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
+
+direction = (c-d).angle()
+normal_xz =(c-d).normalized()
+perpendicular_xz =vector (angle = direction + math.tau/4)
+something_xz = (band_lever_tip_circle_center_xz - band_lever_pivot_xz) + normal_xz*(band_lever_tip_circle_radius + band_room_radius/2)
+whatever_xz = something_xz + perpendicular_xz*band_lever_tip_circle_radius
+half_exit_offset_xz = normal_xz*(band_thickness + band_lever_peg_radius)
+half_exit_outer_offset_xz = normal_xz*(band_thickness + band_lever_peg_radius*3)
+
+other_xz = whatever_xz + half_exit_offset_xz
+other_2_xz = whatever_xz - half_exit_offset_xz
+
+band_lever_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
   start_at(a),
+  diagonal_to (a - (a-b).normalized() * 9),
   diagonal_to (b),
   arc_radius_to(- band_lever_string_radius, c, -1),
+  diagonal_to (whatever_xz + half_exit_outer_offset_xz),
+  diagonal_to (whatever_xz),
+  diagonal_to (whatever_xz - half_exit_outer_offset_xz),
   diagonal_to (d),
   arc_radius_to(band_lever_tip_circle_radius, a, 1),
 ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_lever_thickness))
@@ -459,6 +476,47 @@ band_lever_string_holder = FreeCAD_shape_builder ().build ([
 band_lever_part = band_lever_part.fuse (band_lever_string_holder)
 #print(band_lever_part)
 #band_lever_part = band_lever_part.fuse (Part.makeCylinder (band_lever_string_radius, band_lever_thickness, vector(), vector (0, 1, 0)))
+
+
+band_lever_cut_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
+  start_at(other_2_xz),
+  diagonal_to (point_circle_tangent (
+    other_2_xz,
+    band_lever_tip_circle,
+    -1,
+  )),
+  arc_radius_to(band_lever_tip_circle_radius, d, -1),
+  diagonal_to (
+  (band_lever_tip_circle_center_xz - band_lever_pivot_xz) - vector (band_room_radius, 0)
+),
+  arc_radius_to(band_room_radius, 
+    point_circle_tangent (
+      other_xz,
+      (
+  band_lever_tip_circle_center_xz - band_lever_pivot_xz,
+  band_room_radius
+),
+      -1,
+    )
+  , 1),
+  
+  diagonal_to (other_xz),
+  close(),
+  
+]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_width))
+
+band_lever_peg_part = FreeCAD_shape_builder().build ([
+  start_at (whatever_xz + half_exit_outer_offset_xz),
+  diagonal_to (whatever_xz - half_exit_outer_offset_xz),
+  diagonal_to (other_2_xz - perpendicular_xz*band_lever_peg_radius*2),
+  diagonal_to (other_xz - perpendicular_xz*band_lever_peg_radius*2),
+  close(),
+]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_lever_thickness))
+center_xz = whatever_xz - perpendicular_xz*band_lever_peg_radius
+band_lever_peg_part = band_lever_peg_part.cut (band_lever_cut_part).fuse(Part.makeCylinder (band_lever_peg_radius, band_lever_thickness, vector (center_xz[0], -band_lever_thickness/2, center_xz[1]), vector (0, 1, 0) ))
+
+band_lever_part = band_lever_part.cut (band_lever_cut_part).cut (band_lever_peg_part)
+
 
 '''a,b = circle_circle_tangent_segment (band_lever_tip_circle, band_lever_peg_room_circle, 1, -1)
 d = vector (-1000, 1000)
@@ -484,7 +542,7 @@ band_lever_part = band_lever_part.cut (band_lever_peg_hole_part)'''
 
 
 band_lever_part.translate (band_lever_pivot_center)
-#band_lever_peg_part.translate (band_lever_pivot_center)
+band_lever_peg_part.translate (band_lever_pivot_center)
 
 """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
   start_at(wheel_housing_front_x - wheel_axle_leeway, 0),
@@ -562,7 +620,7 @@ main_frame_missing_part_missing_part = FreeCAD_shape_builder ().build ([
   #diagonal_to (
   diagonal_to (band_lever_tip_xz [0] + string_motion_distance + 10, 0),
   horizontal_to (main_frame_back_x),
-  vertical_to (a[1]),
+  vertical_to (-30),
   diagonal_to (a),
   close(),
 ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (500))
@@ -619,8 +677,8 @@ wheel_housing_other.translate (vector (0, 0, 10))
 Part.show (wheel_housing_other, "WheelHousingOther")
 Part.show (axle_part, "Axle")
 
-channel_holder_part.translate (vector (-50, 0, 0))
-Part.show (channel_holder_part, "ChannelHolder")
+#channel_holder_part.translate (vector (-50, 0, 0))
+#Part.show (channel_holder_part, "ChannelHolder")
 
 test_box = Part.makeBox (12, 12, 100)
 test_box.translate (vector (wheel_drag_bar_right -6, wheel_drag_bar_height -6, 0))
@@ -628,7 +686,7 @@ Part.show (wheel_housing_other.common(test_box), "AxleHoleTest")
 
 Part.show (band_lever_part, "BandLever")
 Part.show (band_lever_part.rotated (band_lever_pivot_center, vector (0, 1, 0), -band_lever_rotation_angle*360/math.tau), "BandLeverStretched")
-#Part.show (band_lever_peg_part, "BandLeverPeg")
+Part.show (band_lever_peg_part, "BandLeverPeg")
 
 Part.show (main_frame_part, "MainFrame")
 
