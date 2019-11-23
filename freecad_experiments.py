@@ -242,6 +242,8 @@ catch_depth = 2.5
 catch_slope = 6
 catch_solid_thickness = claw_thickness
 catch_flex_thickness = flex_thickness
+catch_tip_deflection_distance = catch_depth*2
+catch_tip_lowest_y = - wheel_shadow_radius - catch_solid_thickness - catch_tip_deflection_distance
 slider_thickness = 1
 slider_width = popsicle_stick_thickness + 1
 slider_top_y = slider_thickness/2
@@ -346,7 +348,7 @@ wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickne
 wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
 wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
-wheel_housing_space_needed_radius = wheel_housing_radius + 0.4 # theoretically 14 wide, observed 14.6 after printing and assembly, give it an extra 0.1 on each side
+wheel_housing_space_needed_radius = wheel_housing_radius + 0.3 # theoretically 14 wide, observed 14.6 after printing and assembly; originally gave it an extra 0.1 on each side, but no need for that based on observed tolerances
 """channel_holder_outside = 1
 channel_holder_hole_depth = popsicle_stick_width*0.7
 channel_holder_horizontal_radius = wheel_housing_space_needed_radius + wheel_axle_leeway + popsicle_stick_thickness + tight_leeway + channel_holder_outside
@@ -400,12 +402,12 @@ print(band_lever_pivot_xz)
 band_center_y = wheel_middle_radius + wheel_paddle_length/2
 band_lever_bottom_y = band_center_y - band_lever_thickness/2
 band_lever_top_y = band_center_y + band_lever_thickness/2
-main_frame_bottom_y = slider_bottom_y - wheel_axle_radius - 1
+#main_frame_bottom_y = slider_bottom_y - wheel_axle_radius - 1
 wheel_housing_right_z = -wheel_housing_space_needed_radius
 wheel_housing_front_x = catch_flex_left - wheel_housing_offset
 wheel_housing_back_x = wheel_drag_bar_right + wheel_housing_offset
 wheel_housing_back_stretched_x = wheel_housing_back_x + string_motion_distance
-wheel_housing_bottom_y = - wheel_shadow_radius - wheel_housing_offset
+wheel_housing_bottom_y = catch_tip_lowest_y
 wheel_part_top_y = wheel_shadow_radius
 main_frame_front_x = wheel_housing_front_x - wheel_axle_leeway - 1
 main_frame_back_x = wheel_housing_back_stretched_x + wheel_axle_leeway + 1
@@ -492,6 +494,11 @@ band_lever_string_holder = FreeCAD_shape_builder ().build ([
 band_lever_part = band_lever_part.fuse (band_lever_string_holder)
 #print(band_lever_part)
 #band_lever_part = band_lever_part.fuse (Part.makeCylinder (band_lever_string_radius, band_lever_thickness, vector(), vector (0, 1, 0)))
+
+string_attach_part = box (bounds (- 7, 0), centered (band_lever_thickness), centered (8)).cut (box (bounds (-7 + 1.5, 0), centered (band_lever_thickness - 1.5*2), centered (8)))
+string_attach_part = string_attach_part.makeChamfer (0.5, string_attach_part.Edges)
+
+band_lever_part = band_lever_part.fuse (string_attach_part.rotated (vector(), vector (0, 1, 0), (math.tau*0.75-(b-a).angle())*360/math.tau).translated (vector (b[0],0,b[1])))
 
 
 band_lever_cut_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
@@ -687,10 +694,12 @@ def main_frame_profile_filter(front):
  
 main_frame_part = main_frame_part.cut (main_frame_missing_part).common (main_frame_profile_filter (True).fuse (main_frame_profile_filter (False)))
 
-prong_tip_xy = vector (catch_tip_xy + vector (string_motion_distance, 0) - vector (catch_depth, - catch_depth))
+catch_tip_stretched_xy = catch_tip_xy + vector (string_motion_distance, 0)
+prong_tip_xy = vector (catch_tip_stretched_xy + vector (-(2+catch_tip_deflection_distance)/2, 2))
+
 prong_part = FreeCAD_shape_builder ().build ([
   start_at (prong_tip_xy),
-  diagonal_to(catch_tip_xy + vector (string_motion_distance, 0) + vector (catch_depth, - catch_depth)),
+  diagonal_to(catch_tip_stretched_xy + vector (0, - catch_tip_deflection_distance)),
   vertical_to (wheel_housing_bottom_y - main_frame_strut_thickness/2),
   horizontal_to (main_frame_back_x),
   vertical_to (prong_tip_xy [1]),
@@ -736,6 +745,15 @@ Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = ba
 
 #Part.show (main_frame_missing_part_filter, "Debug")
 #Part.show (band_lever_peg_part.cut(band_lever_peg_cut_part), "Debug2")
+
+"""test_box = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
+  start_at (-100, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness),
+  horizontal_to (100),
+  vertical_to(-(wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)),
+  horizontal_to (-100),
+  close(),
+]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (200))
+Part.show (main_frame_part.common(test_box), "Test")"""
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
