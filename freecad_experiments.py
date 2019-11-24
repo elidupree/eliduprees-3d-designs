@@ -601,7 +601,7 @@ main_frame_part = main_frame_part.fuse (box (
 ))"""
 
 outer_corner_yz = vector (band_lever_bottom_y - wheel_axle_leeway - main_frame_strut_thickness, band_lever_pivot_xz [1] - main_frame_around_pivot_radius - 1.1)
-close_corner_yz = vector (wheel_housing_bottom_y - wheel_loose_leeway - main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)
+close_corner_yz = vector (wheel_housing_bottom_y - wheel_loose_leeway - main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway)
 along_yz = (outer_corner_yz - close_corner_yz).normalized()
 perpendicular_yz = along_yz.rotated (90)
 close_inner_corner_yz = close_corner_yz + perpendicular_yz*main_frame_strut_thickness + along_yz*main_frame_strut_thickness*((-perpendicular_yz [1])/along_yz [1])
@@ -696,7 +696,7 @@ def main_frame_profile_filter(front):
 main_frame_part = main_frame_part.cut (main_frame_missing_part).common (main_frame_profile_filter (True).fuse (main_frame_profile_filter (False)))
 
 catch_tip_stretched_xy = catch_tip_xy + vector (string_motion_distance, 0)
-prong_tip_xy = vector (catch_tip_stretched_xy + vector (-(2+catch_tip_deflection_distance)/2, 2))
+'''prong_tip_xy = vector (catch_tip_stretched_xy + vector (-(2+catch_tip_deflection_distance)/2, 2))
 
 prong_part = FreeCAD_shape_builder ().build ([
   start_at (prong_tip_xy),
@@ -707,7 +707,15 @@ prong_part = FreeCAD_shape_builder ().build ([
   close(),
 ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (wheel_thickness))
 
-main_frame_part = main_frame_part.fuse (prong_part)
+main_frame_part = main_frame_part.fuse (prong_part)'''
+
+prong_part = box (100, popsicle_stick_thickness+0.4, centered (popsicle_stick_width)).rotated (vector(), vector (0, 0, 1), math.atan2 (-2, 1)*360/math.tau).translated (catch_tip_stretched_xy + vector (0, - catch_tip_deflection_distance))
+
+prong_hole_part = prong_part.makeOffsetShape (tight_leeway, 0.03, join=2);
+
+for increment in range (5):
+  main_frame_part = main_frame_part.cut (prong_hole_part.translated (vector (- increment*popsicle_stick_thickness*2, 0, 0)))
+
 
 band_lever_axle_part = FreeCAD_shape_builder().build ([
   start_at (vector (angle = math.tau*5/8, length = wheel_axle_radius)),
@@ -751,22 +759,24 @@ Part.show (band_lever_axle_part, "BandLeverAxle")
 
 Part.show (main_frame_part, "MainFrame")
 
+Part.show(prong_part, "ProngExample")
+
 Part.show (box (bounds (farthest_left - 10, farthest_left), centered (6, on = band_center_y), centered (300)), "PutativeTarget")
 
 #Part.show (main_frame_missing_part_filter, "Debug")
 #Part.show (band_lever_peg_part.cut(band_lever_peg_cut_part), "Debug2")
 
-"""test_box = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
-  start_at (-100, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness),
-  horizontal_to (100),
-  vertical_to(-(wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)),
+test_box = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
+  start_at (-100, -7.5),#wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness),
+  horizontal_to (wheel_housing_bottom_y), #100),
+  vertical_to(7.5),#-(wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)),
   horizontal_to (-100),
   close(),
-]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (200))
-Part.show (main_frame_part.common(test_box), "Test")"""
+]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (28, on=main_frame_back_x))
+Part.show (main_frame_part.common(test_box), "ChannelTest")
 
 test_box = box(centered (20), centered (90), centered (20)).translated (band_lever_pivot_center)
-Part.show (main_frame_part.common(test_box), "Test")
+Part.show (main_frame_part.common(test_box), "AxleHolesTest")
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
