@@ -231,6 +231,7 @@ def make_snapper():
   wheel_slider_radius = wheel_shadow_radius + 4
   wheel_drag_bar_height = wheel_middle_radius + band_width/2
   wheel_drag_bar_right = wheel_slider_radius
+  slider_link_joint_xy = vector (wheel_drag_bar_right, wheel_drag_bar_height)
   wheel_housing_offset = 5
   wheel_loose_leeway = 1
   wheel_axle_leeway = 0.4
@@ -344,10 +345,6 @@ def make_snapper():
   do_axle (wheel_drag_bar_right, wheel_drag_bar_height, 180)
   do_axle (catch_flex_left + wheel_axle_hole_radius+2, -wheel_shadow_radius + wheel_axle_hole_radius + 5, 180)
   wheel_housing_part = wheel_housing_part.cut(catch_shadow_part).fuse(catch_part)
-  wheel_housing_part = wheel_housing_part.cut(Part.makeCylinder (wheel_housing_offset+3, wheel_thickness, vector (wheel_drag_bar_right, wheel_drag_bar_height, wheel_front), vector (0, 0, 1)).makeOffsetShape (wheel_loose_leeway, 0.1))
-  wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickness/2, 100))
-  wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
-  wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
 
   wheel_housing_space_needed_radius = wheel_housing_radius + 0.3 # theoretically 14 wide, observed 14.6 after printing and assembly; originally gave it an extra 0.1 on each side, but no need for that based on observed tolerances
   """channel_holder_outside = 1
@@ -561,6 +558,59 @@ def make_snapper():
 
   band_lever_part.translate (band_lever_pivot_center)
   band_lever_peg_part.translate (band_lever_pivot_center)
+  
+  
+    
+  
+  handle_height = 100
+  handle_thickness = 22
+  link_radius = wheel_housing_offset
+  link_thickness = wheel_thickness
+  handle_link_joint_xy = vector (main_frame_back_x + 40, slider_link_joint_xy [1])
+  handle_link_joint_stretched_xy = handle_link_joint_xy + vector (handle_motion_distance, 0)
+  handle_lever_pivot_xy = (handle_link_joint_xy + handle_link_joint_stretched_xy)/2+ vector (0, - handle_height)
+  handle_lever_logical_length = (handle_link_joint_xy - handle_lever_pivot_xy).Length
+  handle_lever_rotation_angle = (handle_link_joint_xy - handle_lever_pivot_xy).angle() - (handle_link_joint_stretched_xy - handle_lever_pivot_xy).angle()
+  handle_lever_beyond_pivots_radius = link_radius
+  link_highest_y = handle_lever_pivot_xy [1] + handle_lever_logical_length + link_radius + 1
+  
+  
+  link_part = FreeCAD_shape_builder (zigzag_length_limit = 6, zigzag_depth = 1).build ([
+    start_at(handle_link_joint_xy + vector (0, - link_radius)),
+    arc_through_to (
+      handle_link_joint_xy + vector (link_radius, 0),
+      handle_link_joint_xy + vector (0, link_radius)
+    ),
+    horizontal_to (slider_link_joint_xy [0]),
+    arc_through_to (
+      slider_link_joint_xy + vector (-link_radius, 0),
+      slider_link_joint_xy + vector (0, -link_radius)
+    ),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (link_thickness))
+  link_shadow_part = link_part.makeOffsetShape (wheel_axle_leeway, 0.03)
+  link_stretched_shadow_part = link_shadow_part.translated (vector (handle_motion_distance, 0))
+  for position in [handle_link_joint_xy, slider_link_joint_xy]:
+    link_part = link_part.cut (Part.makeCylinder (wheel_axle_hole_radius, 100, position + vector (0, 0, -50), vector (0, 0, 1)))
+    
+  wheel_housing_part = wheel_housing_part.cut(link_shadow_part)
+  wheel_housing_split = box (centered (100), centered (100), bounds (wheel_thickness/2, 100))
+  wheel_housing_main = wheel_housing_part.cut (wheel_housing_split)
+  wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
+  
+  handle_lever_profile = FreeCAD_shape_builder().build ([
+    start_at (0, 8.4),
+    arc_through_to ((-8.4, 0), (0, -8.4)),
+    horizontal_to (20),
+    vertical_to (8.4),
+    close(),
+  ]).as_xz().to_wire()
+  
+  handle_lever_stretched_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_beyond_pivots_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius)).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau).cut (link_stretched_shadow_part)
+  
+  
+  handle_lever_part = handle_lever_stretched_part.rotated (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
+  
 
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
     start_at(wheel_housing_front_x - wheel_axle_leeway, 0),
@@ -614,9 +664,9 @@ def make_snapper():
     vertical_to (close_corner_yz [1]),
     diagonal_to (outer_corner_yz),
     horizontal_to (band_lever_top_y + wheel_axle_leeway + main_frame_strut_thickness),
-    diagonal_to (wheel_part_top_y + wheel_loose_leeway + main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway),
+    diagonal_to (link_highest_y + wheel_loose_leeway + main_frame_strut_thickness, wheel_housing_right_z - wheel_axle_leeway),
     vertical_to (0),
-    horizontal_to (wheel_part_top_y + wheel_loose_leeway),
+    horizontal_to (link_highest_y + wheel_loose_leeway),
     vertical_to (wheel_housing_right_z - wheel_axle_leeway),
     horizontal_to (slider_top_y + wheel_axle_leeway),
     vertical_to (wheel_housing_right_z - slider_width - wheel_loose_leeway),
@@ -728,7 +778,7 @@ def make_snapper():
 
   main_frame_part = main_frame_part.fuse (main_frame_part.mirror(vector(), vector(0,0,1)))
 
-  stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
+  '''stick_test = FreeCAD_shape_builder (zigzag_length_limit = 3, zigzag_depth = 1).build ([
     start_at(0,0),
     horizontal_to (100),
     vertical_to (10),
@@ -736,7 +786,9 @@ def make_snapper():
     close(),
   ]).to_wire().to_face().fancy_extrude (vector (0, 0, 6))
 
-  #Part.show (stick_test, "StickTest")
+  #Part.show (stick_test, "StickTest")'''
+
+  
 
 
   Part.show (wheel, "Wheel")
@@ -759,6 +811,10 @@ def make_snapper():
   Part.show (band_lever_axle_part, "BandLeverAxle")
 
   Part.show (main_frame_part, "MainFrame")
+  
+  Part.show (link_part, "Link")
+  Part.show (handle_lever_part, "HandleLever")
+  Part.show (handle_lever_stretched_part, "HandleLeverStretched")
 
   Part.show(prong_part, "ProngExample")
 

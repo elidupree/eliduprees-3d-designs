@@ -58,6 +58,9 @@ class FreeCAD_shape_builder:
     to)
     self.components.append (Part.Arc (*[self.vector (coordinates) for coordinates in points]))
     self.current_position = to
+  def bezier (self, points):
+    self.components.append (Part.BezierCurve ([self.vector (coordinates) for coordinates in points]))
+    self.current_position = points [-1]
   def finish(self):
     return Part.Shape (self.components)
   def build(self, components):
@@ -101,6 +104,14 @@ class arc_radius_to:
     self.direction = direction
   def apply(self, builder):
     builder.arc_radius_to (self.radius, self.to, self.direction)
+
+class bezier:
+  def __init__(self, points):
+    self.points = points
+  def apply(self, builder):
+    builder.bezier (
+      [builder.current_position] + self.points
+    )
 
 class start_at:
   def __init__(self, *coordinates):
