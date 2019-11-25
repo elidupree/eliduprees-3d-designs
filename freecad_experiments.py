@@ -331,7 +331,7 @@ def make_snapper():
   axle_hole_part = axle_part.makeOffsetShape (tight_leeway, 0.03)
 
   def do_axle (horizontal, vertical, angle):
-    global wheel_housing_part
+    nonlocal wheel_housing_part
     wheel_housing_part = wheel_housing_part.cut(axle_hole_part
       .rotated (vector (), vector (0, 0, 1), angle)
       .translated (vector (horizontal, vertical, 0)))
