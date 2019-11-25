@@ -568,7 +568,7 @@ def make_snapper():
   link_thickness = wheel_thickness
   max_space_inside_hand = 60
   handle_lever_radius = 8.4
-  handle_fixed_size_x = 6
+  handle_fixed_size_x = 9
   
   handle_link_joint_xy = vector (main_frame_back_x + 40, slider_link_joint_xy [1])
   handle_link_joint_stretched_xy = handle_link_joint_xy + vector (handle_motion_distance, 0)
@@ -623,8 +623,24 @@ def make_snapper():
     vertical_to (- handle_thickness/2),
     close(),
   ]).as_xz().to_wire()
+  handle_fixed_profile.translate (vector (- handle_fixed_profile.BoundBox.XMax, 0, 0))
   
-  handle_fixed_part = handle_fixed_profile.to_face().fancy_extrude (vector (0.5, -1, 0).normalized(), bounds (-handle_lever_beyond_pivots_radius, handle_height +handle_lever_beyond_pivots_radius)).translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
+  handle_fixed_web_radius = 15
+  web_xy = vector(0, -link_radius-15)
+  foo_xy = web_xy + vector (handle_fixed_web_radius, 0) + vector (length = handle_fixed_web_radius, angle = math.tau*3/8)
+  bar_xy = vector (foo_xy [0], web_xy[1]-(foo_xy [1]-web_xy[1]))
+  handle_fixed_start_xy = vector (50, 50)
+  handle_fixed_curve = FreeCAD_shape_builder().build ([
+    start_at (handle_fixed_start_xy),
+    bezier ([handle_fixed_start_xy + vector (0, -20), foo_xy + vector (15, 15), foo_xy]),
+    arc_through_to (web_xy, bar_xy),
+    bezier ([bar_xy + vector (25, -25), web_xy + vector (40, -80)]),
+  ]).to_wire()
+  #Part.show (handle_fixed_curve)
+  handle_fixed_profile.translate (handle_fixed_start_xy)
+  #handle_fixed_part = handle_fixed_profile.to_face().fancy_extrude (vector (0.5, -1, 0).normalized(), bounds (-handle_lever_beyond_pivots_radius, handle_height +handle_lever_beyond_pivots_radius))
+  handle_fixed_part = handle_fixed_curve.makePipeShell ([handle_fixed_profile], True, False, 1)
+  handle_fixed_part = handle_fixed_part.translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
   
 
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
@@ -852,40 +868,6 @@ def make_snapper():
   Part.show (main_frame_part.common(test_box), "AxleHolesTest")
 
 make_snapper()
-
-'''wire = FreeCAD_shape_builder ().build ([
-    start_at (0, 0),
-    arc_through_to ((10, 0), (10, 10)),
-    diagonal_to (0, 20),
-    vertical_to (30),
-    #horizontal_to (-20),
-    #close(),
-  ]).to_wire()
-  
-face = FreeCAD_shape_builder ().build ([
-    start_at (0, 0),
-    #arc_through_to ((1, 0), (1, 1)),
-    diagonal_to (1, 1),
-    diagonal_to (0, 2),
-    close(),
-  ]).to_wire().as_xz()
-  
-face2 = FreeCAD_shape_builder ().build ([
-    start_at (0, 0),
-    #arc_through_to ((1.1, -0.1), (1, 1)),
-    diagonal_to (2, 1),
-    diagonal_to (0, 2),
-    close(),
-  ]).to_wire().as_xz()
-  
-curve = Part.BezierCurve()
-curve.setPoles([vector (0, 20), vector (-10, 30), vector (-10, 40)])
-wire = Part.Shape([Part.Arc(vector(), vector(10,0), vector(10, 10)), Part.LineSegment (vector (10, 10), vector (0, 20)), curve]).to_wire()
-
-swept = wire.makePipe(face2)
-#swept = wire.makePipeShell([face2, face2],False, False, 0)
-
-Part.show(swept)'''
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
