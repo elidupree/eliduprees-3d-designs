@@ -575,7 +575,7 @@ def make_snapper():
   handle_lever_pivot_xy = (handle_link_joint_xy + handle_link_joint_stretched_xy)/2+ vector (0, - handle_height)
   handle_lever_logical_length = (handle_link_joint_xy - handle_lever_pivot_xy).Length
   handle_lever_rotation_angle = (handle_link_joint_xy - handle_lever_pivot_xy).angle() - (handle_link_joint_stretched_xy - handle_lever_pivot_xy).angle()
-  handle_lever_beyond_pivots_radius = link_radius
+  handle_lever_beyond_pivots_radius = handle_lever_radius
   link_highest_y = handle_lever_pivot_xy [1] + handle_lever_logical_length + link_radius + 1
   
   handle_fixed_back_x = handle_link_joint_xy [0] -8.4+ max_space_inside_hand
@@ -639,16 +639,19 @@ def make_snapper():
     close(),
   ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_lever_radius*2)).common (handle_lever_filter_cylinder).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau).makeOffsetShape(wheel_axle_leeway, 0.03)
   
-  handle_lever_stretched_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius))
+  handle_lever_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius))
     
-  handle_lever_stretched_part = handle_lever_stretched_part.common (handle_lever_side_filter)
-  handle_lever_stretched_part.translate (handle_lever_pivot_xy)
-  handle_lever_stretched_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)
-  #Part.show(handle_lever_stretched_part)
-  Part.show(handle_lever_shadow)
-  handle_lever_stretched_part = handle_lever_stretched_part.cut (link_stretched_shadow_part)
+  handle_lever_part = handle_lever_part.common (handle_lever_side_filter)
+  handle_lever_part.translate (handle_lever_pivot_xy)
+  handle_lever_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)  
+  handle_lever_part = handle_lever_part.makeFillet(1.1, handle_lever_part.Edges)
+  handle_lever_part = handle_lever_part.cut (link_stretched_shadow_part)
   
-  handle_lever_part = handle_lever_stretched_part.rotated (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
+  handle_lever_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
+  handle_lever_part = handle_lever_part.cut (link_shadow_part)
+  
+  handle_lever_stretched_part = handle_lever_part.copy()
+  handle_lever_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle*360/math.tau)
   
   handle_fixed_profile = FreeCAD_shape_builder().build ([
     start_at (- handle_fixed_size_x, - handle_thickness/2),
@@ -676,7 +679,17 @@ def make_snapper():
   handle_fixed_part = handle_fixed_curve.makePipeShell ([handle_fixed_profile], True, False, 1)
   handle_fixed_part = handle_fixed_part.translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
   
-  handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 5, 50, handle_lever_pivot_xy + vector (0, 0, -25), vector (0, 0, 1))).cut(handle_lever_shadow)
+  handle_fixed_part = handle_fixed_part.fuse (FreeCAD_shape_builder().build ([
+    start_at (handle_link_joint_xy + vector (-50, 100)),
+    diagonal_to (handle_link_joint_xy + vector (-5, 15)),
+    bezier ([handle_link_joint_xy+vector(0, -10), handle_link_joint_xy+ vector (20, 5), handle_link_joint_xy+ vector (35, -15)]),
+    diagonal_to(handle_link_joint_xy+ vector (120, 100)),
+    close()
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (50)))
+
+  
+  handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 3, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
+  handle_fixed_part = handle_fixed_part.makeFillet(0.8, handle_fixed_part.Edges)
   
 
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
