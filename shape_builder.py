@@ -59,9 +59,12 @@ class FreeCAD_shape_builder:
     self.components.append (Part.Arc (*[self.vector (coordinates) for coordinates in points]))
     self.current_position = to
   def bezier (self, points):
-    self.components.append (Part.BezierCurve ([self.vector (coordinates) for coordinates in points]))
+    curve = Part.BezierCurve ()
+    curve.setPoles ([self.vector (coordinates) for coordinates in points])
+    self.components.append (curve)
     self.current_position = points [-1]
   def finish(self):
+    #print (self.components)
     return Part.Shape (self.components)
   def build(self, components):
     for component in components:

@@ -566,6 +566,10 @@ def make_snapper():
   handle_thickness = 22
   link_radius = wheel_housing_offset
   link_thickness = wheel_thickness
+  max_space_inside_hand = 60
+  handle_lever_radius = 8.4
+  handle_fixed_size_x = 6
+  
   handle_link_joint_xy = vector (main_frame_back_x + 40, slider_link_joint_xy [1])
   handle_link_joint_stretched_xy = handle_link_joint_xy + vector (handle_motion_distance, 0)
   handle_lever_pivot_xy = (handle_link_joint_xy + handle_link_joint_stretched_xy)/2+ vector (0, - handle_height)
@@ -573,6 +577,8 @@ def make_snapper():
   handle_lever_rotation_angle = (handle_link_joint_xy - handle_lever_pivot_xy).angle() - (handle_link_joint_stretched_xy - handle_lever_pivot_xy).angle()
   handle_lever_beyond_pivots_radius = link_radius
   link_highest_y = handle_lever_pivot_xy [1] + handle_lever_logical_length + link_radius + 1
+  
+  handle_fixed_back_x = handle_link_joint_xy [0] -8.4+ max_space_inside_hand
   
   
   link_part = FreeCAD_shape_builder (zigzag_length_limit = 6, zigzag_depth = 1).build ([
@@ -599,17 +605,26 @@ def make_snapper():
   wheel_housing_other = wheel_housing_part.common (wheel_housing_split)
   
   handle_lever_profile = FreeCAD_shape_builder().build ([
-    start_at (0, 8.4),
-    arc_through_to ((-8.4, 0), (0, -8.4)),
+    start_at (0, handle_lever_radius),
+    arc_through_to ((-handle_lever_radius, 0), (0, -handle_lever_radius)),
     horizontal_to (20),
-    vertical_to (8.4),
+    vertical_to (handle_lever_radius),
     close(),
   ]).as_xz().to_wire()
   
   handle_lever_stretched_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_beyond_pivots_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius)).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau).cut (link_stretched_shadow_part)
   
-  
   handle_lever_part = handle_lever_stretched_part.rotated (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
+  
+  handle_fixed_profile = FreeCAD_shape_builder().build ([
+    start_at (- handle_fixed_size_x, - handle_thickness/2),
+    bezier ([(0, - handle_thickness/2), (0, handle_thickness/2), (- handle_fixed_size_x, handle_thickness/2)]),
+    horizontal_to (-20),
+    vertical_to (- handle_thickness/2),
+    close(),
+  ]).as_xz().to_wire()
+  
+  handle_fixed_part = handle_fixed_profile.to_face().fancy_extrude (vector (0.5, -1, 0).normalized(), bounds (-handle_lever_beyond_pivots_radius, handle_height +handle_lever_beyond_pivots_radius)).translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
   
 
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
@@ -815,6 +830,7 @@ def make_snapper():
   Part.show (link_part, "Link")
   Part.show (handle_lever_part, "HandleLever")
   Part.show (handle_lever_stretched_part, "HandleLeverStretched")
+  Part.show (handle_fixed_part, "Handle")
 
   Part.show(prong_part, "ProngExample")
 
@@ -836,6 +852,40 @@ def make_snapper():
   Part.show (main_frame_part.common(test_box), "AxleHolesTest")
 
 make_snapper()
+
+'''wire = FreeCAD_shape_builder ().build ([
+    start_at (0, 0),
+    arc_through_to ((10, 0), (10, 10)),
+    diagonal_to (0, 20),
+    vertical_to (30),
+    #horizontal_to (-20),
+    #close(),
+  ]).to_wire()
+  
+face = FreeCAD_shape_builder ().build ([
+    start_at (0, 0),
+    #arc_through_to ((1, 0), (1, 1)),
+    diagonal_to (1, 1),
+    diagonal_to (0, 2),
+    close(),
+  ]).to_wire().as_xz()
+  
+face2 = FreeCAD_shape_builder ().build ([
+    start_at (0, 0),
+    #arc_through_to ((1.1, -0.1), (1, 1)),
+    diagonal_to (2, 1),
+    diagonal_to (0, 2),
+    close(),
+  ]).to_wire().as_xz()
+  
+curve = Part.BezierCurve()
+curve.setPoles([vector (0, 20), vector (-10, 30), vector (-10, 40)])
+wire = Part.Shape([Part.Arc(vector(), vector(10,0), vector(10, 10)), Part.LineSegment (vector (10, 10), vector (0, 20)), curve]).to_wire()
+
+swept = wire.makePipe(face2)
+#swept = wire.makePipeShell([face2, face2],False, False, 0)
+
+Part.show(swept)'''
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
