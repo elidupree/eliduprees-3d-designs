@@ -612,7 +612,41 @@ def make_snapper():
     close(),
   ]).as_xz().to_wire()
   
-  handle_lever_stretched_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_beyond_pivots_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius)).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau).cut (link_stretched_shadow_part)
+  
+  foo_xy = vector (20, handle_lever_logical_length+handle_lever_beyond_pivots_radius)
+  bar_xy = point_circle_tangent (
+    foo_xy,
+    (vector(), handle_lever_radius),
+    -1
+  )
+  handle_lever_filter_cylinder = Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius, 50, vector (0, 0, -25), vector (0, 0, 1))
+  handle_lever_side_filter = FreeCAD_shape_builder().build ([
+    start_at (- handle_lever_radius, handle_lever_logical_length+handle_lever_beyond_pivots_radius),
+    vertical_to (0),
+    arc_through_to(
+      vector (0, -handle_lever_radius),
+      bar_xy,
+    ),
+    diagonal_to (foo_xy),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (50)).common (handle_lever_filter_cylinder )
+  
+  handle_lever_shadow = FreeCAD_shape_builder().build ([
+    start_at (-200, 200),
+    vertical_to (bar_xy[1]),
+    diagonal_to (bar_xy),
+    diagonal_to (foo_xy),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_lever_radius*2)).common (handle_lever_filter_cylinder).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau).makeOffsetShape(wheel_axle_leeway, 0.03)
+  
+  handle_lever_stretched_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius))
+    
+  handle_lever_stretched_part = handle_lever_stretched_part.common (handle_lever_side_filter)
+  handle_lever_stretched_part.translate (handle_lever_pivot_xy)
+  handle_lever_stretched_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)
+  #Part.show(handle_lever_stretched_part)
+  Part.show(handle_lever_shadow)
+  handle_lever_stretched_part = handle_lever_stretched_part.cut (link_stretched_shadow_part)
   
   handle_lever_part = handle_lever_stretched_part.rotated (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
   
@@ -641,6 +675,8 @@ def make_snapper():
   #handle_fixed_part = handle_fixed_profile.to_face().fancy_extrude (vector (0.5, -1, 0).normalized(), bounds (-handle_lever_beyond_pivots_radius, handle_height +handle_lever_beyond_pivots_radius))
   handle_fixed_part = handle_fixed_curve.makePipeShell ([handle_fixed_profile], True, False, 1)
   handle_fixed_part = handle_fixed_part.translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
+  
+  handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 5, 50, handle_lever_pivot_xy + vector (0, 0, -25), vector (0, 0, 1))).cut(handle_lever_shadow)
   
 
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
