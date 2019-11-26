@@ -569,7 +569,8 @@ def make_snapper():
   link_thickness = wheel_thickness
   max_space_inside_hand = 60
   handle_lever_radius = 8.4
-  handle_fixed_size_x = 12
+  handle_side_thickness = handle_thickness/2 - (handle_lever_radius + wheel_axle_leeway)
+  handle_fixed_size_x = 15
   
   handle_link_joint_xy = vector (main_frame_back_x + 40, slider_link_joint_xy [1])
   handle_link_joint_stretched_xy = handle_link_joint_xy + vector (handle_motion_distance, 0)
@@ -620,6 +621,7 @@ def make_snapper():
     (vector(), handle_lever_radius),
     -1
   )
+  handle_lever_back_angle = (foo_xy - bar_xy).angle()
   handle_lever_filter_cylinder = Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius, 50, vector (0, 0, -25), vector (0, 0, 1))
   handle_lever_side_filter = FreeCAD_shape_builder().build ([
     start_at (- handle_lever_radius, handle_lever_logical_length+handle_lever_beyond_pivots_radius),
@@ -658,6 +660,25 @@ def make_snapper():
   handle_lever_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)  
   handle_lever_part = handle_lever_part.makeFillet(handle_lever_fillet_size, handle_lever_part.Edges)
   handle_lever_part = handle_lever_part.cut (link_stretched_shadow_part)
+  handle_lever_part = handle_lever_part.cut (Part.makeCylinder (wheel_axle_hole_radius, 50, handle_lever_pivot_xy + vector (0, 0, -25), vector (0, 0, 1)))
+  
+  handle_link_axle_part = FreeCAD_shape_builder().build ([
+    start_at (vector (angle = math.tau*3/8, length = wheel_axle_radius)),
+    arc_radius_to (-wheel_axle_radius,vector (angle = math.tau*1/8, length = wheel_axle_radius), -1),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered(handle_lever_radius*2 + wheel_axle_radius*4))
+  
+  for direction in [-1, 1]:
+    handle_link_axle_part = handle_link_axle_part.cut(Part.makeCylinder (
+      3.5/2,
+      50,
+      vector(0, -25, direction*(handle_lever_radius + wheel_axle_radius)),
+      vector (0, 1, 0),
+    ))
+  
+  handle_link_axle_part = handle_link_axle_part.rotated(vector(), vector(0,0,1), (handle_lever_back_angle - handle_lever_rotation_angle/2)*360/math.tau).translated (handle_link_joint_stretched_xy)
+  
+  handle_lever_part = handle_lever_part.cut (handle_link_axle_part.makeOffsetShape (tight_leeway, 0.03))
   
   handle_lever_part.rotate (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle*360/math.tau)
   handle_lever_part = handle_lever_part.cut (link_shadow_part)
@@ -668,11 +689,20 @@ def make_snapper():
   handle_fixed_profile = FreeCAD_shape_builder().build ([
     start_at (- handle_fixed_size_x, - handle_thickness/2),
     bezier ([(0, - handle_thickness/2), (0, handle_thickness/2), (- handle_fixed_size_x, handle_thickness/2)]),
-    horizontal_to (-20),
-    vertical_to (- handle_thickness/2),
+    horizontal_to (-20 + handle_side_thickness/2),
+    arc_through_to(
+      (-20, handle_thickness/2 - handle_side_thickness/2),
+      (-20 + handle_side_thickness/2, handle_thickness/2 - handle_side_thickness),
+    ),
+    vertical_to (- handle_thickness/2+handle_side_thickness),
+    arc_through_to(
+      (-20, -handle_thickness/2 + handle_side_thickness/2),
+      (-20 + handle_side_thickness/2, -handle_thickness/2),
+    ),
     close(),
   ]).as_xz().to_wire()
   handle_fixed_profile.translate (vector (- handle_fixed_profile.BoundBox.XMax, 0, 0))
+  Part.show(handle_fixed_profile)
   
   handle_fixed_web_radius = 15
   web_xy = vector(0, -link_radius-15)
@@ -703,14 +733,15 @@ def make_snapper():
   
   handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 3, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
   
-  foo_xy = handle_lever_pivot_xy + vector (26, 75)
-  bar_xy = handle_lever_pivot_xy + vector (63, 10)
+  foo_xy = handle_lever_pivot_xy + vector (24, 70)
+  bar_xy = handle_lever_pivot_xy + vector (60, 10)
   circle = (handle_lever_pivot_xy, 6)
   handle_pivot_strut_1 = FreeCAD_shape_builder().build ([
     start_at (foo_xy),
     diagonal_to (point_circle_tangent (foo_xy, circle)),
     arc_radius_to (circle [1], point_circle_tangent (bar_xy, circle, -1)),
     diagonal_to (bar_xy),
+    diagonal_to (handle_lever_pivot_xy + vector (46, 40)),
     close()
   ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness)).cut(handle_lever_shadow)
   
@@ -963,6 +994,7 @@ def make_snapper():
   Part.show (band_lever_peg_part, "BandLeverPeg")
   Part.show (band_lever_axle_part, "BandLeverAxle")
   Part.show (handle_pivot_axle_part, "HandlePivotAxle")
+  Part.show (handle_link_axle_part, "HandleLinkAxle")
 
   Part.show (main_frame_part, "MainFrame")
   
