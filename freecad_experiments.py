@@ -736,17 +736,18 @@ def make_snapper():
   
   handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 6, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
   
-  foo_xy = handle_lever_pivot_xy + vector (24, 70)
-  bar_xy = handle_lever_pivot_xy + vector (60, 10)
+  foo_xy = handle_lever_pivot_xy + vector (25, 72)
+  bar_xy = handle_lever_pivot_xy + vector (62, 12)
   circle = (handle_lever_pivot_xy, 6)
   handle_pivot_strut_1 = FreeCAD_shape_builder().build ([
     start_at (foo_xy),
     diagonal_to (point_circle_tangent (foo_xy, circle)),
     arc_radius_to (circle [1], point_circle_tangent (bar_xy, circle, -1)),
     diagonal_to (bar_xy),
-    diagonal_to (handle_lever_pivot_xy + vector (46, 40)),
+    diagonal_to (handle_lever_pivot_xy + vector (48, 42)),
     close()
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness)).cut(handle_lever_shadow)
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness))
+  handle_pivot_strut_1 = handle_pivot_strut_1.makeFillet(1.5, handle_pivot_strut_1.Edges).cut(handle_lever_shadow)
   
   '''foo_xy = vector (main_frame_back_x, main_frame_bottom_y)
   handle_pivot_strut_2 = FreeCAD_shape_builder().build ([
