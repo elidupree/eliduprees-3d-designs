@@ -645,7 +645,10 @@ def make_snapper():
     ),
     diagonal_to (foo_xy),
     close(),
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_lever_radius*2)).common (handle_lever_filter_cylinder).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_lever_radius*2)).common (
+    # slightly higher radius than the regular filter - housing should rub on the sides, but not the end
+    Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 0.7, 50, vector (0, 0, -25), vector (0, 0, 1))
+  ).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)
   handle_lever_shadow = handle_lever_shadow.makeFillet(handle_lever_fillet_size, handle_lever_shadow.Edges)
   handle_lever_shadow = handle_lever_shadow.makeOffsetShape(wheel_axle_leeway, 0.03)
   
@@ -731,7 +734,7 @@ def make_snapper():
     close()
   ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (50)))
   
-  handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 3, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
+  handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 6, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
   
   foo_xy = handle_lever_pivot_xy + vector (24, 70)
   bar_xy = handle_lever_pivot_xy + vector (60, 10)
