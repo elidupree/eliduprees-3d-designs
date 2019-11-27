@@ -407,7 +407,7 @@ def make_snapper():
   wheel_housing_back_stretched_x = wheel_housing_back_x + string_motion_distance
   wheel_housing_bottom_y = catch_tip_lowest_y
   wheel_part_top_y = wheel_shadow_radius
-  main_frame_front_x = wheel_housing_front_x - wheel_axle_leeway - 1
+  main_frame_front_x = -wheel_slider_radius #wheel_housing_front_x - wheel_axle_leeway - 1
   main_frame_back_x = wheel_housing_back_stretched_x + wheel_axle_leeway + 1
   main_frame_around_pivot_radius = 5
   main_frame_strut_thickness = 6
@@ -652,12 +652,14 @@ def make_snapper():
     Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 0.7, 50, vector (0, 0, -25), vector (0, 0, 1))
   ).translated (handle_lever_pivot_xy).rotated (handle_lever_pivot_xy, vector (0, 0, 1),-handle_lever_rotation_angle/2*360/math.tau)
   handle_lever_shadow = handle_lever_shadow.makeFillet(handle_lever_fillet_size, handle_lever_shadow.Edges)
-  handle_lever_shadow = handle_lever_shadow.makeOffsetShape(wheel_axle_leeway, 0.03)
+  # note: in a test print with only wheel_axle_leeway, the handle gripped the lever tightly; with my cheap digital calipers, I measured that inserting the lever forced the handle sides apart by 0.5mm. Rounded up to 0.6mm for safety. (That counts both sides, so 0.3 for each side.)
+  handle_lever_leeway = wheel_axle_leeway+0.3
+  handle_lever_shadow = handle_lever_shadow.makeOffsetShape(handle_lever_leeway, 0.03)
   
   handle_lever_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius))
   
   # note: handle_lever_shadow_2 is slightly the wrong shape in a couple of ways. It doesn't seem worth the effort to fix
-  handle_lever_shadow_2 = handle_lever_part.makeOffsetShape(wheel_axle_leeway, 0.03)
+  handle_lever_shadow_2 = handle_lever_part.makeOffsetShape(handle_lever_leeway, 0.03)
   handle_lever_shadow_2.translate (handle_lever_pivot_xy + vector (0, 0.7))
   handle_lever_shadow_2.rotate (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle/2*360/math.tau)  
   #Part.show (handle_lever_shadow_2)
@@ -998,15 +1000,14 @@ close(),
        vertical_to (band_lever_pivot_xz [1]),
      ]
    else:
-     whatever_xz =vector (main_frame_front_x, - 20)
-     other_xz = point_circle_tangent (
-      whatever_xz,
-      (band_lever_pivot_xz, main_frame_around_pivot_radius),
-     )
      differing = [
        horizontal_to (main_frame_front_x),
-       vertical_to (whatever_xz [1]),
-       diagonal_to (other_xz),
+       vertical_to (-10),
+       bezier([
+         (main_frame_front_x, -30),
+         band_lever_pivot_xz + vector(-main_frame_around_pivot_radius, 70),
+         band_lever_pivot_xz + vector(-main_frame_around_pivot_radius, 0),
+       ]),
      ]
 
    return FreeCAD_shape_builder ().build ([
@@ -1018,6 +1019,16 @@ close(),
    ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), bounds (band_center_y if front else -500, 500 if front else band_center_y))
    
   main_frame_part = main_frame_part.cut (main_frame_missing_part).common (main_frame_profile_filter (True).fuse (main_frame_profile_filter (False)))
+  
+  targeting_stick_hole = box (
+    centered (500),
+    bounds (band_lever_bottom_y - wheel_axle_leeway -2 - popsicle_stick_thickness,
+            band_lever_bottom_y - wheel_axle_leeway -2),
+    bounds (wheel_housing_right_z - wheel_axle_leeway - 2 - popsicle_stick_width,
+            wheel_housing_right_z - wheel_axle_leeway - 2),
+  ).makeOffsetShape (tight_leeway, 0.03, join=2)
+  
+  main_frame_part = main_frame_part.cut (targeting_stick_hole)
 
   catch_tip_stretched_xy = catch_tip_xy + vector (string_motion_distance, 0)
   '''prong_tip_xy = vector (catch_tip_stretched_xy + vector (-(2+catch_tip_deflection_distance)/2, 2))
@@ -1035,7 +1046,7 @@ close(),
 
   prong_part = box (100, popsicle_stick_thickness+0.4, centered (popsicle_stick_width)).rotated (vector(), vector (0, 0, 1), math.atan2 (-2, 1)*360/math.tau).translated (catch_tip_stretched_xy + vector (0, - catch_tip_deflection_distance))
 
-  prong_hole_part = prong_part.makeOffsetShape (tight_leeway, 0.03, join=2);
+  prong_hole_part = prong_part.makeOffsetShape (tight_leeway, 0.03, join=2)
 
   for increment in range (5):
     main_frame_part = main_frame_part.cut (prong_hole_part.translated (vector (- increment*popsicle_stick_thickness*2, 0, 0)))
@@ -1083,7 +1094,7 @@ close(),
   Part.show (wheel, "Wheel")
   Part.show (wheel_housing_main, "WheelHousingMain")
 
-  wheel_housing_other.translate (vector (0, 0, 10))
+  #wheel_housing_other.translate (vector (0, 0, 10))
   Part.show (wheel_housing_other, "WheelHousingOther")
   Part.show (axle_part, "Axle")
 
@@ -1116,12 +1127,12 @@ close(),
   #Part.show (band_lever_peg_part.cut(band_lever_peg_cut_part), "Debug2")
 
   test_box = FreeCAD_shape_builder (zigzag_length_limit = 5, zigzag_depth = 1).build ([
-    start_at (-100, -7.5),#wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness),
-    horizontal_to (wheel_housing_bottom_y), #100),
-    vertical_to(7.5),#-(wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness)),
+    start_at (-100, wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness - 8),
+    horizontal_to (100),
+    vertical_to(-(wheel_housing_right_z - wheel_axle_leeway - main_frame_strut_thickness - 8)),
     horizontal_to (-100),
     close(),
-  ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (28, on=main_frame_back_x))
+  ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (50, on=main_frame_back_x))
   Part.show (main_frame_part.common(test_box), "ChannelTest")
 
   test_box = box(centered (20), centered (90), centered (20)).translated (band_lever_pivot_center)
