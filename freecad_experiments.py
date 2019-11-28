@@ -665,7 +665,8 @@ def make_snapper():
   handle_lever_part = handle_lever_profile.to_face().fancy_extrude (vector (0, 1, 0), bounds (-handle_lever_radius, handle_lever_logical_length +handle_lever_beyond_pivots_radius))
   
   # note: handle_lever_shadow_2 is slightly the wrong shape in a couple of ways. It doesn't seem worth the effort to fix
-  handle_lever_shadow_2 = handle_lever_part.makeOffsetShape(handle_lever_leeway, 0.03)
+  handle_lever_shadow_2 = handle_lever_part.makeFillet(handle_lever_fillet_size, handle_lever_part.Edges)
+  handle_lever_shadow_2 = handle_lever_shadow_2.makeOffsetShape(handle_lever_leeway, 0.03)
   handle_lever_shadow_2.translate (handle_lever_pivot_xy + vector (0, 0.7))
   handle_lever_shadow_2.rotate (handle_lever_pivot_xy, vector (0, 0, 1),handle_lever_rotation_angle/2*360/math.tau)  
   #Part.show (handle_lever_shadow_2)
@@ -704,15 +705,11 @@ def make_snapper():
     start_at (- handle_fixed_size_x, - handle_thickness/2),
     bezier ([(0, - handle_thickness/2), (0, handle_thickness/2), (- handle_fixed_size_x, handle_thickness/2)]),
     horizontal_to (-20 + handle_side_thickness/2),
-    arc_through_to(
-      (-20, handle_thickness/2 - handle_side_thickness/2),
-      (-20 + handle_side_thickness/2, handle_thickness/2 - handle_side_thickness),
-    ),
-    vertical_to (- handle_thickness/2+handle_side_thickness),
-    arc_through_to(
-      (-20, -handle_thickness/2 + handle_side_thickness/2),
+    bezier([
+      (-20, handle_thickness/2),
+      (-20, -handle_thickness/2),
       (-20 + handle_side_thickness/2, -handle_thickness/2),
-    ),
+      ]),
     close(),
   ]).as_xz().to_wire()
   handle_fixed_profile.translate (vector (- handle_fixed_profile.BoundBox.XMax, 0, 0))
@@ -723,11 +720,12 @@ def make_snapper():
   foo_xy = web_xy + vector (handle_fixed_web_radius, 0) + vector (length = handle_fixed_web_radius, angle = math.tau*3/8)
   bar_xy = vector (foo_xy [0], web_xy[1]-(foo_xy [1]-web_xy[1]))
   handle_fixed_start_xy = vector (50, 50)
+  handle_curve_end_xy = web_xy + vector (40, -80)
   handle_fixed_curve = FreeCAD_shape_builder().build ([
     start_at (handle_fixed_start_xy),
     bezier ([handle_fixed_start_xy + vector (0, -20), foo_xy + vector (15, 15), foo_xy]),
     arc_through_to (web_xy, bar_xy),
-    bezier ([bar_xy + vector (25, -25), web_xy + vector (40, -80)]),
+    bezier ([bar_xy + vector (25, -25), handle_curve_end_xy]),
   ]).to_wire()
   #Part.show (handle_fixed_curve)
   #Part.show(handle_fixed_curve.makeOffset2D(handle_fixed_size_x, openResult = False))
@@ -740,62 +738,57 @@ def make_snapper():
   #handle_fixed_part = handle_fixed_profile.to_face().fancy_extrude (vector (0.5, -1, 0).normalized(), bounds (-handle_lever_beyond_pivots_radius, handle_height +handle_lever_beyond_pivots_radius))
   handle_fixed_part = handle_fixed_curve.makePipeShell ([handle_fixed_profile], True, False, 1)
   handle_fixed_part = handle_fixed_part.translated (vector (handle_fixed_back_x, handle_link_joint_xy [1]))
+  handle_curve_end_xy = handle_curve_end_xy + vector (handle_fixed_back_x, handle_link_joint_xy [1])
   
   handle_cover_around_axle_radius = wheel_axle_radius + wheel_loose_leeway
   handle_cover_inner_radius = handle_lever_logical_length + handle_cover_around_axle_radius
   
-  handle_fixed_part = handle_fixed_part.fuse (FreeCAD_shape_builder().build ([
+  # the 5mm are for the string knot
+  handle_side_curve_center = handle_lever_pivot_xy + (handle_link_joint_stretched_xy - handle_lever_pivot_xy + vector(5, 0, 0)).normalized()*(handle_lever_logical_length)
+  handle_side_segment = [
+    handle_side_curve_center + vector(angle = handle_lever_stretched_angle - math.tau/2, length = handle_cover_around_axle_radius / math.sin(math.tau/8)),
+    handle_lever_pivot_xy + (handle_link_joint_stretched_xy - handle_lever_pivot_xy).normalized()*(30) + vector(angle = handle_lever_stretched_angle - math.tau/4, length = 2)
+  ]
+  
+  handle_pivot_strut_circle = (handle_lever_pivot_xy, 8)
+  bar_xy = handle_curve_end_xy + vector(-10, 0)
+  handle_strut_1 = FreeCAD_shape_builder().build ([
     start_at (handle_link_joint_xy + vector (-50, 100)),
-    diagonal_to (handle_lever_pivot_xy + vector(0, handle_cover_inner_radius, 0)
-    ),
+    diagonal_to (handle_lever_pivot_xy + vector(-10, handle_cover_inner_radius, 0)),
+    diagonal_to (handle_lever_pivot_xy + vector(0, handle_cover_inner_radius, 0)),
     arc_radius_to (-(handle_cover_inner_radius),
-      handle_lever_pivot_xy + (handle_link_joint_stretched_xy - handle_lever_pivot_xy).normalized()*(handle_cover_inner_radius)),
+      handle_lever_pivot_xy + (handle_side_curve_center - handle_lever_pivot_xy).normalized()*(handle_cover_inner_radius)),
     arc_radius_to (-(handle_cover_around_axle_radius),
-      handle_lever_pivot_xy + (handle_link_joint_stretched_xy - handle_lever_pivot_xy).normalized()*(handle_lever_logical_length) + vector(angle = handle_lever_stretched_angle - math.tau/4, length = handle_cover_around_axle_radius)),
-    diagonal_to (handle_lever_pivot_xy + vector(angle = handle_lever_stretched_angle - math.tau/4, length = handle_cover_around_axle_radius)),
-    #bezier ([handle_link_joint_xy + vector (0, link_radius), handle_link_joint_stretched_xy + vector (0, link_radius), handle_link_joint_stretched_xy+ vector (10, link_radius)]),
-    diagonal_to(handle_link_joint_xy+ vector (120, 100)),
+      point_circle_tangent (handle_side_segment [0], (handle_side_curve_center, handle_cover_around_axle_radius))),
+    diagonal_to (handle_side_segment [0]),
+    diagonal_to (handle_side_segment [1]),
+    diagonal_to (point_circle_tangent (handle_side_segment [1], handle_pivot_strut_circle)),
+    arc_radius_to (handle_pivot_strut_circle [1], point_circle_tangent (bar_xy, handle_pivot_strut_circle, -1)),
+    diagonal_to (bar_xy),
+    vertical_to(handle_link_joint_xy[1] + 100),
     close()
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (50)).cut(handle_curve_shadow))
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness))
+  handle_strut_1 = handle_strut_1.makeFillet(2, handle_strut_1.Edges).cut (handle_curve_shadow)
+  
+  handle_fixed_part = handle_fixed_part.fuse (handle_strut_1)
   
   handle_fixed_part = handle_fixed_part.common (Part.makeCylinder (handle_lever_logical_length + handle_lever_beyond_pivots_radius + 6, handle_thickness, handle_lever_pivot_xy + vector (0, 0, - handle_thickness/2), vector (0, 0, 1))).cut(handle_lever_shadow)
   
-  foo_xy = handle_lever_pivot_xy + vector (25, 72)
-  bar_xy = handle_lever_pivot_xy + vector (62, 12)
-  circle = (handle_lever_pivot_xy, 6)
-  handle_pivot_strut_1 = FreeCAD_shape_builder().build ([
-    start_at (foo_xy),
-    diagonal_to (point_circle_tangent (foo_xy, circle)),
-    arc_radius_to (circle [1], point_circle_tangent (bar_xy, circle, -1)),
-    diagonal_to (bar_xy),
-    diagonal_to (handle_lever_pivot_xy + vector (48, 42)),
-    close()
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness))
-  handle_pivot_strut_1 = handle_pivot_strut_1.makeFillet(1.5, handle_pivot_strut_1.Edges).cut(handle_lever_shadow)
-  
-  '''foo_xy = vector (main_frame_back_x, main_frame_bottom_y)
+  foo_xy = vector (main_frame_back_x, main_frame_bottom_y)
+  bar_xy = point_circle_tangent (foo_xy, handle_pivot_strut_circle)
+  perpendicular = vector (angle = math.tau/4+ (bar_xy - foo_xy).angle())
   handle_pivot_strut_2 = FreeCAD_shape_builder().build ([
     start_at (foo_xy),
-    bezier ([
-      foo_xy + vector (20, -40),
-      handle_lever_pivot_xy + vector (-30, 30) + vector (angle = math.tau*5/8, length = circle [1]),
-      handle_lever_pivot_xy + vector (angle = math.tau*5/8, length = circle [1])
-    ]),
-    arc_through_to (
-      handle_lever_pivot_xy + vector (angle = math.tau*7/8, length = circle [1]),
-      handle_lever_pivot_xy + vector (angle = math.tau*1/8, length = circle [1]),
-    ),
-    bezier ([
-      handle_lever_pivot_xy + vector (angle = math.tau*1/8, length = circle [1]) + vector (-30, 30),
-      foo_xy + vector (25, -40),
-      foo_xy + vector (5, 0)
-    ]),
+    diagonal_to (bar_xy),
+    diagonal_to (bar_xy + perpendicular*6),
+    diagonal_to (foo_xy + perpendicular*6),
     close(),
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (50)).cut (handle_lever_shadow_2)'''
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (handle_thickness))
+  handle_pivot_strut_2 = handle_pivot_strut_2.makeFillet(2, handle_pivot_strut_2.Edges).cut (handle_lever_shadow_2)
   
   handle_frame_strut = FreeCAD_shape_builder().build ([
     start_at (main_frame_back_x, main_frame_top_y),
-    vertical_to (main_frame_bottom_y),
+    vertical_to (-200),
     horizontal_to (main_frame_back_x + main_frame_strut_thickness),
     vertical_to (slider_link_joint_xy [1] - link_radius -3),
     arc_radius_to (-(link_radius+3 + handle_cover_around_axle_radius), 
@@ -841,8 +834,8 @@ close(),
   handle_side_filter = FreeCAD_shape_builder().build ([
     start_at(main_frame_top_y, 40),
     bezier ([
-      vector (main_frame_bottom_y -15, 40),
-      vector (main_frame_bottom_y -15, -40),
+      vector (main_frame_bottom_y -25, 40),
+      vector (main_frame_bottom_y -25, -40),
       vector (main_frame_top_y, -40)]
       ),
     close(),
@@ -852,17 +845,16 @@ close(),
     centered (500),
   ))
   
-  handle_fixed_part = handle_fixed_part.fuse ([handle_pivot_strut_1
-  #, handle_pivot_strut_2
-  , handle_frame_strut,
+  handle_fixed_part = handle_fixed_part.fuse ([
+   handle_frame_strut,
   handle_string_guide,
   handle_string_guide.mirror (vector(), vector (0, 0, 1)),
   ]).common (handle_side_filter)
-  
+  handle_fixed_part = handle_fixed_part.fuse(handle_pivot_strut_2)
   
   #handle_fixed_part = handle_fixed_part.makeFillet(0.9, handle_fixed_part.Edges)
   
-  average_xy = (foo_xy + bar_xy + handle_lever_pivot_xy)/3
+  '''average_xy = (foo_xy + bar_xy + handle_lever_pivot_xy)/3
   inset_distance = 20
   blob = FreeCAD_shape_builder().build ([
     start_at (handle_lever_pivot_xy + (average_xy - handle_lever_pivot_xy).normalized()*inset_distance),
@@ -873,7 +865,7 @@ close(),
   #Part.show(blob)
   for direction in [-1, 1]:
     #Part.show(blob.translated (vector (0, 0, handle_thickness/2+ inset_distance -1)*direction))
-    handle_fixed_part = handle_fixed_part.cut(blob.translated (vector (0, 0, handle_thickness/2+ inset_distance -2)*direction))
+    handle_fixed_part = handle_fixed_part.cut(blob.translated (vector (0, 0, handle_thickness/2+ inset_distance -2)*direction))'''
   
   
   handle_pivot_axle_part = FreeCAD_shape_builder().build ([
@@ -901,11 +893,27 @@ close(),
       start_at (main_frame_back_x + main_frame_strut_thickness + 50, 0),
       diagonal_to (main_frame_back_x + main_frame_strut_thickness, slider_link_joint_xy [1] - link_radius -3),
       diagonal_to (main_frame_back_x + main_frame_strut_thickness - 1, slider_link_joint_xy [1] - link_radius -6),
-      vertical_to (-100),
+      vertical_to (main_frame_bottom_y +6),
+      diagonal_to (main_frame_back_x + main_frame_strut_thickness, main_frame_bottom_y +2),
       close(),
     ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered(500))
   )
   handle_fixed_part = handle_fixed_part.cut (another_cut_part)
+  
+  another_cut_part = FreeCAD_shape_builder(zigzag_length_limit = 6, zigzag_depth = 1).build ([
+    start_at (handle_lever_pivot_xy [0], handle_thickness/2+5),
+    vertical_to (handle_thickness/2),
+    horizontal_to (handle_curve_end_xy [0]+ 50),
+    vertical_to (-handle_thickness/2),
+    horizontal_to (handle_lever_pivot_xy [0]),
+    vertical_to (- handle_thickness/2-5),
+    horizontal_to (handle_curve_end_xy [0]+ 55),
+    vertical_to (handle_thickness/2+5),
+    close(),
+  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered(500))
+  handle_fixed_part = handle_fixed_part.cut (another_cut_part)
+  
+  handle_fixed_part = handle_fixed_part.cut (handle_lever_shadow_2.rotated(handle_lever_pivot_xy, vector (0, 0, 1), 12).translated(vector(-10, 30, 0)))
   
   """main_frame_part = FreeCAD_shape_builder (zigzag_length_limit = 10, zigzag_depth = 1).build ([
     start_at(wheel_housing_front_x - wheel_axle_leeway, 0),
