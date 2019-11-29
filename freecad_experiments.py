@@ -1172,11 +1172,13 @@ def make_clamp_enhancer ():
   tip_z = 16
   plate_length = tip_z
   plate_width = plate_length
-  tight_leeway = 0.3
-  plate_min_thickness = 0.4
-  plate_left_x = inner_x - tight_leeway - plate_min_thickness
+  grip_leeway = 0.5
+  plate_min_thickness = 0.45
+  plate_left_x = inner_x - grip_leeway - plate_min_thickness
+  clip_right_x = outer_x + grip_leeway + plate_min_thickness
   
-  thingy_width = 9.5
+  thingy_width = 9.2
+  clip_width = thingy_width + (grip_leeway + plate_min_thickness)*2 
   
   cone_radius_angle = math.tau/18
   spike_height = 3
@@ -1212,8 +1214,8 @@ def make_clamp_enhancer ():
   for y in range(5) for z in range (5)]
   
   clips_box = box (
-    bounds (plate_left_x, outer_x + tight_leeway + plate_min_thickness),
-    centered (thingy_width + (tight_leeway + plate_min_thickness)*2),
+    bounds (plate_left_x, clip_right_x),
+    centered (clip_width),
     bounds (curve_middle_z, tip_z),
   ).cut(
   box (
@@ -1223,13 +1225,19 @@ def make_clamp_enhancer ():
   #Part.show (clips_box, "ClipsBox")
   
   result = plate.fuse (spikes).fuse (clips_box)
-  #Part.show(clamp_ish.makeOffsetShape (tight_leeway, 0.03, join = 2))
-  result = result.cut (clamp_ish.makeOffsetShape (tight_leeway, 0.03))
+  #Part.show(clamp_ish.makeOffsetShape (grip_leeway, 0.03, join = 2))
+  result = result.cut (clamp_ish.makeOffsetShape (grip_leeway, 0.03))
   result = result.makeChamfer(1, [edge for edge in result.Edges if
         edge.BoundBox.XMin == curve_middle_x
     and edge.BoundBox.XMax == curve_middle_x
     and abs(edge.BoundBox.YMax)*2 > plate_width*0.99
     and abs(edge.BoundBox.YMin)*2 > plate_width*0.99
+    ])
+  result = result.makeFillet(grip_leeway + plate_min_thickness, [edge for edge in result.Edges if
+        edge.BoundBox.XMin == clip_right_x
+    and edge.BoundBox.XMax == clip_right_x
+    and abs(edge.BoundBox.YMax)*2 > clip_width*0.99
+    and abs(edge.BoundBox.YMin)*2 > clip_width*0.99
     ])
   result = result.mirror(vector(), vector(0,0,1))
   
