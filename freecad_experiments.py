@@ -1157,7 +1157,88 @@ close(),
   test_box = box(centered (20), centered (90), centered (20)).translated (band_lever_pivot_center)
   Part.show (main_frame_part.common(test_box), "AxleHolesTest")
 
-make_snapper()
+
+
+
+def make_clamp_enhancer ():
+  inner_x = 0
+  outer_x = 6.5
+  tip_corner_x = outer_x - 2.5
+  curve_middle_x = 1.5
+  
+  curve_middle_z = 0
+  curve_edge_z = 4
+  flat_edge_z = 11.5
+  tip_z = 16
+  plate_length = tip_z
+  plate_width = plate_length
+  tight_leeway = 0.3
+  plate_min_thickness = 0.4
+  plate_left_x = inner_x - tight_leeway - plate_min_thickness
+  
+  thingy_width = 9.5
+  
+  cone_radius_angle = math.tau/18
+  spike_height = 3
+  spike_radius = spike_height*math.tan(cone_radius_angle)
+  print (spike_radius)
+  
+  clamp_ish = FreeCAD_shape_builder ().build ([
+    start_at (curve_middle_x, curve_middle_z -10),
+    vertical_to (curve_middle_z),
+    diagonal_to (inner_x, curve_edge_z),
+    vertical_to (flat_edge_z),
+    diagonal_to (tip_corner_x, tip_z),
+    horizontal_to (outer_x),
+    vertical_to (curve_middle_z -10),
+    close(),    
+  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (thingy_width))
+  #Part.show (clamp_ish, "Clampish")
+  
+  plate = FreeCAD_shape_builder ().build ([
+    start_at (curve_middle_x, curve_middle_z),
+    vertical_to (tip_z),
+    horizontal_to (plate_left_x),
+    vertical_to (curve_middle_z),
+    close(),    
+  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (plate_width))
+  #Part.show (plate, "Plate")
+  
+  def spike(y, z):
+    return Part.makeCone (spike_radius, 0, spike_height, vector(plate_left_x + plate_min_thickness/2, y, z), vector(math.cos(math.tau/2 + cone_radius_angle), 0, math.sin(math.tau/2 + cone_radius_angle)))
+
+  spikes = [
+  spike(((y-2)/4)*(plate_width-spike_radius*2), (z/4)*(plate_length-spike_radius*2) + spike_radius)
+  for y in range(5) for z in range (5)]
+  
+  clips_box = box (
+    bounds (plate_left_x, outer_x + tight_leeway + plate_min_thickness),
+    centered (thingy_width + (tight_leeway + plate_min_thickness)*2),
+    bounds (curve_middle_z, tip_z),
+  ).cut(
+  box (
+    bounds (outer_x, outer_x + 100),
+    centered (thingy_width - 2),
+    centered (500),))
+  #Part.show (clips_box, "ClipsBox")
+  
+  result = plate.fuse (spikes).fuse (clips_box)
+  #Part.show(clamp_ish.makeOffsetShape (tight_leeway, 0.03, join = 2))
+  result = result.cut (clamp_ish.makeOffsetShape (tight_leeway, 0.03))
+  result = result.makeChamfer(1, [edge for edge in result.Edges if
+        edge.BoundBox.XMin == curve_middle_x
+    and edge.BoundBox.XMax == curve_middle_x
+    and abs(edge.BoundBox.YMax)*2 > plate_width*0.99
+    and abs(edge.BoundBox.YMin)*2 > plate_width*0.99
+    ])
+  result = result.mirror(vector(), vector(0,0,1))
+  
+  
+  Part.show (result, "Enhancer")
+
+#make_snapper()
+make_clamp_enhancer()
+
 
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
