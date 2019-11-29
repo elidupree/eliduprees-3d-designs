@@ -382,7 +382,7 @@ def make_snapper():
 
   farthest_left = -75
   handle_motion_distance = 25
-  string_motion_distance = handle_motion_distance
+  string_motion_distance = 15 # should be handle_motion_distance, but experimentally determined that we only see around 15mm in practice due to various tolerances
   band_lever_wall = 1
   band_lever_thickness = band_width + band_lever_wall*2
   band_lever_tip_circle_radius = 5
@@ -469,8 +469,8 @@ def make_snapper():
     diagonal_to (b),
     arc_radius_to(- band_lever_string_radius, c, -1),
     diagonal_to (other_xz),
-    diagonal_to (other_xz + (mid_xz - other_xz).normalized()*band_lever_peg_radius),
-    diagonal_to (other_2_xz + (mid_2_xz - other_2_xz).normalized()*band_lever_peg_radius),
+    #diagonal_to (other_xz + (mid_xz - other_xz).normalized()*band_lever_peg_radius),
+    #diagonal_to (other_2_xz + (mid_2_xz - other_2_xz).normalized()*band_lever_peg_radius),
     diagonal_to (other_2_xz),
     diagonal_to (d),
     arc_radius_to(band_lever_tip_circle_radius, a, 1),
@@ -514,23 +514,14 @@ def make_snapper():
     diagonal_to (other_xz),
     close(),
     
-  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_width))
+  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (band_width, on = 1))
 
-  band_lever_peg_part = FreeCAD_shape_builder().build ([
-    start_at (-band_lever_peg_radius*2, band_width/2-wheel_axle_leeway),
-    vertical_to (- band_width/2 + wheel_axle_leeway),
-    horizontal_to (- band_lever_peg_radius),
-    vertical_to (-band_lever_thickness/2+wheel_axle_leeway),
-    horizontal_to(0),
-    vertical_to (band_lever_thickness/2-wheel_axle_leeway),
-    horizontal_to(- band_lever_peg_radius),
-    vertical_to (band_width/2-wheel_axle_leeway),
-    close(),
-  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (100)).common (
-    Part.makeCylinder (band_lever_peg_radius, band_lever_thickness, vector (- band_lever_peg_radius, -band_lever_thickness/2, 0), vector (0, 1, 0))
-  ).rotated (vector (), vector (0, 1, 0), -(direction + math.tau/4)*360/math.tau).translated (vector (whatever_xz [0], 0, whatever_xz [1]))
+  foo_xz = whatever_xz - normal_xz*band_thickness*0.70
+  band_lever_peg_part = Part.makeCylinder (band_lever_peg_radius, band_lever_thickness, vector (- band_lever_peg_radius, -band_lever_thickness/2, 0), vector (0, 1, 0)
+  ).rotated (vector (), vector (0, 1, 0), -(direction + math.tau/4)*360/math.tau).translated (vector (foo_xz[0], 0, foo_xz[1]))
 
   band_lever_part = band_lever_part.cut (band_lever_cut_part)
+  band_lever_part = band_lever_part.fuse (band_lever_peg_part)
   band_lever_part = band_lever_part.cut (Part.makeCylinder (wheel_axle_hole_radius, 100, vector (0, -50, 0), vector (0, 1, 0)))
 
 
@@ -1008,7 +999,7 @@ close(),
   main_frame_missing_part_missing_part = FreeCAD_shape_builder ().build ([
     start_at (b),
     #diagonal_to (
-    diagonal_to (band_lever_tip_xz [0] + string_motion_distance + 10, 0),
+    diagonal_to (band_lever_tip_xz [0] + handle_motion_distance + 10, 0),
     horizontal_to (main_frame_back_x),
     vertical_to (a[1]),
     diagonal_to (a),
@@ -1058,7 +1049,7 @@ close(),
   
   main_frame_part = main_frame_part.cut (targeting_stick_hole)
 
-  catch_tip_stretched_xy = catch_tip_xy + vector (string_motion_distance, 0)
+  catch_tip_stretched_xy = catch_tip_xy + vector (handle_motion_distance, 0)
   '''prong_tip_xy = vector (catch_tip_stretched_xy + vector (-(2+catch_tip_deflection_distance)/2, 2))
 
   prong_part = FreeCAD_shape_builder ().build ([
