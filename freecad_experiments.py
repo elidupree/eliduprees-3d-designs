@@ -1159,6 +1159,114 @@ close(),
 
 
 
+def make_manual_snapper():
+  handle_thickness = 22
+  handle_fixed_size_x = 15
+  handle_side_thickness = 2
+  
+  handle_fixed_profile = FreeCAD_shape_builder().build ([
+    start_at (- handle_fixed_size_x, - handle_thickness/2),
+    bezier ([(0, - handle_thickness/2), (0, handle_thickness/2), (- handle_fixed_size_x, handle_thickness/2)]),
+    horizontal_to (-20 + handle_side_thickness/2),
+    bezier([
+      (-20, handle_thickness/2),
+      (-20, -handle_thickness/2),
+      (-20 + handle_side_thickness/2, -handle_thickness/2),
+      ]),
+    close(),
+  ]).as_xz().to_wire()
+  handle_fixed_profile.translate (vector (- handle_fixed_profile.BoundBox.XMax, 0, 0))
+  
+  handle_fixed_web_radius = 15
+  web_xy = vector(0, 0)
+  foo_xy = web_xy + vector (handle_fixed_web_radius, 0) + vector (length = handle_fixed_web_radius, angle = math.tau*3/8)
+  bar_xy = vector (foo_xy [0], web_xy[1]-(foo_xy [1]-web_xy[1]))
+  handle_fixed_start_xy = vector (50, 100)
+  handle_curve_end_xy = web_xy + vector (40, -80)
+  handle_fixed_curve = FreeCAD_shape_builder().build ([
+    start_at (handle_fixed_start_xy),
+    bezier ([handle_fixed_start_xy + vector (0, -50), foo_xy + vector (25, 25), foo_xy]),
+    arc_through_to (web_xy, bar_xy),
+    bezier ([bar_xy + vector (25, -25), handle_curve_end_xy]),
+  ]).to_wire()
+  handle_curve_shadow = handle_fixed_curve.makeOffset2D(handle_fixed_size_x, openResult = True).fancy_extrude (vector (0, 0, 1), centered (500)).extrude(vector(500, 0, 0))
+  handle_fixed_profile.translate (handle_fixed_start_xy)
+  handle_fixed_part = handle_fixed_curve.makePipeShell ([handle_fixed_profile], True, False, 1)
+  
+  handle_front = FreeCAD_shape_builder().build ([
+    start_at (handle_thickness/2, handle_thickness/2),
+    arc_through_to ((0, 0), (handle_thickness/2, -handle_thickness/2)),
+    horizontal_to (90),
+    vertical_to (handle_thickness/2),
+    close(),
+  ]).as_xz().to_wire().to_face().extrude (vector (0, 120, 0)).rotated (vector (), vector (0, 0, 1), 25).translated (vector (handle_curve_end_xy [0] - 35, handle_curve_end_xy [1] - 10, 0))
+  
+  handle_fixed_part = handle_fixed_part.common(handle_front)
+  handle_part = handle_fixed_part.fuse ([handle_front.cut (handle_curve_shadow)])
+  handle_part.rotate(vector (), vector (0, 0, 1), -10)
+  handle_part.translate(vector (0, -12, 0))
+  handle_part = handle_part.cut(box(centered(500), bounds(0, 500), centered(500)))
+  
+  finger_leeway = 25
+  full_slack_length = 180
+  cylinder_radius = 5
+  slot_length = 5
+  slot_width = 0.5
+  slot_wall_min_thickness = 2
+  strut_thickness = 10
+  shield_thickness = 2
+  waste_length_each_end = cylinder_radius*math.tau/4 + slot_length
+  usable_slack_length = full_slack_length - waste_length_each_end*2
+  band_width = 6
+  band_leeway = 1.5
+  cylinder_height = band_width + band_leeway*2
+  
+  cylinder_base_center = vector (0, strut_thickness + finger_leeway, usable_slack_length/2)
+  cylinder = Part.makeCylinder (cylinder_radius, cylinder_height, cylinder_base_center, vector(0, 1, 0))
+  cylinder_and_slot = cylinder.fuse ([
+    box (
+      bounds (cylinder_base_center [0], cylinder_base_center [0] + slot_length),
+      bounds (cylinder_base_center [1], cylinder_base_center [1] + cylinder_height),
+      bounds (cylinder_base_center [2], cylinder_base_center [2] + cylinder_radius),
+    ),
+    box (
+      bounds (cylinder_base_center [0], cylinder_base_center [0] + slot_length),
+      bounds (cylinder_base_center [1], cylinder_base_center [1] + cylinder_height),
+      bounds (cylinder_base_center [2] + cylinder_radius + slot_width, cylinder_base_center [2] + cylinder_radius + slot_width + slot_wall_min_thickness),
+    ),
+    box (
+      bounds (cylinder_base_center [0], cylinder_base_center [0] + slot_length),
+      bounds (cylinder_base_center [1], cylinder_base_center [1] + band_leeway),
+      bounds (cylinder_base_center [2] + cylinder_radius, cylinder_base_center [2] + cylinder_radius + slot_width),
+    ),
+  ])
+  
+  inside_strut_shape = FreeCAD_shape_builder().build ([
+    start_at (strut_thickness, 0),
+    vertical_to (20),
+    bezier ([
+      (strut_thickness, 20 + 20),
+      (cylinder_base_center [1] - 20, cylinder_base_center [2] - cylinder_radius - 20), 
+      (cylinder_base_center [1], cylinder_base_center [2] - cylinder_radius),
+    ]),
+    horizontal_to (cylinder_base_center [1] + cylinder_height/2),
+  ])
+  foo = inside_strut_shape.mirror(vector(), vector(0,1))
+  bar = inside_strut_shape.mirror(vector(cylinder_base_center [1] + cylinder_height/2, 0), vector(1,0))
+  baz = bar.mirror(vector(), vector(0,1))
+  inside_strut_wire = Part.Wire(inside_strut_shape.Edges + list(reversed(bar.Edges))
+   + baz.Edges + list(reversed(foo.Edges))
+  ).as_yz()
+  outside_strut_wire = inside_strut_wire.makeOffset2D(strut_thickness)
+  strut_wire = outside_strut_wire.to_face().cut(inside_strut_wire.to_face()).cut(box(
+    centered(500), bounds(cylinder_base_center [1] + cylinder_height/2, 500), centered(500)
+    ))
+
+  Part.show(strut_wire)
+  
+  snapper = handle_part.fuse([cylinder_and_slot])
+
+  Part.show(snapper)
 
 def make_clamp_enhancer ():
   inner_x = 0
@@ -1245,7 +1353,8 @@ def make_clamp_enhancer ():
   Part.show (result, "Enhancer")
 
 #make_snapper()
-make_clamp_enhancer()
+#make_clamp_enhancer()
+make_manual_snapper()
 
 
 document().recompute()
