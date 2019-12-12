@@ -1214,7 +1214,7 @@ def make_manual_snapper():
   slot_width = 0.5
   slot_wall_min_thickness = 2
   strut_thickness = 10
-  shield_thickness = 2
+  shield_thickness = 1
   waste_length_each_end = cylinder_radius*math.tau/4 + slot_length
   usable_slack_length = full_slack_length - waste_length_each_end*2
   band_width = 6
@@ -1241,7 +1241,11 @@ def make_manual_snapper():
     ),
   ])
   
-  inside_strut_shape = FreeCAD_shape_builder().build ([
+  foo= (
+    cylinder_base_center [1] - strut_thickness*math.sin (math.tau/8),
+    cylinder_base_center [2] - cylinder_radius + strut_thickness*math.sin (math.tau/8),
+  )
+  strut_shape = FreeCAD_shape_builder().build ([
     start_at (strut_thickness, 0),
     vertical_to (20),
     bezier ([
@@ -1249,22 +1253,35 @@ def make_manual_snapper():
       (cylinder_base_center [1] - 20, cylinder_base_center [2] - cylinder_radius - 20), 
       (cylinder_base_center [1], cylinder_base_center [2] - cylinder_radius),
     ]),
-    horizontal_to (cylinder_base_center [1] + cylinder_height/2),
+    vertical_to (cylinder_base_center [2] - cylinder_radius + strut_thickness),
+    arc_radius_to (strut_thickness, foo),
+    diagonal_to (0, foo [1] - foo [0]),
+    vertical_to (0),
   ])
-  foo = inside_strut_shape.mirror(vector(), vector(0,1))
-  bar = inside_strut_shape.mirror(vector(cylinder_base_center [1] + cylinder_height/2, 0), vector(1,0))
-  baz = bar.mirror(vector(), vector(0,1))
-  inside_strut_wire = Part.Wire(inside_strut_shape.Edges + list(reversed(bar.Edges))
-   + baz.Edges + list(reversed(foo.Edges))
-  ).as_yz()
-  outside_strut_wire = inside_strut_wire.makeOffset2D(strut_thickness)
-  strut_wire = outside_strut_wire.to_face().cut(inside_strut_wire.to_face()).cut(box(
-    centered(500), bounds(cylinder_base_center [1] + cylinder_height/2, 500), centered(500)
-    ))
+  foo = strut_shape.mirror(vector(), vector(0,1))
+  strut_wire = Part.Wire(strut_shape.Edges + list(reversed(foo.Edges))).as_yz()
 
   Part.show(strut_wire)
   
-  snapper = handle_part.fuse([cylinder_and_slot])
+  strut_part = strut_wire.to_face().fancy_extrude (vector (1, 0, 0), centered (500))
+  
+  oval_center =vector (cylinder_base_center [0] - cylinder_radius, 0, 0)
+  top_filter_oval = Part.Wire([Part.Ellipse (
+    oval_center,
+    cylinder_base_center [2] + strut_thickness,
+    finger_leeway + shield_thickness,
+  ).toShape()]).as_xz().rotated (oval_center, vector (0, 1, 0), 90)
+  shield_inside_part = top_filter_oval.makeOffset2D (- shield_thickness).to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+  #Part.show(top_filter_oval)
+  shield_part = top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), bounds (0, cylinder_base_center [1] + cylinder_height + finger_leeway)).cut(shield_inside_part).cut (box(
+    bounds (cylinder_base_center [0] - cylinder_radius*2, 500),
+    centered (500),
+    centered (500),
+  ))
+  strut_part = strut_part.common (top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), centered (500)))
+  Part.show(strut_part)
+  
+  snapper = handle_part.fuse([cylinder_and_slot, strut_part, shield_part])
 
   Part.show(snapper)
 
