@@ -1245,10 +1245,15 @@ def make_manual_snapper():
     cylinder_base_center [1] - strut_thickness*math.sin (math.tau/8),
     cylinder_base_center [2] - cylinder_radius + strut_thickness*math.sin (math.tau/8),
   )
+  bar = (
+    cylinder_base_center [1] + cylinder_height + strut_thickness*math.sin (math.tau/8),
+    cylinder_base_center [2] - cylinder_radius + strut_thickness*math.sin (math.tau/8),
+  )
   #TODO fix duplicate code id 98450njdfs
   strut_front_filter_shape = FreeCAD_shape_builder().build ([
-    start_at (500,0),
-    vertical_to (cylinder_base_center [2] - cylinder_radius + strut_thickness),
+    start_at (bar[1] + bar[0],0),
+    diagonal_to (bar),
+    arc_radius_to (strut_thickness, (cylinder_base_center [1] + cylinder_height, cylinder_base_center [2] - cylinder_radius + strut_thickness)),
     horizontal_to (cylinder_base_center [1]),
     arc_radius_to (strut_thickness, foo),
     diagonal_to (0, foo [1] - foo [0]),
@@ -1278,20 +1283,31 @@ def make_manual_snapper():
   strut_part = strut_wire.to_face().fancy_extrude (vector (1, 0, 0), centered (500))
   strut_front_filter_part = strut_front_filter_wire.to_face().fancy_extrude (vector (1, 0, 0), centered (500))
   
-  oval_center =vector (cylinder_base_center [0] - cylinder_radius, 0, 0)
+  oval_center =vector (cylinder_base_center [0], 0, 0)
   top_filter_oval = Part.Wire([Part.Ellipse (
     oval_center,
     cylinder_base_center [2] + strut_thickness,
-    finger_leeway + shield_thickness,
+    cylinder_radius + finger_leeway + shield_thickness,
   ).toShape()]).as_xz().rotated (oval_center, vector (0, 1, 0), 90)
   shield_inside_part = top_filter_oval.makeOffset2D (- shield_thickness).to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+  far = cylinder_base_center [0] - cylinder_radius - finger_leeway - shield_thickness
+  side_filter_wire = FreeCAD_shape_builder().build ([
+    start_at (500, 0),
+    vertical_to (cylinder_base_center [1] + cylinder_height + finger_leeway),
+    horizontal_to (far + finger_leeway/2),
+    diagonal_to (far, cylinder_base_center [1] + cylinder_height + finger_leeway/2),
+    vertical_to (cylinder_base_center [1] - finger_leeway/2),
+    diagonal_to (far + (cylinder_base_center [1] - finger_leeway/2), 0),
+    close(),
+  ]).to_wire()
+  shield_inside_part = shield_inside_part.common (side_filter_wire.makeOffset2D (- shield_thickness).to_face().fancy_extrude (vector (0, 0, 1), centered (500)))
   #Part.show(top_filter_oval)
-  shield_part = top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), bounds (0, cylinder_base_center [1] + cylinder_height + finger_leeway)).cut(shield_inside_part).cut (box(
-    bounds (cylinder_base_center [0] - cylinder_radius*2, 500),
-    centered (500),
+  shield_part = shield_inside_part.makeOffsetShape(shield_thickness, 0.03).cut(shield_inside_part).common(box(
+    bounds (-500, cylinder_base_center [0] - cylinder_radius*2),
+    bounds (-500, cylinder_base_center [1] + cylinder_height + finger_leeway - 2.5),
     centered (500),
   )).common (strut_front_filter_part)
-  strut_part = strut_part.common (top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), centered (500)))
+  strut_part = strut_part.common (top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), centered (500))).common(side_filter_wire.to_face().fancy_extrude (vector (0, 0, 1), centered (500)))
   #Part.show(strut_part)
   
   danger_slit = FreeCAD_shape_builder().build ([
