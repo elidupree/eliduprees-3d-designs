@@ -1204,7 +1204,7 @@ def make_manual_snapper():
   handle_fixed_part = handle_fixed_part.common(handle_front)
   handle_part = handle_fixed_part.fuse ([handle_front.cut (handle_curve_shadow)])
   handle_part.rotate(vector (), vector (0, 0, 1), -10)
-  handle_part.translate(vector (0, -12, 0))
+  handle_part.translate(vector (7 + 30, -12, 0))
   handle_part = handle_part.cut(box(centered(500), bounds(0, 500), centered(500)))
   
   finger_leeway = 25
@@ -1213,7 +1213,7 @@ def make_manual_snapper():
   slot_length = 5
   slot_width = 0.5
   slot_wall_min_thickness = 2
-  strut_thickness = 10
+  strut_thickness = cylinder_radius *2 + slot_width + slot_wall_min_thickness #10
   shield_thickness = 1
   waste_length_each_end = cylinder_radius*math.tau/4 + slot_length
   usable_slack_length = full_slack_length - waste_length_each_end*2
@@ -1245,6 +1245,16 @@ def make_manual_snapper():
     cylinder_base_center [1] - strut_thickness*math.sin (math.tau/8),
     cylinder_base_center [2] - cylinder_radius + strut_thickness*math.sin (math.tau/8),
   )
+  #TODO fix duplicate code id 98450njdfs
+  strut_front_filter_shape = FreeCAD_shape_builder().build ([
+    start_at (500,0),
+    vertical_to (cylinder_base_center [2] - cylinder_radius + strut_thickness),
+    horizontal_to (cylinder_base_center [1]),
+    arc_radius_to (strut_thickness, foo),
+    diagonal_to (0, foo [1] - foo [0]),
+    vertical_to (0),
+  ])
+  #TODO fix duplicate code id 98450njdfs
   strut_shape = FreeCAD_shape_builder().build ([
     start_at (strut_thickness, 0),
     vertical_to (20),
@@ -1260,10 +1270,13 @@ def make_manual_snapper():
   ])
   foo = strut_shape.mirror(vector(), vector(0,1))
   strut_wire = Part.Wire(strut_shape.Edges + list(reversed(foo.Edges))).as_yz()
+  foo = strut_front_filter_shape.mirror(vector(), vector(0,1))
+  strut_front_filter_wire = Part.Wire(strut_front_filter_shape.Edges + list(reversed(foo.Edges))).as_yz()
 
-  Part.show(strut_wire)
+  #Part.show(strut_wire)
   
   strut_part = strut_wire.to_face().fancy_extrude (vector (1, 0, 0), centered (500))
+  strut_front_filter_part = strut_front_filter_wire.to_face().fancy_extrude (vector (1, 0, 0), centered (500))
   
   oval_center =vector (cylinder_base_center [0] - cylinder_radius, 0, 0)
   top_filter_oval = Part.Wire([Part.Ellipse (
@@ -1277,11 +1290,31 @@ def make_manual_snapper():
     bounds (cylinder_base_center [0] - cylinder_radius*2, 500),
     centered (500),
     centered (500),
-  ))
+  )).common (strut_front_filter_part)
   strut_part = strut_part.common (top_filter_oval.to_face().fancy_extrude (vector (0, 1, 0), centered (500)))
-  Part.show(strut_part)
+  #Part.show(strut_part)
   
-  snapper = handle_part.fuse([cylinder_and_slot, strut_part, shield_part])
+  danger_slit = FreeCAD_shape_builder().build ([
+    start_at (cylinder_base_center [0], cylinder_base_center [1]),
+    vertical_to (cylinder_base_center [1] + cylinder_height),
+    diagonal_to (cylinder_base_center [0] - 80, cylinder_base_center [1] + cylinder_height + 20),
+    vertical_to (cylinder_base_center [1] - 20),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (500)).common (
+    FreeCAD_shape_builder().build ([
+    start_at (cylinder_base_center [0], cylinder_base_center [2]),
+    diagonal_to (-cylinder_base_center [2]*1.5, 0),
+    diagonal_to (cylinder_base_center [0], -cylinder_base_center [2]),
+    close(),
+  ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+  )
+  
+  #Part.show (danger_slit)
+  
+  shield_part = shield_part.cut (danger_slit)
+
+  
+  snapper = handle_part.fuse([cylinder_and_slot, cylinder_and_slot.mirror (vector(), vector (0, 0, 1)), strut_part, shield_part])
 
   Part.show(snapper)
 
