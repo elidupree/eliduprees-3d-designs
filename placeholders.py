@@ -1,3 +1,21 @@
+"""
+Write out expressions with placeholders in them, forming Expression objects, which can then be evaluated after-the-fact by specifying substitutions for the placeholders. For example:
+
+>>> wonderful = Placeholder ("foo")
+>>> expression = 5 + wonderful
+>>> resolve (expression, {"foo": 5})
+10
+
+If you don't specify all the placeholders in the expression, you get Unresolved:
+>>> resolve (expression, {})
+<class '__main__.Unresolved'>
+
+All arithmetic operators are supported. Placeholders can be replaced by objects of any type; on resolution, operators are applied as-is, using whatever overload would be used for the concrete object:
+>>> terrible = Placeholder ("bar")
+>>> resolve (terrible + wonderful + [5, 6], {"bar": [1,2], "foo":[3,4]})
+[1, 2, 3, 4, 5, 6]
+"""
+
 class Expression:
   pass
   
@@ -13,10 +31,10 @@ class Operation (Expression):
     self.operation = operation
     self.args = args
     self.kwargs = kwargs
-    
+
 class Unresolved:
   pass
-  
+
 def _resolve_impl (expression, mappings):
   if isinstance (expression, Placeholder):
     return mappings.get (expression.name, Unresolved)
@@ -59,15 +77,7 @@ for name in operator_names:
   handle_operator ("__" + name + "__")
 
 
-'''
-examples:
 
-terrible = Placeholder ("bar")
-wonderful = Placeholder ("foo")
-print (terrible)
-print (resolve (terrible, {}))
-print (resolve (terrible, {"bar": 5}))
-print (resolve (terrible+5, {"bar": 5}))
-print (resolve (6+terrible, {"bar": 5}))
-print (resolve (terrible + wonderful + [5, 6], {"bar": [1,2], "foo":[3,4]}))
-'''
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
