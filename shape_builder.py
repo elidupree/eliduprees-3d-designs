@@ -3,6 +3,32 @@ import Part
 import math
 import freecad_utils
 
+
+'''
+Notes for redesign:
+bezier curves are essentially just a wrapper around regular edges? Note that a vertex can either have separate bezier on both sides, or a single unified bezier, and those are different. So bezier-ness clearly wraps the edges and not the vertices
+
+Vertex positions can be specified relative to the next vertex, previous vertex, or both
+
+Probably have shortcuts (e.g., maybe there's a vertex() function, which can take an argument tangent = True, but there's also a tangent() function where it's true by default so the code can be shorter)
+
+Probably best to design the simplest full specification and then make shortcuts afterwards
+
+edges:
+arc (radius =, through =, center=, clockwise=,
+edge (length =, radians =, x= [which forces the line to be vertical if specified], y=
+bezier (*two or more edges and vertices)
+
+vertices:
+vertex (x = ,y =, radians = [0 indicates tangent],
+
+angle specifier example: previous [angle] + 2*radians/turns/degrees
+x example: previous [0] + 5, next [0] - 18
+arithmetic expressions can be evaluated after the fact; I don't intend to write a solver here, but it's convenient if the system can infer the evaluation order (and it can give an error message if there's a circular dependency)
+
+
+'''
+
 class FreeCAD_shape_builder:
   def __init__(self, zigzag_depth = 2, zigzag_length_limit = None):
     if zigzag_length_limit is not None:

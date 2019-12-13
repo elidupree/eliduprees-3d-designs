@@ -1477,6 +1477,20 @@ def make_clamp_enhancer ():
 make_manual_snapper()
 
 
+
+'''
+Desired features:
+
+bounds() but specifying just one bound and a size
+rotations specify either radians or degrees rather than "angle"
+default to rotating in the xy plane
+"horizontal_by" (no, actually a more sophisticated rewrite of shape builder)
+.mirror_fuse() curse
+fillet/chamfer curse that defaults to using all of the edges and may take a filter lambda
+
+'''
+
+
 document().recompute()
 Gui.SendMsgToActiveView("ViewFit")
 #Gui.activeDocument().setEdit("Sketch")
