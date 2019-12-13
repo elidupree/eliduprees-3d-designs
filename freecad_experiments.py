@@ -1199,12 +1199,13 @@ def make_manual_snapper():
     horizontal_to (90),
     vertical_to (handle_thickness/2),
     close(),
-  ]).as_xz().to_wire().to_face().extrude (vector (0, 120, 0)).rotated (vector (), vector (0, 0, 1), 25).translated (vector (handle_curve_end_xy [0] - 35, handle_curve_end_xy [1] - 10, 0))
+  ]).as_xz().to_wire().to_face().extrude (vector (0, 500, 0)).rotated (vector (), vector (0, 0, 1), 25).translated (vector (handle_curve_end_xy [0] - 35, handle_curve_end_xy [1] - 10, 0))
   
   handle_fixed_part = handle_fixed_part.common(handle_front)
   handle_part = handle_fixed_part.fuse ([handle_front.cut (handle_curve_shadow)])
   handle_part.rotate(vector (), vector (0, 0, 1), -10)
   handle_part.translate(vector (7 + 30, -12, 0))
+  handle_part_uncut = handle_part
   handle_part = handle_part.cut(box(centered(500), bounds(0, 500), centered(500)))
   
   finger_leeway = 25
@@ -1328,11 +1329,64 @@ def make_manual_snapper():
   #Part.show (danger_slit)
   
   shield_part = shield_part.cut (danger_slit)
-
   
-  snapper = handle_part.fuse([cylinder_and_slot, cylinder_and_slot.mirror (vector(), vector (0, 0, 1)), strut_part, shield_part])
+  
+  slider_profile =FreeCAD_shape_builder().build ([
+    start_at (0, 4),
+    vertical_to (-4),
+    bezier ([
+      (2, -2),
+      (3, -3),
+    ]),
+    bezier ([
+      (4, -4),
+      (8, 0),
+    ]),
+    bezier ([
+      (4, 4),
+      (3, 3)
+    ]),
+    bezier ([
+      (2, 2),
+      (0, 4)
+    ]),
+    #close()
+  ]).as_yz().to_wire().to_face()
+  slider_channel_profile = slider_profile.makeOffset2D(0.3)
+  slider = slider_profile.extrude (vector (35, 0, 0))
+  slider_channel = slider_channel_profile.extrude (vector (35, 0, 0))
+  handle_sliders = slider.translated (vector (0, 0, handle_thickness/2 - 4))
+  slider_channels = slider_channel.translated (vector (0, 0, handle_thickness/2 - 4))
+  handle_sliders = handle_sliders.fuse (handle_sliders.mirror (vector(), vector (0, 0, 1)))
+  slider_channels = slider_channels.fuse (slider_channels.mirror (vector(), vector (0, 0, 1)))
+  #Part.show (handle_sliders, "sliders")
+  handle_part = handle_part.fuse (handle_sliders.common (handle_part_uncut ))
+  #Part.show (slider_channels)
+  
+  # note: the way I cut the slider channel here doesn't leave leeway where the 2 flat surfaces meet, but since I did a test print with this mistake included, and the test print fit snugly, I'm leaving it.
+  snapper = strut_part.fuse([cylinder_and_slot, cylinder_and_slot.mirror (vector(), vector (0, 0, 1)), shield_part]).cut (slider_channels)
 
   Part.show(snapper)
+  Part.show (handle_part)
+  
+  Part.show (snapper.common (box (
+    centered (15), bounds (-5, cylinder_height + 5), centered (20),
+  ).translated (cylinder_base_center)))
+  
+  Part.show (snapper.common (box (
+    bounds (-394, -10), bounds (-15, 25), bounds(-40, -10),
+  ).translated (cylinder_base_center)))  
+  
+  
+  slider_test_box = box (bounds (-5, 100), centered (30), centered (handle_thickness + 10)).rotated (vector (15, 0, 0), vector (0, 0, 1), 15)
+  
+  Part.show (snapper.common (slider_test_box))
+  Part.show (handle_part.common (slider_test_box))
+    
+    
+    
+    
+    
 
 def make_clamp_enhancer ():
   inner_x = 0
