@@ -41,7 +41,7 @@ def _resolve_impl (expression, mappings):
   
 def resolve (expression, mappings):
   for key in mappings.keys():
-    assert type (key) is str, "mapping keys must be strings (did you accidentally put a Placeholder instead?"
+    assert type (key) is str, "mapping keys must be strings (did you accidentally put a Placeholder instead?)"
   return _resolve_impl(expression, mappings)
     
 # not sure exactly which operators should be included...?
