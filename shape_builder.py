@@ -24,7 +24,7 @@ vertex (x = ,y =, radians = [0 indicates tangent],
 
 angle specifier example: previous [angle] + 2*radians/turns/degrees
 x example: previous [0] + 5, next [0] - 18
-arithmetic expressions can be evaluated after the fact; I don't intend to write a solver here, but it's convenient if the system can infer the evaluation order (and it can give an error message if there's a circular dependency)
+arithmetic expressions can be evaluated after the fact (by using Python operator overloading to store it as arithmetic expression objects); I don't intend to write a solver here, but it's convenient if the system can infer the evaluation order (and it can give an error message if there's a circular dependency)
 
 
 '''
