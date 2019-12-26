@@ -1528,7 +1528,14 @@ def nose_thing():
   #FreeCAD.Console.PrintMessage (str(aluminum_mesh.nearestFacetOnRay ((0, 0, 0), (0, 0, 1)))+"\n")
   #Part.show (Part.Shape (aluminum_mesh))
   document().addObject ("Mesh::Feature", "aluminum").Mesh = aluminum_mesh
-  Part.show (surface.toShape())
+  Part.show (surface.toShape(), "surface")
+  offset_surface = surface.toShape().makeOffsetShape (0.5, 0.03, fill = False)
+  #Part.show (surface.toShape().makeOffsetShape (0.5, 0.03, fill = False), "shell")
+  bh = Part.Shape([Part.Circle(bridge, forwards, 10)]).to_wire().to_face().fancy_extrude(forwards, centered(303))
+  foo = surface.toShape().extrude (forwards*-20)
+  bar = offset_surface.extrude (forwards*-18)
+  Part.show (bh, "bh")
+  Part.show (bar.common(bh).cut(foo), "shell")
 
 
 
