@@ -11,6 +11,8 @@ autorun(eliduprees_3d_designs_path+"freecad_experiments.py")
 
 eliduprees_3d_designs_path = open("/n/elidupree-autobuild/share_prefix").read().strip() + "/eliduprees-3d-designs/"; exec(open(eliduprees_3d_designs_path+"freecad_autorun.py").read()); run(eliduprees_3d_designs_path+"freecad_experiments.py")
 
+eliduprees_3d_designs_path = "/n/autobuild/eliduprees-3d-designs/build/"; exec(open(eliduprees_3d_designs_path+"freecad_autorun.py").read()); run(eliduprees_3d_designs_path+"freecad_experiments.py")
+
 '''
 
 import PartDesignGui
@@ -26,7 +28,7 @@ if eliduprees_3d_designs_path not in sys.path:
 
 def run(source_path):
   with open (source_path) as file:
-    shared_globals = ['App', 'Log', 'Msg', 'Err', 'Wrn', 'traceback', 'FreeCADGui', 'Gui', 'Workbench', 'Part', 'PathCommandGroup', 'Sketcher', 'WebGui', 'sys', 'Start', 'StartPage', 'WebPage', 'WebView', 'webView']
+    shared_globals = ['App', 'Log', 'Msg', 'Err', 'Wrn', 'traceback', 'FreeCADGui', 'Gui', 'Workbench', 'Part', 'PathCommandGroup', 'Sketcher', 'WebGui', 'sys', 'Start', 'StartPage', 'WebPage', 'WebView', 'webView', "eliduprees_3d_designs_path"]
     exec (file.read(), {
       g: globals()[g] for g in shared_globals
     })

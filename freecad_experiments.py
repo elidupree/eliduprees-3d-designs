@@ -1472,9 +1472,64 @@ def make_clamp_enhancer ():
   
   Part.show (result, "Enhancer")
 
+
+
+
+def nose_thing():
+  import Mesh
+  aluminum_mesh =Mesh.Mesh(eliduprees_3d_designs_path+"aluminum_nose_1.obj")
+  forehead_1 = vector (0.528, 1.814, 7.403)
+  forehead_2 = vector (- 1.121, 1.115, 8.008)
+  forehead_3 = vector (- 0.175, 1.352, 7.905)
+  trail = vector (0.977, - 0.826, 8.899)
+  scale = 70/(forehead_3 - trail).Length
+  flat_point = vector (2.782, - 10.786, 218.766)/scale
+  FreeCAD.Console.PrintMessage (str(scale)+"\n")
+  #aluminum_mesh.rotate (forehead_3,
+  scale_matrix = FreeCAD.Matrix()
+  scale_matrix.scale (scale, scale, scale)
+  aluminum_mesh.transform (scale_matrix)
+  
+  horizontal = (forehead_2 - forehead_1).normalized()
+  forwards = -(flat_point - forehead_1).cross (horizontal).normalized()
+  vertical = horizontal.cross (forwards)
+  FreeCAD.Console.PrintMessage (str(horizontal)+"\n")
+  FreeCAD.Console.PrintMessage (str(forwards)+"\n")
+  FreeCAD.Console.PrintMessage (str(vertical)+"\n")
+  
+  bridge = vector (- 3.927, 23.478, 204.533)
+  
+  def entry (horizontal_index, vertical_index):
+    try:
+      return vector (*next(iter(aluminum_mesh.nearestFacetOnRay (tuple (bridge - forwards*100 + horizontal_index*horizontal*2 + vertical_index*vertical*2), tuple (forwards*200)).values())))
+    except StopIteration:
+      return vector()
+      
+  size = 7
+  rows = [[
+    entry (horizontal_index, vertical_index)
+    for horizontal_index in range (-size, size + 1)]
+    for vertical_index in range (-size, size+1)]
+    
+  FreeCAD.Console.PrintMessage (str(rows)+"\n")
+    
+  surface = Part.BezierSurface()
+  surface.increase (len (rows)-1, len(rows[0])-1)
+  for row_index, row in enumerate (rows):
+    for column_index, column in enumerate (row):
+      surface.setPole (row_index +1, column_index +1, column)
+    
+  #FreeCAD.Console.PrintMessage (str(aluminum_mesh.nearestFacetOnRay ((0, 0, 0), (0, 0, 1)))+"\n")
+  #Part.show (Part.Shape (aluminum_mesh))
+  document().addObject ("Mesh::Feature", "aluminum").Mesh = aluminum_mesh
+  Part.show (surface.toShape())
+
+
+
 #make_snapper()
 #make_clamp_enhancer()
-make_manual_snapper()
+#make_manual_snapper()
+nose_thing()
 
 
 
