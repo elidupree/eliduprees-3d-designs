@@ -1513,12 +1513,18 @@ def nose_thing():
     
   FreeCAD.Console.PrintMessage (str(rows)+"\n")
     
-  surface = Part.BezierSurface()
-  surface.increase (len (rows)-1, len(rows[0])-1)
-  for row_index, row in enumerate (rows):
-    for column_index, column in enumerate (row):
-      surface.setPole (row_index +1, column_index +1, column)
-    
+  surface = Part.BSplineSurface()
+  #surface.increase (len (rows)-1, len(rows[0])-1)
+  #for row_index, row in enumerate (rows):
+  #  for column_index, column in enumerate (row):
+  #    surface.setPole (row_index +1, column_index +1, column)
+  degree = 3
+  surface.buildFromPolesMultsKnots(rows,
+    [1]*(len (rows) + degree + 1),
+    [1]*(len(rows[0]) + degree + 1),
+    udegree = degree,
+    vdegree = degree,)
+   
   #FreeCAD.Console.PrintMessage (str(aluminum_mesh.nearestFacetOnRay ((0, 0, 0), (0, 0, 1)))+"\n")
   #Part.show (Part.Shape (aluminum_mesh))
   document().addObject ("Mesh::Feature", "aluminum").Mesh = aluminum_mesh
