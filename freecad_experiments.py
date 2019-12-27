@@ -1544,6 +1544,7 @@ def nose_thing():
 def face2_thing():
   import Mesh
   face =Mesh.Mesh(eliduprees_3d_designs_path+"face2.obj")
+  face = max (face.getSeparateComponents(), key = lambda component: component.CountFacets)
   bridge = vector (- 0.413, - 0.168, 4.833)
   lips = vector (0.795, - 0.071, 5.032)
   
@@ -1560,34 +1561,84 @@ def face2_thing():
   
   horizontal = (right - left).normalized()
   forwards = (flat_point - left).cross (horizontal).normalized()
-  vertical = horizontal.cross (forwards)
+  vertical = -horizontal.cross (forwards)
   
+  
+  rotate_matrix = FreeCAD.Matrix(
+    horizontal [0], vertical [0], forwards [0], 0,
+    horizontal [1], vertical [1], forwards [1], 0,
+    horizontal [2], vertical [2], forwards [2], 0,
+  ).inverse()
+  face.transform (rotate_matrix)
+  
+  face_top = 92
+  face_left = -75
+  face_bottom = -124
+  face_front = 21
+  face_back = -165
+  
+  face_box = Mesh.createBox(
+    -face_left - face_left,
+    face_top - face_bottom,
+    face_front - face_back,
+  )
+  face_box.translate (0, (face_top + face_bottom)/2, (face_front + face_back)/2)
+  
+  #face = face.intersect (face_box)
 
   document().addObject ("Mesh::Feature", "face").Mesh = face
+  #document().addObject ("Mesh::Feature", "face_box").Mesh = face_box
   
-  
-    
   def entry (horizontal_index, vertical_index):
+    ray_start = (
+      face_left + horizontal_index,
+      face_bottom + vertical_index,
+      face_front)
     try:
-      v = vector (*next(iter(face.nearestFacetOnRay (tuple (forwards*100 + -abs(horizontal_index)*horizontal*3 + vertical_index*vertical*3), tuple (-forwards*200)).values())))
-      if horizontal_index < 0:
-        return v
-      else:
-        return v + horizontal*(-2*v.dot(horizontal))
+      v = next(iter(face.nearestFacetOnRay (ray_start, (0,0,-1)).values()))
+      return v[2]
     except StopIteration:
-      return vector()
+      return 0
+  
+  import os.path
+  import os
+  import json
+  data_path = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
+  face_path = os.path.join(data_path, "face.json")
+  temp_path = os.path.join(data_path, "face.json.temp")
+  
+  try:
+    with open(face_path) as file:
+      rows = json.load(file)
+  except FileNotFoundError:
+    rows = []
+  
+  while len(rows) <= face_top - face_bottom:
+    vertical_index = len(rows)
+    rows.append([
+      entry (horizontal_index, vertical_index)
+      for horizontal_index in range (-face_left - face_left + 1)])
+    FreeCAD.Console.PrintMessage (f"{vertical_index}: {str(rows[-1])}\n")
+    with open(temp_path, "w") as file:
+      json.dump(rows, file)
+      file.flush()
+      os.fsync(file.fileno())
+    os.replace(temp_path, face_path)
+ 
       
-  size = 7
+  '''size = 7
   rows = [[
     entry (horizontal_index, vertical_index)
     for horizontal_index in range (-size, size + 1)]
-    for vertical_index in range (-size, size+1)]
+    for vertical_index in range (-size, size+1)]'''
     
-  FreeCAD.Console.PrintMessage (str(rows)+"\n")
+  #FreeCAD.Console.PrintMessage (str(rows)+"\n")
     
   surface = Part.BSplineSurface()
   degree = 2
-  surface.buildFromPolesMultsKnots(rows,
+  surface.buildFromPolesMultsKnots([
+  [vector (face_left +x, face_bottom +y,col) for x,col in enumerate (row)]
+    for y,row in enumerate (rows)],
     [1]*(len (rows) + degree + 1),
     [1]*(len(rows[0]) + degree + 1),
     udegree = degree,
