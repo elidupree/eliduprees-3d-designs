@@ -1536,13 +1536,80 @@ def nose_thing():
   bar = offset_surface.extrude (forwards*-18)
   Part.show (bh, "bh")
   Part.show (bar.common(bh).cut(foo), "shell")
+  
+  
+  
+  
+
+def face2_thing():
+  import Mesh
+  face =Mesh.Mesh(eliduprees_3d_designs_path+"face2.obj")
+  bridge = vector (- 0.413, - 0.168, 4.833)
+  lips = vector (0.795, - 0.071, 5.032)
+  
+  
+  scale = 74.3/(bridge - lips).Length
+  face.translate(-bridge[0], -bridge[1], -bridge[2])
+  scale_matrix = FreeCAD.Matrix()
+  scale_matrix.scale (scale, scale, scale)
+  face.transform (scale_matrix)
+  
+  left = vector (20.383, 38.773, 10.240)
+  right = vector (20.918, - 27.254, 33.146)
+  flat_point = vector (133, 9, 35)
+  
+  horizontal = (right - left).normalized()
+  forwards = (flat_point - left).cross (horizontal).normalized()
+  vertical = horizontal.cross (forwards)
+  
+
+  document().addObject ("Mesh::Feature", "face").Mesh = face
+  
+  
+    
+  def entry (horizontal_index, vertical_index):
+    try:
+      v = vector (*next(iter(face.nearestFacetOnRay (tuple (forwards*100 + -abs(horizontal_index)*horizontal*3 + vertical_index*vertical*3), tuple (-forwards*200)).values())))
+      if horizontal_index < 0:
+        return v
+      else:
+        return v + horizontal*(-2*v.dot(horizontal))
+    except StopIteration:
+      return vector()
+      
+  size = 7
+  rows = [[
+    entry (horizontal_index, vertical_index)
+    for horizontal_index in range (-size, size + 1)]
+    for vertical_index in range (-size, size+1)]
+    
+  FreeCAD.Console.PrintMessage (str(rows)+"\n")
+    
+  surface = Part.BSplineSurface()
+  degree = 2
+  surface.buildFromPolesMultsKnots(rows,
+    [1]*(len (rows) + degree + 1),
+    [1]*(len(rows[0]) + degree + 1),
+    udegree = degree,
+    vdegree = degree,)
+   
+  Part.show (surface.toShape(), "surface")
+  offset_surface = surface.toShape().makeOffsetShape (0.5, 0.03, fill = False)
+  #Part.show (surface.toShape().makeOffsetShape (0.5, 0.03, fill = False), "shell")
+  bh = Part.Shape([Part.Circle(vector(), forwards, 30)]).to_wire().to_face().fancy_extrude(forwards, centered(303))
+  foo = surface.toShape().extrude (forwards*-20)
+  bar = offset_surface.extrude (forwards*-18)
+  Part.show (bh, "bh")
+  Part.show (bar.common(bh).cut(foo), "shell")
+
 
 
 
 #make_snapper()
 #make_clamp_enhancer()
 #make_manual_snapper()
-nose_thing()
+#nose_thing()
+face2_thing()
 
 
 
