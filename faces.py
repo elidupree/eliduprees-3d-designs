@@ -1,14 +1,24 @@
 import Mesh
 
-def face2_thing():
-  
-  face =Mesh.Mesh(eliduprees_3d_designs_path+"face2.obj")
+face_top = 92
+face_left = -75
+face_bottom = -124
+face_front = 21
+face_back = -165
+
+face_box = Mesh.createBox(
+    -face_left - face_left,
+    face_top - face_bottom,
+    face_front - face_back,
+  )
+face_box.translate (0, (face_top + face_bottom)/2, (face_front + face_back)/2)
+
+
+def positioned_face_mesh (file_path, bridge, lips, left, right, flat_point, flat_point_mult=1):
+  face =Mesh.Mesh(eliduprees_3d_designs_path+ file_path)
   face = max (face.getSeparateComponents(), key = lambda component: component.CountFacets)
-  bridge = vector (- 0.413, - 0.168, 4.833)
-  lips = vector (0.795, - 0.071, 5.032)
   import datetime
   FreeCAD.Console.PrintMessage (f"Began at {datetime.datetime.now()}\n")
-  
   
   scale = 74.3/(bridge - lips).Length
   face.translate(-bridge[0], -bridge[1], -bridge[2])
@@ -16,13 +26,9 @@ def face2_thing():
   scale_matrix.scale (scale, scale, scale)
   face.transform (scale_matrix)
   
-  left = vector (20.383, 38.773, 10.240)
-  right = vector (20.918, - 27.254, 33.146)
-  flat_point = vector (133, 9, 35)
-  
   horizontal = (right - left).normalized()
   forwards = (flat_point - left).cross (horizontal).normalized()
-  vertical = -horizontal.cross (forwards)
+  vertical = -flat_point_mult*horizontal.cross (forwards)
   
   
   rotate_matrix = FreeCAD.Matrix(
@@ -30,20 +36,27 @@ def face2_thing():
     horizontal [1], vertical [1], forwards [1], 0,
     horizontal [2], vertical [2], forwards [2], 0,
   ).inverse()
+  
   face.transform (rotate_matrix)
+  if flat_point_mult == -1:
+    face.flipNormals()
+      
+  return face
+
+
+
+def face2_thing():
+  import datetime
+  FreeCAD.Console.PrintMessage (f"Began at {datetime.datetime.now()}\n")
   
-  face_top = 92
-  face_left = -75
-  face_bottom = -124
-  face_front = 21
-  face_back = -165
-  
-  face_box = Mesh.createBox(
-    -face_left - face_left,
-    face_top - face_bottom,
-    face_front - face_back,
+  face = positioned_face_mesh (
+    "private/face2.obj",
+    bridge = vector (- 0.413, - 0.168, 4.833),
+    lips = vector (0.795, - 0.071, 5.032),
+    left = vector (20.383, 38.773, 10.240),
+    right = vector (20.918, - 27.254, 33.146),
+    flat_point = vector (133, 9, 35),
   )
-  face_box.translate (0, (face_top + face_bottom)/2, (face_front + face_back)/2)
   
   #face = face.intersect (face_box)
 
@@ -206,8 +219,65 @@ def face2_thing():
   
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
+
+
+def face4_thing():
+  left1 = vector (0.430, 0.257, 1.438)
+  left2 = vector (0.388, 0.247, 1.421)
+  left3 = vector (0.415, 0.267, 1.427)
+  left1_fraction = 0.8
+  left2_fraction = -0.1
+  left = left3*(1 - left1_fraction-left2_fraction) + left2*left2_fraction + left1*left1_fraction
   
+  bridge1 = vector (0.541, 0.157, 1.530)
+  bridge2 = vector (0.542, 0.156, 1.534)
+  bridge_fraction = -0.5
+  bridge = bridge1*(1 - bridge_fraction) + bridge2*bridge_fraction
+  
+  face = positioned_face_mesh ("private/face5-d7.obj",
+    bridge = bridge,
+    lips = vector (0.607, 0.412, 1.512),
+    left = left,
+    right = vector (0.561, 0.243, 1.658),
+    flat_point = vector (0.478, -0.012, 1.561),
+    flat_point_mult=-1,
+    )
+  
+  vertical = vector(0.01, 1, 0).normalized()
+  horizontal = vector(1, 0, 0.01).normalized()
+  forwards = (-vertical ).cross (horizontal)
+  
+  rotate_matrix = FreeCAD.Matrix(
+    horizontal [0], vertical [0], forwards [0], 0,
+    horizontal [1], vertical [1], forwards [1], 0,
+    horizontal [2], vertical [2], forwards [2], 0,
+  ).inverse()
+  
+  face.transform (rotate_matrix)
+  
+  document().addObject ("Mesh::Feature", "face").Mesh = face
+  
+  
+  face_original = Mesh.Mesh(eliduprees_3d_designs_path+"private/face5-d7.obj")
+  face_original = max (face_original.getSeparateComponents(), key = lambda component: component.CountFacets)
+  document().addObject ("Mesh::Feature", "face_original").Mesh = face_original
+  
+  
+  flipped = face.copy();
+  
+  flip_matrix = FreeCAD.Matrix()
+  flip_matrix.scale (-1, 1, 1)
+  
+  flipped.transform (flip_matrix )
+  flipped.flipNormals()
+  
+  document().addObject ("Mesh::Feature", "flipped").Mesh = flipped
+
+
 def run(g):
   for key, value in g.items():
     globals()[key] = value
-  face2_thing()
+  face4_thing()
+  
+  
+  

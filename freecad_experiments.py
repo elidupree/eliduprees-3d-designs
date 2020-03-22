@@ -20,6 +20,9 @@ import freecad_utils
 importlib.reload(freecad_utils)
 from freecad_utils import *
 
+FreeCAD = App
+curse_freecad_types()
+
 import shape_builder
 importlib.reload(shape_builder)
 from shape_builder import *
@@ -27,8 +30,7 @@ from shape_builder import *
 import faces
 importlib.reload(faces)
 
-FreeCAD = App
-curse_freecad_types()
+
 
 for document_name in list(FreeCAD.listDocuments().keys()):
   FreeCAD.closeDocument (document_name)
