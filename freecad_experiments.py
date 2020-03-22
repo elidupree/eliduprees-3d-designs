@@ -1547,6 +1547,8 @@ def face2_thing():
   face = max (face.getSeparateComponents(), key = lambda component: component.CountFacets)
   bridge = vector (- 0.413, - 0.168, 4.833)
   lips = vector (0.795, - 0.071, 5.032)
+  import datetime
+  FreeCAD.Console.PrintMessage (f"Began at {datetime.datetime.now()}\n")
   
   
   scale = 74.3/(bridge - lips).Length
@@ -1607,6 +1609,7 @@ def face2_thing():
   face_path = os.path.join(data_path, "face.json")
   temp_path = os.path.join(data_path, "face.json.temp")
   
+  FreeCAD.Console.PrintMessage (f"Began updating depthmap at {datetime.datetime.now()}\n")
   try:
     with open(face_path) as file:
       rows = json.load(file)
@@ -1624,7 +1627,25 @@ def face2_thing():
       file.flush()
       os.fsync(file.fileno())
     os.replace(temp_path, face_path)
+  FreeCAD.Console.PrintMessage (f"Done updating depthmap at {datetime.datetime.now()}\n")
  
+  def face_depth (coordinates):
+    def raw(x,y):
+      return rows[-face_bottom + y][-face_left - abs(x)]
+    x,y = coordinates[0], coordinates[1]
+    floorx = math.floor(x)
+    floory = math.floor(y)
+    xfrac = x - floorx
+    yfrac = y - floory
+    return (
+      raw(floorx, floory) * (1-xfrac) * (1-yfrac)
+      + raw(floorx, floory+1) * (1-xfrac) * yfrac
+      + raw(floorx+1, floory) * xfrac * (1-yfrac)
+      + raw(floorx+1, floory+1) * xfrac * yfrac
+    )
+  
+  def face_vector (coordinates):
+    return vector(coordinates[0], coordinates[1], face_depth (coordinates))
       
   '''size = 7
   rows = [[
@@ -1633,34 +1654,131 @@ def face2_thing():
     for vertical_index in range (-size, size+1)]'''
     
   #FreeCAD.Console.PrintMessage (str(rows)+"\n")
-    
+  
   surface = Part.BSplineSurface()
-  degree = 2
-  surface.buildFromPolesMultsKnots([
-  [vector (face_left +x, face_bottom +y,col) for x,col in enumerate (row)]
-    for y,row in enumerate (rows)],
-    [1]*(len (rows) + degree + 1),
-    [1]*(len(rows[0]) + degree + 1),
+  degree = 3
+  surface_rows = [
+    [face_vector((x,y)) for x in range(face_left, -face_left + 1, 3)]
+      for y in range(-60, 30, 3)]
+  surface.buildFromPolesMultsKnots(surface_rows,
+    [1]*(len (surface_rows) + degree + 1),
+    [1]*(len(surface_rows[0]) + degree + 1),
     udegree = degree,
     vdegree = degree,)
+  
+  FreeCAD.Console.PrintMessage (f"Done building surface at {datetime.datetime.now()}\n")
    
   Part.show (surface.toShape(), "surface")
-  offset_surface = surface.toShape().makeOffsetShape (0.5, 0.03, fill = False)
-  #Part.show (surface.toShape().makeOffsetShape (0.5, 0.03, fill = False), "shell")
+  
+  #offset_surface = surface.toShape().makeOffsetShape (0.5, 0.03, fill = False)
+  
+  offset_surface = Part.BSplineSurface()
+  def offset_surface_position (surface_position):
+    #FreeCAD.Console.PrintMessage (f"{u}, {v}\n")
+    (u,v) = surface.parameter (surface_position)
+    return surface_position - surface.normal (u,v)*0.5
+  offset_surface_rows = [
+    [offset_surface_position (face_vector((x,y))) for x in range(face_left, -face_left + 1, 3)]
+      for y in range(-60, 30, 3)]
+  offset_surface.buildFromPolesMultsKnots(offset_surface_rows,
+    [1]*(len (surface_rows) + degree + 1),
+    [1]*(len(surface_rows[0]) + degree + 1),
+    udegree = degree,
+    vdegree = degree,)
+  
+  FreeCAD.Console.PrintMessage (f"Done offset surface at {datetime.datetime.now()}\n")
+  '''#Part.show (surface.toShape().makeOffsetShape (0.5, 0.03, fill = False), "shell")
   bh = Part.Shape([Part.Circle(vector(), forwards, 30)]).to_wire().to_face().fancy_extrude(forwards, centered(303))
   foo = surface.toShape().extrude (forwards*-20)
   bar = offset_surface.extrude (forwards*-18)
   Part.show (bh, "bh")
-  Part.show (bar.common(bh).cut(foo), "shell")
+  #Part.show (bar.common(bh).cut(foo), "shell")
+  '''
+  
+  eye_hole_right = -13
+  eye_hole_bottom = -24
+  eye_hole_radius = 22
+  
+  eye_hole = FreeCAD_shape_builder ().build ([
+    start_at (eye_hole_right, 200),
+    vertical_to (eye_hole_bottom + eye_hole_radius),
+    arc_radius_to (-eye_hole_radius,
+      (eye_hole_right - eye_hole_radius, eye_hole_bottom)),
+    horizontal_to (-200),
+    close(),
+  ]).to_wire().to_face().fancy_extrude (vector (0, 0, 1), centered (500))
+  
+  mask_mask = box(centered (110), bounds(-45, 20), centered(200)).cut([
+    eye_hole,
+    eye_hole.mirror(vector(), vector(1,0,0)),
+  ])
+  
+  FreeCAD.Console.PrintMessage (f"Done making mask mask at {datetime.datetime.now()}\n")
+  
+  #Part.show (eye_hole)
+  Part.show (mask_mask)
+  Part.show (offset_surface.toShape(), "offset_surface")
+  
+  foo = surface.toShape().common(mask_mask).extrude (vector(0, 0, -10))
+  FreeCAD.Console.PrintMessage (f"Done making foo at {datetime.datetime.now()}\n")
+  bar = offset_surface.toShape().common(mask_mask).extrude (vector(0, 0, -10))
+  FreeCAD.Console.PrintMessage (f"Done making bar at {datetime.datetime.now()}\n")
+  baz = bar.cut(foo)
+  FreeCAD.Console.PrintMessage (f"Done making baz at {datetime.datetime.now()}\n")
+  
+  Part.show (foo, "foo")
+  Part.show (bar, "bar")
+  Part.show (baz, "baz")
+  
+  '''import MeshPart
+  surface_mesh = MeshPart.meshFromShape (
+    Shape = surface.toShape().extrude (vector(0, 0, -10)),
+    MaxLength = 2
+  )
+  FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
+  
+  offset_surface_mesh = MeshPart.meshFromShape (
+    Shape = offset_surface.extrude (vector(0, 0, -10)),
+    MaxLength = 2
+  )
+  FreeCAD.Console.PrintMessage (f"Done making offset_surface mesh at {datetime.datetime.now()}\n")
+  
+  document().addObject ("Mesh::Feature", "surface_mesh").Mesh = offset_surface_mesh.intersect(surface_mesh)'''
+  
+  
+  FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
 
-
+def hydra_shade():
+  swept = FreeCAD_shape_builder ().build ([
+    start_at (0,0),
+    horizontal_to (20),
+    bezier ([
+      (20+3, 0+4),
+      (20+4, 0+8),
+    ]),
+    bezier ([
+      (20+4+3, 0+8+12),
+      (97/2, 40),
+      (97/2, 98+6),
+    ]),
+    horizontal_to (0),
+    close(),
+  ]).to_wire().to_face()
+  
+  swept = swept.revolve (vector(), vector (0, 1, 0), 360)
+  
+  Part.show(swept)
+  
+  
 
 #make_snapper()
 #make_clamp_enhancer()
 #make_manual_snapper()
 #nose_thing()
-face2_thing()
+#face2_thing()
+
+hydra_shade()
 
 
 
