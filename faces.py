@@ -1,4 +1,5 @@
 import Mesh
+import datetime
 
 face_top = 92
 face_left = -75
@@ -46,7 +47,7 @@ def positioned_face_mesh (file_path, bridge, lips, left, right, flat_point, flat
 
 
 def face2_thing():
-  import datetime
+  
   FreeCAD.Console.PrintMessage (f"Began at {datetime.datetime.now()}\n")
   
   face = positioned_face_mesh (
@@ -63,6 +64,10 @@ def face2_thing():
   document().addObject ("Mesh::Feature", "face").Mesh = face
   #document().addObject ("Mesh::Feature", "face_box").Mesh = face_box
   
+  do_prototype_mask_1(face, "face.json")
+
+
+def do_prototype_mask_1(face, data_filename):
   def entry (horizontal_index, vertical_index):
     ray_start = (
       face_left + horizontal_index,
@@ -78,8 +83,8 @@ def face2_thing():
   import os
   import json
   data_path = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
-  face_path = os.path.join(data_path, "face.json")
-  temp_path = os.path.join(data_path, "face.json.temp")
+  face_path = os.path.join(data_path, data_filename)
+  temp_path = os.path.join(data_path, data_filename+".temp")
   
   FreeCAD.Console.PrintMessage (f"Began updating depthmap at {datetime.datetime.now()}\n")
   try:
@@ -255,6 +260,10 @@ def face4_thing():
   
   face.transform (rotate_matrix)
   
+  flip_matrix = FreeCAD.Matrix()
+  flip_matrix.scale (-1, 1, -1)
+  face.transform (flip_matrix)
+  
   document().addObject ("Mesh::Feature", "face").Mesh = face
   
   
@@ -272,6 +281,8 @@ def face4_thing():
   flipped.flipNormals()
   
   document().addObject ("Mesh::Feature", "flipped").Mesh = flipped
+  
+  do_prototype_mask_1(face, "face5_depthmap.json")
 
 
 def run(g):
