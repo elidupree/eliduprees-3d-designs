@@ -331,6 +331,16 @@ def face4_thing():
   make_bump (3, -10, 5, 1.5)
   make_bump (3, -15, 5, 1.5)
   make_bump (3, -20, 5, 1.5)
+  # enlarge bridge of nose more, based on prototype that included the above
+  make_bump (6, -10, 10, 4)
+  
+  # more tweaks based on prototype that included the above
+  make_bump (19, 0, 8, -7)
+  make_bump (27, -1, 8, -7)
+  make_bump (35, -2, 8, -7)
+  make_bump (43, -3, 8, -7)
+  make_bump (12, -10, 5, -5)
+  make_bump (12, -5, 5, -5)
   
   def raw_face_depth(x,y):
     return rows[-face_bottom + y][-face_left - abs(x)]
@@ -379,8 +389,9 @@ def face4_thing():
   
   Part.show (surface_filtered, "surface_without_eyeballs")
   
-  test_print_box = box(centered (50), bounds(-55, 20), centered(200))
+  test_print_box = box(centered (40), bounds(-25, 15), centered(200))
   surface_filtered = surface_filtered.common(test_print_box)
+  Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
   
   
@@ -409,7 +420,7 @@ def face4_thing():
   
   offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
   
-  Part.show (offset_surface, "surface_for_test_print")
+  Part.show (offset_surface, "solid_for_test_print")
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
