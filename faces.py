@@ -1,5 +1,8 @@
 import Mesh
 import datetime
+import os.path
+import os
+import json
 
 face_top = 92
 face_left = -75
@@ -21,7 +24,7 @@ def positioned_face_mesh (file_path, bridge, lips, left, right, flat_point, flat
   import datetime
   FreeCAD.Console.PrintMessage (f"Began at {datetime.datetime.now()}\n")
   
-  scale = 74.3/(bridge - lips).Length
+  scale = 75.5/(bridge - lips).Length
   face.translate(-bridge[0], -bridge[1], -bridge[2])
   scale_matrix = FreeCAD.Matrix()
   scale_matrix.scale (scale, scale, scale)
@@ -67,7 +70,19 @@ def face2_thing():
   do_prototype_mask_1(face, "face.json")
 
 
-def do_prototype_mask_1(face, data_filename):
+def depth_map(face, depthmap_path):
+  depthmap_path = os.path.join(data_path, depthmap_path)
+  
+  FreeCAD.Console.PrintMessage (f"Began updating depthmap at {datetime.datetime.now()}\n")
+  try:
+    with open(depthmap_path) as file:
+      rows = json.load(file)
+  except FileNotFoundError:
+    rows = []
+  
+  
+  temp_path = depthmap_path+".temp"
+  
   def entry (horizontal_index, vertical_index):
     ray_start = (
       face_left + horizontal_index,
@@ -79,20 +94,6 @@ def do_prototype_mask_1(face, data_filename):
     except StopIteration:
       return 0
   
-  import os.path
-  import os
-  import json
-  data_path = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
-  face_path = os.path.join(data_path, data_filename)
-  temp_path = os.path.join(data_path, data_filename+".temp")
-  
-  FreeCAD.Console.PrintMessage (f"Began updating depthmap at {datetime.datetime.now()}\n")
-  try:
-    with open(face_path) as file:
-      rows = json.load(file)
-  except FileNotFoundError:
-    rows = []
-  
   while len(rows) <= face_top - face_bottom:
     vertical_index = len(rows)
     rows.append([
@@ -103,23 +104,37 @@ def do_prototype_mask_1(face, data_filename):
       json.dump(rows, file)
       file.flush()
       os.fsync(file.fileno())
-    os.replace(temp_path, face_path)
+    os.replace(temp_path, depthmap_path)
   FreeCAD.Console.PrintMessage (f"Done updating depthmap at {datetime.datetime.now()}\n")
- 
-  def face_depth (coordinates):
-    def raw(x,y):
-      return rows[-face_bottom + y][-face_left - abs(x)]
+  
+  return rows
+
+
+def interpolated(coordinates, raw):
     x,y = coordinates[0], coordinates[1]
     floorx = math.floor(x)
     floory = math.floor(y)
     xfrac = x - floorx
     yfrac = y - floory
+    def filtered(x, y, xf, yf):
+      if xf == 0 or yf == 0:
+        return 0
+      else:
+        return raw(x, y) * xf * yf
     return (
-      raw(floorx, floory) * (1-xfrac) * (1-yfrac)
-      + raw(floorx, floory+1) * (1-xfrac) * yfrac
-      + raw(floorx+1, floory) * xfrac * (1-yfrac)
-      + raw(floorx+1, floory+1) * xfrac * yfrac
+      filtered(floorx, floory, (1-xfrac), (1-yfrac))
+      + filtered(floorx, floory+1, (1-xfrac), yfrac)
+      + filtered(floorx+1, floory, xfrac, (1-yfrac))
+      + filtered(floorx+1, floory+1, xfrac, yfrac)
     )
+
+def do_prototype_mask_1(face, data_filename):
+  rows = depth_map(face, data_filename)
+  
+  def raw_face_depth(x,y):
+    return rows[-face_bottom + y][-face_left - abs(x)]
+  def face_depth (coordinates):
+    return interpolated(coordinates, raw_face_depth)
   
   def face_vector (coordinates):
     return vector(coordinates[0], coordinates[1], face_depth (coordinates))
@@ -282,12 +297,127 @@ def face4_thing():
   
   document().addObject ("Mesh::Feature", "flipped").Mesh = flipped
   
-  do_prototype_mask_1(face, "face5_depthmap.json")
+  
+  rows = depth_map(face, "face5_depthmap.json")
+  for row in rows:
+    for left_idx in range(-face_left):
+      row[left_idx] = (row[left_idx] + row[-face_left*2 - left_idx]) * 0.5
+  
+  
+  def make_bump (x, y, radius, depth):
+    x = -abs(x)
+    for offset_x in range (- radius, radius +1):
+      for offset_y in range (- radius, radius +1):
+        distance = math.sqrt (offset_x**2 + offset_y**2)
+        if distance <radius:
+          rows[-face_bottom + y + offset_y][-face_left + x + offset_x] += depth*(radius - distance)/radius
+  
+  make_bump (10, -6, 5, -4)
+  make_bump (10, 0, 5, -4)
+  #make_bump (13, 2, 5, -40)
+  make_bump (15, 3, 5, -3)
+  make_bump (14, -1, 3, -2)
+  
+  # counteract greenscreen issues at center of nose
+  make_bump (0, -10, 5, -1)
+  make_bump (0, -20, 5, -2)
+  make_bump (0, -28, 5, -0.5)
+  
+  # counteract other greenscreen bumpiness
+  make_bump (0, 44, 6, -3)
+  
+  # enlarge bridge of nose
+  make_bump (3, -5, 5, 1.5)
+  make_bump (3, -10, 5, 1.5)
+  make_bump (3, -15, 5, 1.5)
+  make_bump (3, -20, 5, 1.5)
+  
+  def raw_face_depth(x,y):
+    return rows[-face_bottom + y][-face_left - abs(x)]
+  def face_depth (coordinates):
+    return interpolated(coordinates, raw_face_depth)
+  
+  def face_vector (coordinates):
+    return vector(coordinates[0], coordinates[1], face_depth (coordinates))
+  
+  
+  # depth(10, 0) should be about 15mm
+  # depth(14, 0) should be about 19mm
+  FreeCAD.Console.PrintMessage (f"?? {face_depth (vector(0, -6))}, {face_depth (vector(10, -6))}, {face_depth (vector(14, -6))}\n")
+  
+  def approx_density(a, b, density):
+    count = math.ceil((b - a) * density)
+    return [a + (b-a) * i / count for i in range(count)]
+  def nose_denser(a, b, c, d):
+    return approx_density(a, b, 0.2) + approx_density(b, c, 0.5) + approx_density(c, d, 0.2) + [d]
+    
+  horizontal_marks = nose_denser(face_left, -15, 15, -face_left)
+  vertical_marks = nose_denser(face_bottom, -30, 15, face_top)
+    
+  surface = Part.BSplineSurface()
+  degree = 3
+  surface_rows = [
+    [face_vector((x,y)) for x in horizontal_marks]
+      for y in vertical_marks]
+  surface.buildFromPolesMultsKnots(surface_rows,
+    [1]*(len (surface_rows) + degree + 1),
+    [1]*(len(surface_rows[0]) + degree + 1),
+    udegree = degree,
+    vdegree = degree,)
+    
+  #surface.approximate(surface_rows, 0, 5, 2, 0.1)
+  
+  FreeCAD.Console.PrintMessage (f"Done building surface at {datetime.datetime.now()}\n")
+   
+  #Part.show (surface.toShape(), "surface")
+  
+  eyeball_radius = 30
+  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -10 - eyeball_radius))
+  eyeball_filter = eyeball_filter.fuse (eyeball_filter.mirror (vector(), vector (1, 0, 0)))
+  
+  surface_filtered = surface.toShape().cut(eyeball_filter)
+  
+  Part.show (surface_filtered, "surface_without_eyeballs")
+  
+  test_print_box = box(centered (50), bounds(-55, 20), centered(200))
+  surface_filtered = surface_filtered.common(test_print_box)
+  FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
+  
+  
+  '''offset_surface = Part.BSplineSurface()
+  mask_thickness = 0.5
+  def offset_surface_position (surface_position):
+    #FreeCAD.Console.PrintMessage (f"{u}, {v}\n")
+    (u,v) = surface.parameter (surface_position)
+    normal = surface.normal (u,v)
+    #return surface_position - vector(normal[0], 0, normal[2])*mask_thickness
+    return surface_position - normal*mask_thickness
+  offset_surface_rows = [
+    [offset_surface_position (face_vector((x,y))) for x in horizontal_marks]
+      for y in vertical_marks]
+  offset_surface.buildFromPolesMultsKnots(offset_surface_rows,
+    [1]*(len (surface_rows) + degree + 1),
+    [1]*(len(surface_rows[0]) + degree + 1),
+    udegree = degree,
+    vdegree = degree,)
+    
+  offset_surface_filtered = offset_surface.toShape().common(test_print_box)
+  FreeCAD.Console.PrintMessage (f"Done making offset_surface mesh at {datetime.datetime.now()}\n")
+    
+  Part.show (surface_filtered.extrude(vector(0, 0, 100)).common(
+  offset_surface_filtered .extrude(vector(0,0,-100))), "surface_for_test_print")'''
+  
+  offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
+  
+  Part.show (offset_surface, "surface_for_test_print")
+  
+  FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
 
 def run(g):
   for key, value in g.items():
     globals()[key] = value
+  globals()["data_path"] = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
   face4_thing()
   
   
