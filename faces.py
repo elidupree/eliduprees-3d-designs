@@ -407,7 +407,12 @@ def face4_thing():
   
   Part.show (surface_filtered, "surface_without_eyeballs")
   
-  test_print_box = box(centered (30), bounds(-16, 8), centered(200))
+  test_print_box = box(centered (20), bounds(-35, 27), centered(200)).fuse ([
+    box(centered (70), bounds(-35, -3), centered(200)),
+    box(centered (136), bounds(-60, -28.7), centered(200)),
+  ]).cut(
+    box(centered (43), bounds(-60, -41), centered(200)),
+  )
   surface_filtered = surface_filtered.common(test_print_box)
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
@@ -437,7 +442,6 @@ def face4_thing():
   offset_surface_filtered .extrude(vector(0,0,-100))), "surface_for_test_print")'''
   
   offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
-  
   Part.show (offset_surface, "solid_for_test_print")
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
