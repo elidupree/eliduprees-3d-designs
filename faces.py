@@ -355,8 +355,8 @@ def face4_thing():
   make_bump (12, -10, 5, -5)
   make_bump (12, -5, 5, -5)
   #after prototype 4
-  make_bump(10, 0, 7, -3)
-  make_bump(14, -1, 6, -1.5)
+  #make_bump(10, 0, 7, -3) # reverted for prototype 8
+  #make_bump(14, -1, 6, -1.5) # reverted for prototype 8
   make_bump(0, -20, 15, 2)
   make_bump(0, -30, 20, 2)
   
@@ -400,19 +400,20 @@ def face4_thing():
   #Part.show (surface.toShape(), "surface")
   
   eyeball_radius = 30
-  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -5 - eyeball_radius))
+  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -7 - eyeball_radius))
   eyeball_filter = eyeball_filter.fuse (eyeball_filter.mirror (vector(), vector (1, 0, 0)))
   
   surface_filtered = surface.toShape().cut(eyeball_filter)
   
   Part.show (surface_filtered, "surface_without_eyeballs")
   
-  test_print_box = box(centered (20), bounds(-35, 27), centered(200)).fuse ([
+  test_print_box = box(centered (30), bounds(-16, 8), centered(200))
+  '''test_print_box = box(centered (20), bounds(-35, 27), centered(200)).fuse ([
     box(centered (70), bounds(-35, -3), centered(200)),
     box(centered (136), bounds(-60, -28.7), centered(200)),
   ]).cut(
     box(centered (43), bounds(-60, -41), centered(200)),
-  )
+  )'''
   surface_filtered = surface_filtered.common(test_print_box)
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
