@@ -310,7 +310,10 @@ def face4_thing():
       for offset_y in range (- radius, radius +1):
         distance = math.sqrt (offset_x**2 + offset_y**2)
         if distance <radius:
-          rows[-face_bottom + y + offset_y][-face_left + x + offset_x] += depth*(radius - distance)/radius
+          adj_dist = distance/radius
+          bump_frac = math.exp(1 - 1/(1-adj_dist**2))
+          #FreeCAD.Console.PrintMessage (f"adj_dist {adj_dist}, {radius}, {distance}, {bump_frac}\n")
+          rows[-face_bottom + y + offset_y][-face_left + x + offset_x] += depth*bump_frac
   
   make_bump (10, -6, 5, -4)
   make_bump (10, 0, 5, -4)
@@ -324,7 +327,12 @@ def face4_thing():
   make_bump (0, -28, 5, -0.5)
   #after prototype 4
   make_bump (0, -22, 2, -2)
+  #after prototype 5
+  make_bump (0, -23, 9, -1)
+  make_bump (0, -27, 9, -0.5)
+  make_bump (0, -31, 9, -1)
   
+    
   # counteract other greenscreen bumpiness
   make_bump (0, 44, 6, -3)
   
@@ -336,8 +344,8 @@ def face4_thing():
   # enlarge bridge of nose more, based on prototype that included the above
   make_bump (6, -10, 10, 4)
   #after prototype 4
-  make_bump (8, -8, 6, 3)
-  make_bump (0, -5, 6, 2)
+  make_bump (8, -8, 6, 2)
+  make_bump (0, -5, 6, 1)
   
   # more tweaks based on prototype that included the above
   make_bump (19, 0, 8, -7)
@@ -347,8 +355,8 @@ def face4_thing():
   make_bump (12, -10, 5, -5)
   make_bump (12, -5, 5, -5)
   #after prototype 4
-  make_bump(10, 0, 7, -10)
-  make_bump(14, -1, 6, -5)
+  make_bump(10, 0, 7, -3)
+  make_bump(14, -1, 6, -1.5)
   make_bump(0, -20, 15, 2)
   make_bump(0, -30, 20, 2)
   
@@ -392,14 +400,14 @@ def face4_thing():
   #Part.show (surface.toShape(), "surface")
   
   eyeball_radius = 30
-  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -10 - eyeball_radius))
+  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -5 - eyeball_radius))
   eyeball_filter = eyeball_filter.fuse (eyeball_filter.mirror (vector(), vector (1, 0, 0)))
   
   surface_filtered = surface.toShape().cut(eyeball_filter)
   
   Part.show (surface_filtered, "surface_without_eyeballs")
   
-  test_print_box = box(centered (40), bounds(-25, 15), centered(200))
+  test_print_box = box(centered (30), bounds(-16, 8), centered(200))
   surface_filtered = surface_filtered.common(test_print_box)
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
