@@ -306,8 +306,9 @@ def face4_thing():
   
   def make_bump (x, y, radius, depth):
     x = -abs(x)
-    for offset_x in range (- radius, radius +1):
-      for offset_y in range (- radius, radius +1):
+    floor_radius = math.floor(radius)
+    for offset_x in range (- floor_radius, floor_radius+1):
+      for offset_y in range (- floor_radius, floor_radius+1):
         distance = math.sqrt (offset_x**2 + offset_y**2)
         if distance <radius:
           adj_dist = distance/radius
@@ -359,6 +360,9 @@ def face4_thing():
   #make_bump(14, -1, 6, -1.5) # reverted for prototype 8
   make_bump(0, -20, 15, 2)
   make_bump(0, -30, 20, 2)
+  # after prototype 8 - make it curl away from the skin around the eyes a bit, to avoid poking
+  make_bump(14, -5, 3.5, 4)
+  make_bump(14, -8, 3.5, 2)
   
   def raw_face_depth(x,y):
     return rows[-face_bottom + y][-face_left - abs(x)]
@@ -400,7 +404,7 @@ def face4_thing():
   #Part.show (surface.toShape(), "surface")
   
   eyeball_radius = 30
-  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -7 - eyeball_radius))
+  eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -8 - eyeball_radius))
   eyeball_filter = eyeball_filter.fuse (eyeball_filter.mirror (vector(), vector (1, 0, 0)))
   
   surface_filtered = surface.toShape().cut(eyeball_filter)
