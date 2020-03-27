@@ -322,6 +322,8 @@ def face4_thing():
   make_bump (0, -10, 5, -1)
   make_bump (0, -20, 5, -2)
   make_bump (0, -28, 5, -0.5)
+  #after prototype 4
+  make_bump (0, -22, 2, -2)
   
   # counteract other greenscreen bumpiness
   make_bump (0, 44, 6, -3)
@@ -333,6 +335,9 @@ def face4_thing():
   make_bump (3, -20, 5, 1.5)
   # enlarge bridge of nose more, based on prototype that included the above
   make_bump (6, -10, 10, 4)
+  #after prototype 4
+  make_bump (8, -8, 6, 3)
+  make_bump (0, -5, 6, 2)
   
   # more tweaks based on prototype that included the above
   make_bump (19, 0, 8, -7)
@@ -341,6 +346,11 @@ def face4_thing():
   make_bump (43, -3, 8, -7)
   make_bump (12, -10, 5, -5)
   make_bump (12, -5, 5, -5)
+  #after prototype 4
+  make_bump(10, 0, 7, -10)
+  make_bump(14, -1, 6, -5)
+  make_bump(0, -20, 15, 2)
+  make_bump(0, -30, 20, 2)
   
   def raw_face_depth(x,y):
     return rows[-face_bottom + y][-face_left - abs(x)]
@@ -361,8 +371,8 @@ def face4_thing():
   def nose_denser(a, b, c, d):
     return approx_density(a, b, 0.2) + approx_density(b, c, 0.5) + approx_density(c, d, 0.2) + [d]
     
-  horizontal_marks = nose_denser(face_left, -15, 15, -face_left)
-  vertical_marks = nose_denser(face_bottom, -30, 15, face_top)
+  horizontal_marks = nose_denser(face_left, -25, 25, -face_left)
+  vertical_marks = nose_denser(face_bottom, -55, 15, face_top)
     
   surface = Part.BSplineSurface()
   degree = 3
