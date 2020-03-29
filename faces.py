@@ -173,8 +173,8 @@ def do_prototype_mask_1(face, data_filename):
     [offset_surface_position (face_vector((x,y))) for x in range(face_left, -face_left + 1, 3)]
       for y in range(-60, 30, 3)]
   offset_surface.buildFromPolesMultsKnots(offset_surface_rows,
-    [1]*(len (surface_rows) + degree + 1),
-    [1]*(len(surface_rows[0]) + degree + 1),
+    [1]*(len (offset_surface_rows) + degree + 1),
+    [1]*(len(offset_surface_rows[0]) + degree + 1),
     udegree = degree,
     vdegree = degree,)
   
@@ -378,7 +378,11 @@ def face4_thing():
   FreeCAD.Console.PrintMessage (f"?? {face_depth (vector(0, -6))}, {face_depth (vector(10, -6))}, {face_depth (vector(14, -6))}\n")
   
   def approx_density(a, b, density):
-    count = math.ceil((b - a) * density)
+    if type(a) is FreeCAD.Vector:
+      length = (b - a).Length
+    else:
+      length = abs (b - a)
+    count = math.ceil(length* density)
     return [a + (b-a) * i / count for i in range(count)]
   def nose_denser(a, b, c, d):
     return approx_density(a, b, 0.2) + approx_density(b, c, 0.5) + approx_density(c, d, 0.2) + [d]
@@ -411,18 +415,77 @@ def face4_thing():
   
   Part.show (surface_filtered, "surface_without_eyeballs")
   
-  test_print_box = box(centered (30), bounds(-16, 8), centered(200))
-  '''test_print_box = box(centered (20), bounds(-35, 27), centered(200)).fuse ([
-    box(centered (70), bounds(-35, -3), centered(200)),
-    box(centered (136), bounds(-60, -28.7), centered(200)),
+  mask_cheeks_top = -26.4
+  
+  #test_print_box = box(centered (30), bounds(-16, 8), centered(200))
+  test_print_box = box(centered (22.8), bounds(-35, 18), centered(200)).fuse ([
+    box(centered (70), bounds(-35, -5), centered(200)),
+    box(centered (136), bounds(-60, mask_cheeks_top), centered(200)),
   ]).cut(
     box(centered (43), bounds(-60, -41), centered(200)),
-  )'''
+  )
   surface_filtered = surface_filtered.common(test_print_box)
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
   
+  def tube_bottom (top):
+    direction = (top-pupil_location)
+    height = top [1] - (-60)
+    result = top - direction*height/direction [1]
+    if result [0] < face_left:
+      width = top [0] - face_left
+      result = top - direction*width/direction [0]
+    if result [0] > 0:
+      width = top [0] - 0
+      result = top - direction*width/direction [0]
+    #if result [2] > 27.6:
+    #  result[2] = 27.6
+    return result
+  def refined_tube_top(coordinates):
+    result = face_vector(coordinates)
+    for iteration in range(100):
+      bottom = tube_bottom (result)
+      middle = (result + bottom)/2
+      length = (bottom - result).Length
+      num_samples = 10
+      samples = [result  + (bottom-result) * (i+0.5) / num_samples for i in range(num_samples)]
+      # +0.5 is just a hacky correction for the volume of the other mask part;
+      # properly, this would be the depth of the offset surface rather than just face_depth
+      average_depth = sum(sample [2] - (face_depth (sample) + 0.5) for sample in samples)/num_samples
+      approximate_area = average_depth*length
+      # experimentally determined that pinching one spot to 60mm^2 didn't reduce airflow much;
+      # use 80mm^2 for some leeway
+      if approximate_area >= 80 or abs(bottom[0] - 0) < 0.0001:
+        return result
+      result[2] += 0.1
+    FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
   
+  pupil_location = vector (-36, -5, -20)
+  tube_top = (
+    [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, -41), 0.2)]
+    #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, -41), 0.2)]
+    + [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 0, 0.5) + [0, 0, 0]]
+  )
+  
+  FreeCAD.Console.PrintMessage (f"tube_top{tube_top[-1]}\n")
+  
+  
+  tube_rows = [tube_top,
+    [tube_bottom (top) for top in tube_top]
+  ]
+  FreeCAD.Console.PrintMessage (f"tube_rows{tube_rows[1][-1]}\n")
+  
+  tube_horizontal_degree = 3
+  tube_surface = Part.BSplineSurface()
+  tube_surface.buildFromPolesMultsKnots(tube_rows,
+    [1]*(len (tube_rows) + 1+ 1),
+    [1]*(len(tube_rows[0]) + tube_horizontal_degree+ 1),
+    udegree = 1,
+    vdegree = tube_horizontal_degree,)
+    
+  FreeCAD.Console.PrintMessage (f"Done building tube surface at {datetime.datetime.now()}\n")
+  Part.show (tube_surface.toShape(), "tube_surface")
+    
   '''offset_surface = Part.BSplineSurface()
   mask_thickness = 0.5
   def offset_surface_position (surface_position):
@@ -435,8 +498,8 @@ def face4_thing():
     [offset_surface_position (face_vector((x,y))) for x in horizontal_marks]
       for y in vertical_marks]
   offset_surface.buildFromPolesMultsKnots(offset_surface_rows,
-    [1]*(len (surface_rows) + degree + 1),
-    [1]*(len(surface_rows[0]) + degree + 1),
+    [1]*(len (offset_surface_rows) + degree + 1),
+    [1]*(len(offset_surface_rows[0]) + degree + 1),
     udegree = degree,
     vdegree = degree,)
     
@@ -446,8 +509,8 @@ def face4_thing():
   Part.show (surface_filtered.extrude(vector(0, 0, 100)).common(
   offset_surface_filtered .extrude(vector(0,0,-100))), "surface_for_test_print")'''
   
-  offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
-  Part.show (offset_surface, "solid_for_test_print")
+  #offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
+  #Part.show (offset_surface, "solid_for_test_print")
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
