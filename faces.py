@@ -432,12 +432,12 @@ def face4_thing():
     direction = (top-pupil_location)
     height = top [1] - (-60)
     result = top - direction*height/direction [1]
-    if result [0] < face_left:
-      width = top [0] - face_left
-      result = top - direction*width/direction [0]
-    if result [0] > 0:
-      width = top [0] - 0
-      result = top - direction*width/direction [0]
+    #if result [0] < face_left:
+    #  width = top [0] - face_left
+    #  result = top - direction*width/direction [0]
+    #if result [0] > 0:
+    #  width = top [0] - 0
+    #  result = top - direction*width/direction [0]
     #if result [2] > 27.6:
     #  result[2] = 27.6
     return result
@@ -455,7 +455,7 @@ def face4_thing():
       approximate_area = average_depth*length
       # experimentally determined that pinching one spot to 60mm^2 didn't reduce airflow much;
       # use 80mm^2 for some leeway
-      if approximate_area >= 80 or abs(bottom[0] - 0) < 0.0001:
+      if approximate_area >= 80 or bottom[0] >= 0 or bottom[0] <= -68:
         return result
       result[2] += 0.1
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
@@ -469,19 +469,66 @@ def face4_thing():
   
   FreeCAD.Console.PrintMessage (f"tube_top{tube_top[-1]}\n")
   
+  tube_horizontal_degree = 3
+  tube_vertical_degree = 3
   
-  tube_rows = [tube_top,
-    [tube_bottom (top) for top in tube_top]
-  ]
+  tube_side_samples = 11
+  tube_points = tube_side_samples*2 + tube_vertical_degree*4 - 4
+  CPAP_end_center = vector(-77, -90, -90)
+  CPAP_up = vector(0, 1, -0.5).normalized()
+  CPAP_out = vector(-1,0,0)
+  CPAP_forwards = CPAP_up.cross (CPAP_out)
+  CPAP_outer_radius = 21.5/2
+  pure_CPAP_rows = 6
+  
+  def CPAP_point(index, row_index):
+    angle = (index - -4)*math.tau/tube_points
+    return CPAP_end_center + (CPAP_up*math.cos (angle) + CPAP_out*math.sin (angle)) * CPAP_outer_radius + row_index*CPAP_forwards*5
+  
+  def CPAP_row (row_index):
+    return [CPAP_point(index, row_index) for index in range (tube_points)]
+  def tube_row(row_index, top):
+    bottom =tube_bottom(top)
+    samples = [top + (bottom - top) * (i) / (tube_side_samples-1) for i in range(tube_side_samples)]
+    for sample in samples:
+      if sample [0] >0:
+        sample [0] = 0.0
+      radius = 30
+      max_z = (27.6 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
+      if sample [2] >max_z:
+        sample [2] = max_z
+      #if sample [0] <-68:
+        #sample [0] = -68.0
+        
+    
+    bottom = samples [-1]
+    corner = face_vector(samples [-1])
+    top_back = face_vector(samples [0])
+    result = (
+      [top] * tube_vertical_degree
+      + samples [1: -1]
+      + [bottom] * tube_vertical_degree
+      + [corner] * tube_vertical_degree
+      + [face_vector (sample) for sample in samples [-2:0:-1]]
+      + [top_back] * tube_vertical_degree
+    )
+    for index, point in enumerate (result):
+      if point[0] <-68:
+        result [index] = CPAP_point (index, row_index)
+    if len (result) != tube_points:
+      FreeCAD.Console.PrintError (f"The tube_row code is wrong {len (result)} != {tube_points}\n")
+    return result
+  tube_rows = [CPAP_row (index) for index in range (pure_CPAP_rows)] + [tube_row(pure_CPAP_rows + index, top) for index, top in enumerate (tube_top)]
   FreeCAD.Console.PrintMessage (f"tube_rows{tube_rows[1][-1]}\n")
   
-  tube_horizontal_degree = 3
   tube_surface = Part.BSplineSurface()
   tube_surface.buildFromPolesMultsKnots(tube_rows,
-    [1]*(len (tube_rows) + 1+ 1),
-    [1]*(len(tube_rows[0]) + tube_horizontal_degree+ 1),
-    udegree = 1,
-    vdegree = tube_horizontal_degree,)
+    [1]*(len(tube_rows) + tube_horizontal_degree+ 1),
+    [1]*(len (tube_rows[0]) + 1),
+    udegree = tube_horizontal_degree,
+    vdegree = tube_vertical_degree,
+    vperiodic=True,
+    )
     
   FreeCAD.Console.PrintMessage (f"Done building tube surface at {datetime.datetime.now()}\n")
   Part.show (tube_surface.toShape(), "tube_surface")
