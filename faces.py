@@ -132,7 +132,10 @@ def do_prototype_mask_1(face, data_filename):
   rows = depth_map(face, data_filename)
   
   def raw_face_depth(x,y):
-    return rows[-face_bottom + y][-face_left - abs(x)]
+    try:
+      return rows[-face_bottom + y][-face_left - abs(x)]
+    except IndexError:
+      return 0
   def face_depth (coordinates):
     return interpolated(coordinates, raw_face_depth)
   
@@ -365,7 +368,10 @@ def face4_thing():
   make_bump(14, -8, 3.5, 2)
   
   def raw_face_depth(x,y):
-    return rows[-face_bottom + y][-face_left - abs(x)]
+    try:
+      return rows[-face_bottom + y][-face_left - abs(x)]
+    except IndexError:
+      return 0
   def face_depth (coordinates):
     return interpolated(coordinates, raw_face_depth)
   
@@ -428,8 +434,26 @@ def face4_thing():
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
   
+  
+    
+  tube_horizontal_degree = 3
+  tube_vertical_degree = 3
+  
+  tube_side_samples = 11
+  tube_points = tube_side_samples*2 + tube_vertical_degree*4 - 4
+  CPAP_end_center = vector(-77, -90, -90)
+  CPAP_up = vector(0, 1, -0.5).normalized()
+  CPAP_out = vector(-1,0,0)
+  CPAP_forwards = CPAP_up.cross (CPAP_out)
+  CPAP_outer_radius = 21.5/2
+  pure_CPAP_rows = 6
+  
+  
   def tube_bottom (top):
-    direction = (top-pupil_location)
+    p = pupil_location.copy()
+    if top[0] > 0:
+      p[0] = -p[0]
+    direction = (top-p)
     height = top [1] - (-60)
     result = top - direction*height/direction [1]
     #if result [0] < face_left:
@@ -455,7 +479,7 @@ def face4_thing():
       approximate_area = average_depth*length
       # experimentally determined that pinching one spot to 60mm^2 didn't reduce airflow much;
       # use 80mm^2 for some leeway
-      if approximate_area >= 80 or bottom[0] >= 0 or bottom[0] <= -68:
+      if approximate_area >= 80 or bottom[0] >= 0 or bottom[0] <= -68 or coordinates[0] >= 0:
         return result
       result[2] += 0.1
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
@@ -464,22 +488,12 @@ def face4_thing():
   tube_top = (
     [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, -41), 0.2)]
     #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, -41), 0.2)]
-    + [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 0, 0.5) + [0, 0, 0]]
+    + [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 21.5, 0.5) + []#*tube_horizontal_degree
+    ]
   )
   
   FreeCAD.Console.PrintMessage (f"tube_top{tube_top[-1]}\n")
-  
-  tube_horizontal_degree = 3
-  tube_vertical_degree = 3
-  
-  tube_side_samples = 11
-  tube_points = tube_side_samples*2 + tube_vertical_degree*4 - 4
-  CPAP_end_center = vector(-77, -90, -90)
-  CPAP_up = vector(0, 1, -0.5).normalized()
-  CPAP_out = vector(-1,0,0)
-  CPAP_forwards = CPAP_up.cross (CPAP_out)
-  CPAP_outer_radius = 21.5/2
-  pure_CPAP_rows = 6
+
   
   def CPAP_point(index, row_index):
     angle = (index - -4)*math.tau/tube_points
@@ -491,7 +505,7 @@ def face4_thing():
     bottom =tube_bottom(top)
     samples = [top + (bottom - top) * (i) / (tube_side_samples-1) for i in range(tube_side_samples)]
     for sample in samples:
-      if sample [0] >0:
+      if (sample [0] > 0) != (top[0] > 0):
         sample [0] = 0.0
       radius = 30
       max_z = (27.6 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
@@ -500,7 +514,7 @@ def face4_thing():
       #if sample [0] <-68:
         #sample [0] = -68.0
         
-    
+    #FreeCAD.Console.PrintMessage (f"top{top}\n")
     bottom = samples [-1]
     corner = face_vector(samples [-1])
     top_back = face_vector(samples [0])
