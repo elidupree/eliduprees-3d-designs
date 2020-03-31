@@ -70,19 +70,45 @@ def face2_thing():
   do_prototype_mask_1(face, "face.json")
 
 
-def depth_map(face, depthmap_path):
-  depthmap_path = os.path.join(data_path, depthmap_path)
+def cached_rows (cache_local_path, num_rows, generate_row):
+  cache_path = os.path.join(data_path, cache_local_path)
   
-  FreeCAD.Console.PrintMessage (f"Began updating depthmap at {datetime.datetime.now()}\n")
+  FreeCAD.Console.PrintMessage (f"Began updating {cache_local_path} at {datetime.datetime.now()}\n")
   try:
-    with open(depthmap_path) as file:
+    with open(cache_path) as file:
       rows = json.load(file)
   except FileNotFoundError:
     rows = []
   
   
-  temp_path = depthmap_path+".temp"
+  temp_path = cache_path+".temp"
   
+  if len (rows) > 0:
+    # always verify the first row
+    new_first_row = generate_row(0)
+    if rows [0] != generate_row(0):
+      FreeCAD.Console.PrintMessage (f"Existing data in {cache_local_path} doesn't match the current function results; regenerating all rows\n")
+      FreeCAD.Console.PrintMessage (f"Note: Old first row was {rows[0]}\n")
+      FreeCAD.Console.PrintMessage (f"Note: Knew first row was {new_first_row}\n")
+      rows = [new_first_row]
+  
+  if len (rows) == num_rows:
+    FreeCAD.Console.PrintMessage (f"All data was already generated for {cache_local_path}; assuming it's correct\n")
+  
+  while len(rows) < num_rows:
+    row_index = len(rows)
+    rows.append(generate_row(row_index))
+    FreeCAD.Console.PrintMessage (f"{row_index}: {str(rows[-1])}\n")
+    with open(temp_path, "w") as file:
+      json.dump(rows, file)
+      file.flush()
+      os.fsync(file.fileno())
+    os.replace(temp_path, cache_path)
+  FreeCAD.Console.PrintMessage (f"Done updating {cache_local_path} at {datetime.datetime.now()}\n")
+  
+  return rows
+
+def depth_map(face, depthmap_path):
   def entry (horizontal_index, vertical_index):
     ray_start = (
       face_left + horizontal_index,
@@ -94,20 +120,13 @@ def depth_map(face, depthmap_path):
     except StopIteration:
       return 0
   
-  while len(rows) <= face_top - face_bottom:
-    vertical_index = len(rows)
-    rows.append([
+  def row (vertical_index):
+    return [
       entry (horizontal_index, vertical_index)
-      for horizontal_index in range (-face_left - face_left + 1)])
-    FreeCAD.Console.PrintMessage (f"{vertical_index}: {str(rows[-1])}\n")
-    with open(temp_path, "w") as file:
-      json.dump(rows, file)
-      file.flush()
-      os.fsync(file.fileno())
-    os.replace(temp_path, depthmap_path)
-  FreeCAD.Console.PrintMessage (f"Done updating depthmap at {datetime.datetime.now()}\n")
+      for horizontal_index in range (-face_left - face_left + 1)
+    ]
   
-  return rows
+  return cached_rows(depthmap_path, face_top - face_bottom + 1, row)
 
 
 def interpolated(coordinates, raw):
@@ -128,6 +147,11 @@ def interpolated(coordinates, raw):
       + filtered(floorx+1, floory+1, xfrac, yfrac)
     )
 
+def surface_point_along_line (surface, start, direction):
+  line = Part.Line (start, start + direction)
+  points, unknown = surface.intersect (line)
+  return vector (points [0])
+  
 def do_prototype_mask_1(face, data_filename):
   rows = depth_map(face, data_filename)
   
@@ -485,15 +509,58 @@ def face4_thing():
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
   
   pupil_location = vector (-36, -5, -20)
+  tube_top_last_part = [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 0, 0.5) + [0]]
   tube_top = (
     [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, -41), 0.2)]
     #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, -41), 0.2)]
-    + [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 21.5, 0.5) + []#*tube_horizontal_degree
-    ]
+    + tube_top_last_part
   )
   
   FreeCAD.Console.PrintMessage (f"tube_top{tube_top[-1]}\n")
 
+  tube_splayed_rows = [
+    [top, tube_bottom (top)] for top in tube_top
+  ]
+  tube_splayed_rows = (
+    [tube_splayed_rows [0]]*(tube_horizontal_degree - 1)
+    + tube_splayed_rows
+    + [tube_splayed_rows [-1]]*(tube_horizontal_degree - 1)
+  )
+  tube_splayed_surface = Part.BSplineSurface()
+  tube_splayed_surface.buildFromPolesMultsKnots(tube_splayed_rows,
+    [1]*(len(tube_splayed_rows) + tube_horizontal_degree + 1),
+    [1]*(len (tube_splayed_rows[0]) + 1 + 1),
+    udegree = tube_horizontal_degree,
+    vdegree = 1,
+    )
+  
+  
+  Part.show (tube_splayed_surface.toShape(), "tube_splayed_surface")
+  
+  def tube_resampled_entry (horizontal_index, vertical_index):
+    top = tube_top [horizontal_index]
+    sample_point =top + vector (0, (-60 - top [1])*vertical_index/(tube_side_samples -1), 0)
+    #FreeCAD.Console.PrintMessage (f"sampling at {sample_point}\n")
+    return surface_point_along_line (
+        tube_splayed_surface,
+        sample_point,
+        vector (0, 0, -1)
+      )
+
+  def tube_resampled_row (horizontal_index):
+    return [
+      tube_resampled_entry (horizontal_index, vertical_index)
+      for vertical_index in range (tube_side_samples)
+    ]
+  
+  '''tube_resampled_rows = cached_rows (
+    "tube_resampled_rows.json",
+    len (tube_top),
+    tube_resampled_row
+  )'''
+  
+  tube_resampled_rows = [tube_resampled_row (horizontal_index) for horizontal_index in range (len (tube_top))]
+  FreeCAD.Console.PrintMessage (f"Done resampling tube at {datetime.datetime.now()}\n")
   
   def CPAP_point(index, row_index):
     angle = (index - -4)*math.tau/tube_points
@@ -501,12 +568,9 @@ def face4_thing():
   
   def CPAP_row (row_index):
     return [CPAP_point(index, row_index) for index in range (tube_points)]
-  def tube_row(row_index, top):
-    bottom =tube_bottom(top)
-    samples = [top + (bottom - top) * (i) / (tube_side_samples-1) for i in range(tube_side_samples)]
+  def tube_row(samples):
+    samples = [sample.copy() for sample in samples]
     for sample in samples:
-      if (sample [0] > 0) != (top[0] > 0):
-        sample [0] = 0.0
       radius = 30
       max_z = (27.6 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
       if sample [2] >max_z:
@@ -515,6 +579,7 @@ def face4_thing():
         #sample [0] = -68.0
         
     #FreeCAD.Console.PrintMessage (f"top{top}\n")
+    top = samples [0]
     bottom = samples [-1]
     corner = face_vector(samples [-1])
     top_back = face_vector(samples [0])
@@ -526,13 +591,22 @@ def face4_thing():
       + [face_vector (sample) for sample in samples [-2:0:-1]]
       + [top_back] * tube_vertical_degree
     )
-    for index, point in enumerate (result):
-      if point[0] <-68:
-        result [index] = CPAP_point (index, row_index)
     if len (result) != tube_points:
       FreeCAD.Console.PrintError (f"The tube_row code is wrong {len (result)} != {tube_points}\n")
     return result
-  tube_rows = [CPAP_row (index) for index in range (pure_CPAP_rows)] + [tube_row(pure_CPAP_rows + index, top) for index, top in enumerate (tube_top)]
+  def flipped_tube_row (samples):
+    result = tube_row (samples)
+    for control in result:
+      control [0] = - control [0]
+    return result
+  
+  flipped_source = list (tube_resampled_rows [-1: -1 - len (tube_top_last_part): -1])
+  flipped_source += [flipped_source [-1]]*(tube_horizontal_degree - 1)
+  tube_rows = (
+    [CPAP_row (index) for index in [0]*(tube_horizontal_degree - 1)+ list ( range (pure_CPAP_rows))]
+    + [tube_row(row) for row in tube_resampled_rows]
+    + [flipped_tube_row (row) for row in flipped_source]
+  )
   FreeCAD.Console.PrintMessage (f"tube_rows{tube_rows[1][-1]}\n")
   
   tube_surface = Part.BSplineSurface()

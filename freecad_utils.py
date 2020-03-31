@@ -13,6 +13,8 @@ def document():
 def vector(*arguments, angle = None, length = 1):
   if angle is not None:
     return FreeCAD.Vector (length*math.cos(angle), length*math.sin (angle))
+  if len (arguments) > 0 and type(arguments [0]) is Part.Point:
+    return FreeCAD.Vector (arguments [0].X, arguments [0].Y, arguments [0].Z)
   return FreeCAD.Vector (*arguments)
   
 def width (argument):
