@@ -5,6 +5,8 @@ import numpy
 
 import FreeCAD
 import Part
+import Mesh
+import FreeCADGui as Gui
 
 from forbiddenfruit import curse
 
@@ -100,6 +102,14 @@ def circle_circle_tangent_segment (circle_1, circle_2, direction_1 = 1, directio
     else:
       flip_2 = -1
   return point_circle_tangent (center, (center_1, - flip_1*radius_1)), point_circle_tangent (center, (center_2, flip_2*radius_2))
+
+
+def show_invisible (shape, name):
+  if type(shape) is Mesh.Mesh:
+    Mesh.show (shape, name)
+  else:
+    Part.show (shape, name)
+  Gui.getDocument ("Something").getObject (name).Visibility = False
 
 
 operations_to_make_applied_version_of = [

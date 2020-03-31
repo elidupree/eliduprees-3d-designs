@@ -307,12 +307,12 @@ def face5_thing():
   flip_matrix.scale (-1, 1, -1)
   face.transform (flip_matrix)
   
-  document().addObject ("Mesh::Feature", "face").Mesh = face
+  show_invisible (face, "face")
   
   
   face_original = Mesh.Mesh(eliduprees_3d_designs_path+"private/face5-d7.obj")
   face_original = max (face_original.getSeparateComponents(), key = lambda component: component.CountFacets)
-  document().addObject ("Mesh::Feature", "face_original").Mesh = face_original
+  show_invisible (face_original, "face_original")
   
   
   flipped = face.copy();
@@ -323,7 +323,7 @@ def face5_thing():
   flipped.transform (flip_matrix )
   flipped.flipNormals()
   
-  document().addObject ("Mesh::Feature", "flipped").Mesh = flipped
+  show_invisible (flipped, "face_flipped")
   
   
   rows = depth_map(face, "face5_depthmap.json")
@@ -436,7 +436,7 @@ def face5_thing():
   
   FreeCAD.Console.PrintMessage (f"Done building surface at {datetime.datetime.now()}\n")
    
-  #Part.show (surface.toShape(), "surface")
+  show_invisible (surface.toShape(), "surface")
   
   eyeball_radius = 30
   eyeball_filter = Part.makeSphere (eyeball_radius, vector (-30, -8, -8 - eyeball_radius))
@@ -444,7 +444,7 @@ def face5_thing():
   
   surface_filtered = surface.toShape().cut(eyeball_filter)
   
-  Part.show (surface_filtered, "surface_without_eyeballs")
+  show_invisible (surface_filtered, "surface_without_eyeballs")
   
   mask_cheeks_top = -26.4
   
@@ -466,7 +466,7 @@ def face5_thing():
   
   tube_side_samples = 11
   tube_points = tube_side_samples*2 #+ tube_vertical_degree*4 - 4
-  CPAP_end_center = vector(-77, -90, -90)
+  CPAP_end_center = vector(-80, -90, -90)
   CPAP_up = vector(0, 1, -0.5).normalized()
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
@@ -492,15 +492,31 @@ def face5_thing():
     return result
   def refined_tube_top(coordinates):
     result = face_vector(coordinates)
-    for iteration in range(100):
+    for iteration in range(1000):
       bottom = tube_bottom (result)
       middle = (result + bottom)/2
       length = (bottom - result).Length
       num_samples = 10
       samples = [result  + (bottom-result) * (i+0.5) / num_samples for i in range(num_samples)]
-      # +0.5 is just a hacky correction for the volume of the other mask part;
-      # properly, this would be the depth of the offset surface rather than just face_depth
-      average_depth = sum(sample [2] - (face_depth (sample) + 0.5) for sample in samples)/num_samples
+      
+      angle = (bottom - result)
+      angle[1] = 0.0
+      angle.normalize()
+      def approximate_depth (sample):
+        first = face_vector (sample)
+        second = face_vector (sample + vector (0.01, 0, 0))
+        third = face_vector (sample + vector (0, 0.01, 0))
+        approximate_normal = (second - first).cross (third - first)
+        approximate_normal [1] = 0.0
+        approximate_normal.normalize()
+        usable_fraction = abs (approximate_normal.dot(angle))
+        usable_fraction = (usable_fraction*2 + 1.0)/3
+        depth = sample [2] - first [2]
+        #return depth - 0.5
+        return depth*usable_fraction - 0.5
+        
+      
+      average_depth = sum(approximate_depth (sample) for sample in samples)/num_samples
       approximate_area = average_depth*length
       # experimentally determined that pinching one spot to 60mm^2 didn't reduce airflow much;
       # use 80mm^2 for some leeway
@@ -536,7 +552,7 @@ def face5_thing():
     )
   
   
-  Part.show (tube_splayed_surface.toShape(), "tube_splayed_surface")
+  show_invisible (tube_splayed_surface.toShape(), "tube_splayed_surface")
   
   def tube_resampled_entry (horizontal_index, vertical_index):
     top = tube_top [horizontal_index]
@@ -621,7 +637,7 @@ def face5_thing():
     )
     
   FreeCAD.Console.PrintMessage (f"Done building tube surface at {datetime.datetime.now()}\n")
-  Part.show (tube_surface.toShape(), "tube_surface")
+  show_invisible (tube_surface.toShape(), "tube_surface")
     
   '''offset_surface = Part.BSplineSurface()
   mask_thickness = 0.5
@@ -650,15 +666,15 @@ def face5_thing():
   #Part.show (offset_surface, "solid_for_test_print")
   
   tube_offset_surface = tube_surface.toShape().makeOffsetShape (-0.5, 0.03, fill = True)
-  Part.show (tube_offset_surface, "tube_offset_surface")
+  show_invisible (tube_offset_surface, "tube_offset_surface")
   FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
   tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
   tube_cut = surface.toShape().extrude(vector (0, 0, -20))
   tube_solid = tube_solid_uncut.cut(tube_cut)
   #tube_solid.re
   FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
-  Part.show (tube_solid_uncut, "tube_solid_uncut")
-  Part.show (tube_cut, "tube_cut")
+  show_invisible (tube_solid_uncut, "tube_solid_uncut")
+  show_invisible (tube_cut, "tube_cut")
   Part.show (tube_solid, "tube_solid")
   
   
