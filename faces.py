@@ -268,7 +268,7 @@ def do_prototype_mask_1(face, data_filename):
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
 
-def face4_thing():
+def face5_thing():
   left1 = vector (0.430, 0.257, 1.438)
   left2 = vector (0.388, 0.247, 1.421)
   left3 = vector (0.415, 0.267, 1.427)
@@ -464,7 +464,7 @@ def face4_thing():
   tube_vertical_degree = 3
   
   tube_side_samples = 11
-  tube_points = tube_side_samples*2 + tube_vertical_degree*4 - 4
+  tube_points = tube_side_samples*2 #+ tube_vertical_degree*4 - 4
   CPAP_end_center = vector(-77, -90, -90)
   CPAP_up = vector(0, 1, -0.5).normalized()
   CPAP_out = vector(-1,0,0)
@@ -577,19 +577,19 @@ def face4_thing():
         sample [2] = max_z
       #if sample [0] <-68:
         #sample [0] = -68.0
-        
+    back_samples = [face_vector (sample) - vector(0, 0, 5) for sample in reversed (samples)]
     #FreeCAD.Console.PrintMessage (f"top{top}\n")
     top = samples [0]
     bottom = samples [-1]
-    corner = face_vector(samples [-1])
-    top_back = face_vector(samples [0])
+    corner = back_samples [0]
+    top_back = back_samples [-1]
     result = (
-      [top] * tube_vertical_degree
+      [top] #* tube_vertical_degree
       + samples [1: -1]
-      + [bottom] * tube_vertical_degree
-      + [corner] * tube_vertical_degree
-      + [face_vector (sample) for sample in samples [-2:0:-1]]
-      + [top_back] * tube_vertical_degree
+      + [bottom] #* tube_vertical_degree
+      + [corner] #* tube_vertical_degree
+      + back_samples [1: -1]
+      + [top_back] #* tube_vertical_degree
     )
     if len (result) != tube_points:
       FreeCAD.Console.PrintError (f"The tube_row code is wrong {len (result)} != {tube_points}\n")
@@ -600,10 +600,11 @@ def face4_thing():
       control [0] = - control [0]
     return result
   
-  flipped_source = list (tube_resampled_rows [-1: -1 - len (tube_top_last_part): -1])
-  flipped_source += [flipped_source [-1]]*(tube_horizontal_degree - 1)
+  flipped_source = list (tube_resampled_rows [-2: -1 - len (tube_top_last_part): -1])
+  #flipped_source += [flipped_source [-1]]*(tube_horizontal_degree - 1)
   tube_rows = (
-    [CPAP_row (index) for index in [0]*(tube_horizontal_degree - 1)+ list ( range (pure_CPAP_rows))]
+    [CPAP_row (index) for index in #[0]*(tube_horizontal_degree - 1)+
+    list ( range (pure_CPAP_rows))]
     + [tube_row(row) for row in tube_resampled_rows]
     + [flipped_tube_row (row) for row in flipped_source]
   )
@@ -647,6 +648,9 @@ def face4_thing():
   #offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
   #Part.show (offset_surface, "solid_for_test_print")
   
+  tube_offset_surface = tube_surface.toShape().makeOffsetShape (0.5, 0.03, fill = True)
+  Part.show (tube_offset_surface, "tube_solid_for_test_print")
+  
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
 
@@ -654,7 +658,7 @@ def run(g):
   for key, value in g.items():
     globals()[key] = value
   globals()["data_path"] = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
-  face4_thing()
+  face5_thing()
   
   
   
