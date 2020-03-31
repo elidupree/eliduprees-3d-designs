@@ -1,4 +1,5 @@
 import Mesh
+import MeshPart
 import datetime
 import os.path
 import os
@@ -648,8 +649,18 @@ def face5_thing():
   #offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
   #Part.show (offset_surface, "solid_for_test_print")
   
-  tube_offset_surface = tube_surface.toShape().makeOffsetShape (0.5, 0.03, fill = True)
-  Part.show (tube_offset_surface, "tube_solid_for_test_print")
+  tube_offset_surface = tube_surface.toShape().reversed().makeOffsetShape (-0.5, 0.03, fill = True)
+  Part.show (tube_offset_surface, "tube_offset_surface")
+  FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
+  tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
+  tube_cut = surface.toShape().extrude(vector (0, 0, -20))
+  tube_solid = tube_solid_uncut.cut(tube_cut)
+  #tube_solid.re
+  FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
+  Part.show (tube_solid_uncut, "tube_solid_uncut")
+  Part.show (tube_cut, "tube_cut")
+  Part.show (tube_solid, "tube_solid")
+  
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
 
