@@ -649,7 +649,7 @@ def face5_thing():
   #offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
   #Part.show (offset_surface, "solid_for_test_print")
   
-  tube_offset_surface = tube_surface.toShape().reversed().makeOffsetShape (-0.5, 0.03, fill = True)
+  tube_offset_surface = tube_surface.toShape().makeOffsetShape (-0.5, 0.03, fill = True)
   Part.show (tube_offset_surface, "tube_offset_surface")
   FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
   tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
