@@ -471,7 +471,7 @@ def face5_thing():
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
   CPAP_outer_radius = 21.5/2
-  pure_CPAP_rows = 6
+  num_pure_CPAP_rows = 6
   
   
   def tube_bottom (top):
@@ -526,10 +526,11 @@ def face5_thing():
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
   
   pupil_location = vector (-36, -5, -20)
-  tube_top_last_part = [refined_tube_top(vector(x, -41)) for x in approx_density (-21.5, 0, 0.5) + [0]]
+  tube_middle_top = -39.5
+  tube_top_last_part = [refined_tube_top(vector(x, tube_middle_top)) for x in approx_density (-21.5, 0, 0.5) + [0]]
   tube_top = (
-    [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, -41), 0.2)]
-    #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, -41), 0.2)]
+    [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, tube_middle_top), 0.2)]
+    #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, tube_middle_top), 0.2)]
     + tube_top_last_part
   )
   
@@ -589,7 +590,7 @@ def face5_thing():
     samples = [sample.copy() for sample in samples]
     for sample in samples:
       radius = 30
-      max_z = (27.6 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
+      max_z = (28.3 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
       if sample [2] >max_z:
         sample [2] = max_z
       #if sample [0] <-68:
@@ -617,13 +618,19 @@ def face5_thing():
       control [0] = - control [0]
     return result
   
-  flipped_source = list (tube_resampled_rows [-2: -1 - len (tube_top_last_part): -1])
+  flipped_source = list (tube_resampled_rows [-2: -1 - len (tube_top_last_part)-tube_horizontal_degree: -1])
   #flipped_source += [flipped_source [-1]]*(tube_horizontal_degree - 1)
+  pure_CPAP_rows = [CPAP_row (index) for index in #[0]*(tube_horizontal_degree - 1)+
+      list ( range (num_pure_CPAP_rows))]
+  pure_tube_rows = ([tube_row(row) for row in tube_resampled_rows]
+      + [flipped_tube_row (row) for row in flipped_source])
+  transition_rows = [
+    [(first + second)*0.5 + vector (-8, 7, 5) for first, second in zip (pure_CPAP_rows [-1], pure_tube_rows [0])]
+  ]
   tube_rows = (
-    [CPAP_row (index) for index in #[0]*(tube_horizontal_degree - 1)+
-    list ( range (pure_CPAP_rows))]
-    + [tube_row(row) for row in tube_resampled_rows]
-    + [flipped_tube_row (row) for row in flipped_source]
+    pure_CPAP_rows
+    + transition_rows
+    +pure_tube_rows[1:]
   )
   FreeCAD.Console.PrintMessage (f"tube_rows{tube_rows[1][-1]}\n")
   
@@ -655,15 +662,21 @@ def face5_thing():
     [1]*(len(offset_surface_rows[0]) + degree + 1),
     udegree = degree,
     vdegree = degree,)
-    
+  
   offset_surface_filtered = offset_surface.toShape().common(test_print_box)
   FreeCAD.Console.PrintMessage (f"Done making offset_surface mesh at {datetime.datetime.now()}\n")
     
   Part.show (surface_filtered.extrude(vector(0, 0, 100)).common(
   offset_surface_filtered .extrude(vector(0,0,-100))), "surface_for_test_print")'''
   
-  #offset_surface = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
-  #Part.show (offset_surface, "solid_for_test_print")
+    
+  final = False
+  final = True
+  
+  if final:
+    mask_solid = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
+    show_invisible (mask_solid, "mask_solid")
+    FreeCAD.Console.PrintMessage (f"Done making mask_solid at {datetime.datetime.now()}\n")
   
   tube_offset_surface = tube_surface.toShape().makeOffsetShape (-0.5, 0.03, fill = True)
   show_invisible (tube_offset_surface, "tube_offset_surface")
@@ -676,6 +689,9 @@ def face5_thing():
   show_invisible (tube_solid_uncut, "tube_solid_uncut")
   show_invisible (tube_cut, "tube_cut")
   Part.show (tube_solid, "tube_solid")
+  
+  if final:
+    pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
