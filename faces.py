@@ -476,7 +476,7 @@ def face5_thing():
     rounded_box(centered (43), bounds(mask_cheeks_bottom, -41), centered(200), radius = 4),
   )
   surface_filtered = surface_filtered.common(mask_bounds)
-  Part.show (surface_filtered, "surface_for_test_print")
+  
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
   
   
@@ -643,7 +643,7 @@ def face5_thing():
     result = tube_row (samples)
     for control in result:
       control [0] = - control [0]
-      offset = max (0, control [0] - (-41 - control[1])*0.0 - 15)
+      offset = max (0, (control [0] - 17)*1.4 - (-41 - control[1])*0.1)
       control [2] = control [2] - offset
     return result
   
@@ -702,9 +702,11 @@ def face5_thing():
   final = False
   #final = True
   
+  show (surface_filtered, "mask_surface", invisible=final)
+  
   if final:
     mask_solid = surface_filtered.makeOffsetShape (-mask_thickness, 0.03, fill = True)
-    show_invisible (mask_solid, "mask_solid")
+    show(mask_solid, "mask_solid")
     FreeCAD.Console.PrintMessage (f"Done making mask_solid at {datetime.datetime.now()}\n")
   
   tube_offset_surface = tube_surface.toShape().makeOffsetShape (-mask_thickness, 0.03, fill = True)
@@ -713,7 +715,7 @@ def face5_thing():
   
   if final:
     tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
-    tube_cut = surface.toShape().extrude(vector (0, 0, -20)).fuse(box(centered (15), bounds (-70, -59.56), bounds (17, 22)))
+    tube_cut = surface.toShape().extrude(vector (0, 0, -30)).fuse(box(centered (15), bounds (-70, tube_surface_bottom + 0.3), bounds (17, 25)))
     tube_solid = tube_solid_uncut.cut(tube_cut)
     #tube_solid.re
     FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
