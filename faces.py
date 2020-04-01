@@ -190,13 +190,13 @@ def do_prototype_mask_1(face, data_filename):
    
   Part.show (surface.toShape(), "surface")
   
-  #offset_surface = surface.toShape().makeOffsetShape (0.5, 0.03, fill = False)
+  #offset_surface = surface.toShape().makeOffsetShape (mask_thickness, 0.03, fill = False)
   
   offset_surface = Part.BSplineSurface()
   def offset_surface_position (surface_position):
     #FreeCAD.Console.PrintMessage (f"{u}, {v}\n")
     (u,v) = surface.parameter (surface_position)
-    return surface_position - surface.normal (u,v)*0.5
+    return surface_position - surface.normal (u,v)*mask_thickness
   offset_surface_rows = [
     [offset_surface_position (face_vector((x,y))) for x in range(face_left, -face_left + 1, 3)]
       for y in range(-60, 30, 3)]
@@ -207,7 +207,7 @@ def do_prototype_mask_1(face, data_filename):
     vdegree = degree,)
   
   FreeCAD.Console.PrintMessage (f"Done offset surface at {datetime.datetime.now()}\n")
-  '''#Part.show (surface.toShape().makeOffsetShape (0.5, 0.03, fill = False), "shell")
+  '''#Part.show (surface.toShape().makeOffsetShape (mask_thickness, 0.03, fill = False), "shell")
   bh = Part.Shape([Part.Circle(vector(), forwards, 30)]).to_wire().to_face().fancy_extrude(forwards, centered(303))
   foo = surface.toShape().extrude (forwards*-20)
   bar = offset_surface.extrude (forwards*-18)
@@ -392,6 +392,15 @@ def face5_thing():
   make_bump(14, -5, 3.5, 4)
   make_bump(14, -8, 3.5, 2)
   
+  #after prototype 10
+  make_bump(17, -35, 10, 4)
+  make_bump(17, -35, 5, 4)
+  make_bump(14, -28, 10, 3)
+  make_bump(14, -28, 5, 3)
+  make_bump(13, -20, 10, 3)
+  make_bump(13, -20, 5, 1)
+  make_bump(3, -10, 3, 1)
+  
   def raw_face_depth(x,y):
     try:
       return rows[-face_bottom + y][-face_left - abs(x)]
@@ -407,6 +416,9 @@ def face5_thing():
   # depth(10, 0) should be about 15mm
   # depth(14, 0) should be about 19mm
   FreeCAD.Console.PrintMessage (f"?? {face_depth (vector(0, -6))}, {face_depth (vector(10, -6))}, {face_depth (vector(14, -6))}\n")
+  
+  
+  mask_thickness = 0.6
   
   def approx_density(a, b, density):
     if type(a) is FreeCAD.Vector:
@@ -447,15 +459,23 @@ def face5_thing():
   show_invisible (surface_filtered, "surface_without_eyeballs")
   
   mask_cheeks_top = -26.4
+  mask_cheeks_bottom = -60
+  
+  def rounded_box(*args, radius):
+    b = box(*args)
+    return b.makeFillet(radius, [edge for edge in b.Edges if 
+      edge.BoundBox.XMin == edge.BoundBox.XMax
+      and edge.BoundBox.YMin == edge.BoundBox.YMax])
+    
   
   #test_print_box = box(centered (30), bounds(-16, 8), centered(200))
-  test_print_box = box(centered (22.8), bounds(-35, 18), centered(200)).fuse ([
+  mask_bounds = rounded_box(centered (22.8), bounds(-35, 18), centered(200), radius = 2).fuse ([
     box(centered (70), bounds(-35, -5), centered(200)),
-    box(centered (136), bounds(-60, mask_cheeks_top), centered(200)),
+    rounded_box(centered (136), bounds(mask_cheeks_bottom, mask_cheeks_top), centered(200), radius = 5),
   ]).cut(
-    box(centered (43), bounds(-60, -41), centered(200)),
+    rounded_box(centered (43), bounds(mask_cheeks_bottom, -41), centered(200), radius = 4),
   )
-  surface_filtered = surface_filtered.common(test_print_box)
+  surface_filtered = surface_filtered.common(mask_bounds)
   Part.show (surface_filtered, "surface_for_test_print")
   FreeCAD.Console.PrintMessage (f"Done making surface mesh at {datetime.datetime.now()}\n")
   
@@ -465,13 +485,15 @@ def face5_thing():
   tube_vertical_degree = 3
   
   tube_side_samples = 11
-  tube_points = tube_side_samples*2 #+ tube_vertical_degree*4 - 4
+  tube_extra_bottom_samples = 5
+  tube_points = tube_side_samples*2 + tube_extra_bottom_samples #+ tube_vertical_degree*4 - 4
   CPAP_end_center = vector(-80, -90, -90)
   CPAP_up = vector(0, 1, -0.5).normalized()
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
   CPAP_outer_radius = 21.5/2
   num_pure_CPAP_rows = 6
+  tube_surface_bottom = mask_cheeks_bottom + mask_thickness
   
   
   def tube_bottom (top):
@@ -479,7 +501,7 @@ def face5_thing():
     if top[0] > 0:
       p[0] = -p[0]
     direction = (top-p)
-    height = top [1] - (-60)
+    height = top [1] - tube_surface_bottom
     result = top - direction*height/direction [1]
     #if result [0] < face_left:
     #  width = top [0] - face_left
@@ -513,7 +535,7 @@ def face5_thing():
         usable_fraction = (usable_fraction*2 + 1.0)/3
         depth = sample [2] - first [2]
         #return depth - 0.5
-        return depth*usable_fraction - 0.5
+        return depth*usable_fraction - mask_thickness
         
       
       average_depth = sum(approximate_depth (sample) for sample in samples)/num_samples
@@ -557,7 +579,11 @@ def face5_thing():
   
   def tube_resampled_entry (horizontal_index, vertical_index):
     top = tube_top [horizontal_index]
-    sample_point =top + vector (0, (-60 - top [1])*vertical_index/(tube_side_samples -1), 0)
+    bottom = tube_surface_bottom
+    close_to_edge_ness = -60 - top[0]
+    if close_to_edge_ness > 0:
+      bottom += close_to_edge_ness * 0.3
+    sample_point =top + vector (0, (bottom - top [1])*vertical_index/(tube_side_samples -1), 0)
     #FreeCAD.Console.PrintMessage (f"sampling at {sample_point}\n")
     return surface_point_along_line (
         tube_splayed_surface,
@@ -590,7 +616,7 @@ def face5_thing():
     samples = [sample.copy() for sample in samples]
     for sample in samples:
       radius = 30
-      max_z = (28.3 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2)
+      max_z = (28.3 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2 - min((sample[0]*1.5)**2, 15*15))
       if sample [2] >max_z:
         sample [2] = max_z
       #if sample [0] <-68:
@@ -605,6 +631,7 @@ def face5_thing():
       [top] #* tube_vertical_degree
       + samples [1: -1]
       + [bottom] #* tube_vertical_degree
+      + [bottom + (corner - bottom)*(index + 1)/(tube_extra_bottom_samples + 2) for index in range (tube_extra_bottom_samples)]
       + [corner] #* tube_vertical_degree
       + back_samples [1: -1]
       + [top_back] #* tube_vertical_degree
@@ -616,6 +643,8 @@ def face5_thing():
     result = tube_row (samples)
     for control in result:
       control [0] = - control [0]
+      offset = max (0, control [0] - (-41 - control[1])*0.0 - 15)
+      control [2] = control [2] - offset
     return result
   
   flipped_source = list (tube_resampled_rows [-2: -1 - len (tube_top_last_part)-tube_horizontal_degree: -1])
@@ -671,24 +700,26 @@ def face5_thing():
   
     
   final = False
-  final = True
+  #final = True
   
   if final:
-    mask_solid = surface_filtered.makeOffsetShape (-0.5, 0.03, fill = True)
+    mask_solid = surface_filtered.makeOffsetShape (-mask_thickness, 0.03, fill = True)
     show_invisible (mask_solid, "mask_solid")
     FreeCAD.Console.PrintMessage (f"Done making mask_solid at {datetime.datetime.now()}\n")
   
-  tube_offset_surface = tube_surface.toShape().makeOffsetShape (-0.5, 0.03, fill = True)
-  show_invisible (tube_offset_surface, "tube_offset_surface")
+  tube_offset_surface = tube_surface.toShape().makeOffsetShape (-mask_thickness, 0.03, fill = True)
+  show (tube_offset_surface, "tube_offset_surface", invisible = final)
   FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
-  tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
-  tube_cut = surface.toShape().extrude(vector (0, 0, -20))
-  tube_solid = tube_solid_uncut.cut(tube_cut)
-  #tube_solid.re
-  FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
-  show_invisible (tube_solid_uncut, "tube_solid_uncut")
-  show_invisible (tube_cut, "tube_cut")
-  Part.show (tube_solid, "tube_solid")
+  
+  if final:
+    tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
+    tube_cut = surface.toShape().extrude(vector (0, 0, -20)).fuse(box(centered (15), bounds (-70, -59.56), bounds (17, 22)))
+    tube_solid = tube_solid_uncut.cut(tube_cut)
+    #tube_solid.re
+    FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
+    show_invisible (tube_solid_uncut, "tube_solid_uncut")
+    show_invisible (tube_cut, "tube_cut")
+    Part.show (tube_solid, "tube_solid")
   
   if final:
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")

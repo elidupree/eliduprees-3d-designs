@@ -104,12 +104,17 @@ def circle_circle_tangent_segment (circle_1, circle_2, direction_1 = 1, directio
   return point_circle_tangent (center, (center_1, - flip_1*radius_1)), point_circle_tangent (center, (center_2, flip_2*radius_2))
 
 
-def show_invisible (shape, name):
+def show (shape, name, invisible = False):
   if type(shape) is Mesh.Mesh:
     Mesh.show (shape, name)
   else:
     Part.show (shape, name)
-  Gui.getDocument ("Something").getObject (name).Visibility = False
+  if invisible:
+    Gui.getDocument ("Something").getObject (name).Visibility = False
+
+def show_invisible (shape, name):
+  show(shape, name, invisible = True)
+  
 
 
 operations_to_make_applied_version_of = [
