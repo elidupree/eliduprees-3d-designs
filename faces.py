@@ -547,7 +547,7 @@ def face5_thing():
       result[2] += 0.1
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
   
-  pupil_location = vector (-36, -5, -20)
+  pupil_location = vector (-36, -5, -25)
   tube_middle_top = -39.5
   tube_top_last_part = [refined_tube_top(vector(x, tube_middle_top)) for x in approx_density (-21.5, 0, 0.5) + [0]]
   tube_top = (
