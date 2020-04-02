@@ -724,6 +724,7 @@ def face5_thing():
     Part.show (tube_solid, "tube_solid")
   
   if final:
+    show (Part.Compound ([mask_solid, tube_solid]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
