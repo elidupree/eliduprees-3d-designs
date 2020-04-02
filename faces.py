@@ -431,7 +431,7 @@ def face5_thing():
     return approx_density(a, b, 0.2) + approx_density(b, c, 0.5) + approx_density(c, d, 0.2) + [d]
     
   horizontal_marks = nose_denser(face_left, -25, 25, -face_left)
-  vertical_marks = nose_denser(face_bottom, -55, 15, face_top)
+  vertical_marks = nose_denser(-75, -55, 15, 30) # nose_denser(face_bottom, -55, 15, face_top)
     
   surface = Part.BSplineSurface()
   degree = 3
@@ -698,11 +698,25 @@ def face5_thing():
   Part.show (surface_filtered.extrude(vector(0, 0, 100)).common(
   offset_surface_filtered .extrude(vector(0,0,-100))), "surface_for_test_print")'''
   
+  
+  rib_rows = [
+    [face_vector (vector(horizontal, vertical)) + vector (0, 0, 1 if (abs (horizontal) == 2 or vertical == -1) else 2)*mask_thickness for vertical in approx_density(-1, 18, 1) + [18,18]]
+    for horizontal in range (-2, 3)
+  ]
+  rib_surface = Part.BSplineSurface()
+  rib_surface.buildFromPolesMultsKnots(rib_rows,
+    [1]*(len(rib_rows) + 1+ 1),
+    [1]*(len (rib_rows[0]) +2+ 1),
+    udegree = 1,
+    vdegree = 2,
+    )
+  rib_solid = rib_surface .toShape().extrude (vector (0, 0, - mask_thickness))
     
   final = False
   #final = True
   
   show (surface_filtered, "mask_surface", invisible=final)
+  show (rib_solid, "rib", invisible=final)
   
   if final:
     mask_solid = surface_filtered.makeOffsetShape (-mask_thickness, 0.03, fill = True)
@@ -724,7 +738,7 @@ def face5_thing():
     Part.show (tube_solid, "tube_solid")
   
   if final:
-    show (Part.Compound ([mask_solid, tube_solid]), "final_solid")
+    show (Part.Compound ([mask_solid, tube_solid, rib_solid]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
