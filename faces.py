@@ -397,8 +397,8 @@ def face5_thing():
   make_bump(17, -35, 5, 4)
   make_bump(14, -28, 10, 3)
   make_bump(14, -28, 5, 3)
-  make_bump(13, -20, 10, 3)
-  make_bump(13, -20, 5, 1)
+  #make_bump(13, -20, 10, 3)
+  make_bump(13, -20, 5, 3)
   make_bump(3, -10, 3, 1)
   
   def raw_face_depth(x,y):
@@ -756,7 +756,7 @@ def face5_thing():
   elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -24).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -41, -38.4))
     
   final = False
-  final = True
+  #final = True
   
   show (surface_filtered, "mask_surface", invisible=final)
   show (rib_solid, "rib", invisible=final)
