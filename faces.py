@@ -700,7 +700,7 @@ def face5_thing():
   
   
   rib_rows = [
-    [face_vector (vector(horizontal, vertical)) + vector (0, 0, 1 if (abs (horizontal) == 2 or vertical == -1) else 2)*mask_thickness for vertical in approx_density(-1, 18, 1) + [18,18]]
+    [face_vector (vector(horizontal, vertical)) + vector (0, 0, 1 if (abs (horizontal) == 2 or vertical == -1) else 1.9)*mask_thickness for vertical in approx_density(-1, 18, 1) + [18,18]]
     for horizontal in range (-2, 3)
   ]
   rib_surface = Part.BSplineSurface()
@@ -710,13 +710,58 @@ def face5_thing():
     udegree = 1,
     vdegree = 2,
     )
-  rib_solid = rib_surface .toShape().extrude (vector (0, 0, - mask_thickness))
+  rib_solid = rib_surface .toShape().extrude (vector (0, 0, - mask_thickness*0.95))
+  
+  elastic_width = 10
+  elastic_holder_strut_width = 5
+  elastic_holder_width = elastic_width + elastic_holder_strut_width*2
+  elastic_space_thickness = 2
+  elastic_holder_penetration_leeway = mask_thickness*2
+  elastic_holder_diameter = 3
+  elastic_holder_cylinder_radius = elastic_holder_diameter/2
+  elastic_holder_cylinder_curve_thingy = elastic_space_thickness / 2 # fillet, but dragon doesn't understand that word
+  elastic_holder_cylinder_center_xz = vector (- elastic_holder_cylinder_radius, elastic_holder_penetration_leeway + elastic_space_thickness + elastic_holder_cylinder_radius)
+  diagonal_end_xz = vector (- 12, 0)
+  elastic_strut_shape = FreeCAD_shape_builder().build ([
+    start_at (0, 0),
+    vertical_to (elastic_holder_penetration_leeway + elastic_space_thickness + elastic_holder_cylinder_radius),
+    arc_radius_to (elastic_holder_cylinder_radius, point_circle_tangent (diagonal_end_xz, (elastic_holder_cylinder_center_xz, elastic_holder_cylinder_radius), -1)),
+    diagonal_to (diagonal_end_xz),
+    close(),
+  ]).as_xz().to_wire().to_face()
+  
+  elastic_strut_solid = elastic_strut_shape.fancy_extrude (vector (0, 1, 0), centered (elastic_holder_width))
+  
+  elastic_strut_cylinder_filter = FreeCAD_shape_builder().build ([
+    start_at (elastic_holder_cylinder_radius + elastic_space_thickness, elastic_width/2 - elastic_holder_cylinder_curve_thingy),
+    arc_radius_to (elastic_holder_cylinder_curve_thingy, vector (elastic_holder_cylinder_radius, elastic_width/2 - elastic_holder_cylinder_curve_thingy)),
+    vertical_to (-(elastic_width/2 - elastic_holder_cylinder_curve_thingy)),
+    arc_radius_to (elastic_holder_cylinder_curve_thingy, vector (elastic_holder_cylinder_radius + elastic_space_thickness, -(elastic_width/2 - elastic_holder_cylinder_curve_thingy))),
+    close(),
+  ]).to_wire().to_face().revolve (vector(), vector (0, 1, 0), 360).translated (vector (elastic_holder_cylinder_center_xz [0], 0,elastic_holder_cylinder_center_xz [1]))
+  
+  elastic_strut_solid = elastic_strut_solid.cut(elastic_strut_cylinder_filter)
+  
+  elastic_strut_profile_filter = FreeCAD_shape_builder().build ([
+    start_at (elastic_holder_width/2, 0),
+    diagonal_to ((elastic_width/2 + 1, elastic_holder_cylinder_center_xz[1] + elastic_holder_cylinder_radius)),
+    horizontal_to (-(elastic_width/2 + 1)),
+    diagonal_to ((-elastic_holder_width/2, 0)),
+    close(),
+  ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (100)),
+  
+  elastic_strut_solid = elastic_strut_solid.common(elastic_strut_profile_filter).translated(vector(0, 0, -mask_thickness))
+  
+  elastic_strut_right_solid = elastic_strut_solid.rotated (vector(), vector (0, 1, 0), 60).translated (vector(68, -39, -44))
+  elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -24).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -41, -38.4))
     
   final = False
-  #final = True
+  final = True
   
   show (surface_filtered, "mask_surface", invisible=final)
   show (rib_solid, "rib", invisible=final)
+  show (elastic_strut_right_solid, "elastic_strut_right_solid", invisible=final)
+  show (elastic_strut_left_solid, "elastic_strut_left_solid", invisible=final)
   
   if final:
     mask_solid = surface_filtered.makeOffsetShape (-mask_thickness, 0.03, fill = True)
@@ -731,6 +776,8 @@ def face5_thing():
     tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
     tube_cut = surface.toShape().extrude(vector (0, 0, -30)).fuse(box(centered (15), bounds (-70, tube_surface_bottom + 0.3), bounds (17, 25)))
     tube_solid = tube_solid_uncut.cut(tube_cut)
+    elastic_strut_right_solid = elastic_strut_right_solid.cut(tube_cut)
+    elastic_strut_left_solid = elastic_strut_left_solid.cut(tube_cut)
     #tube_solid.re
     FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
     show_invisible (tube_solid_uncut, "tube_solid_uncut")
@@ -738,7 +785,7 @@ def face5_thing():
     Part.show (tube_solid, "tube_solid")
   
   if final:
-    show (Part.Compound ([mask_solid, tube_solid, rib_solid]), "final_solid")
+    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
