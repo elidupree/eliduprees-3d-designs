@@ -487,7 +487,7 @@ def face5_thing():
   tube_side_samples = 11
   tube_extra_bottom_samples = 5
   tube_points = tube_side_samples*2 + tube_extra_bottom_samples #+ tube_vertical_degree*4 - 4
-  CPAP_end_center = vector(-80, -90, -90)
+  CPAP_end_center = vector(-78, -90, -90)
   CPAP_up = vector(0, 1, -0.5).normalized()
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
@@ -712,10 +712,10 @@ def face5_thing():
     )
   rib_solid = rib_surface .toShape().extrude (vector (0, 0, - mask_thickness*0.95))
   
-  elastic_width = 10
-  elastic_holder_strut_width = 5
+  elastic_width = 12
+  elastic_holder_strut_width = 8
   elastic_holder_width = elastic_width + elastic_holder_strut_width*2
-  elastic_space_thickness = 2
+  elastic_space_thickness = 2.5
   elastic_holder_penetration_leeway = mask_thickness*2
   elastic_holder_diameter = 3
   elastic_holder_cylinder_radius = elastic_holder_diameter/2
@@ -752,11 +752,14 @@ def face5_thing():
   
   elastic_strut_solid = elastic_strut_solid.common(elastic_strut_profile_filter).translated(vector(0, 0, -mask_thickness))
   
-  elastic_strut_right_solid = elastic_strut_solid.rotated (vector(), vector (0, 1, 0), 60).translated (vector(68, -39, -44))
-  elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -24).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -41, -38.4))
-    
+  elastic_strut_right_solid = elastic_strut_solid.rotated (vector(), vector (0, 1, 0), 60).translated (vector(68, -43, -43))
+  elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -22).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -45, -35.5))
+  
+  # cuts = ~30sec, final mask solid generation = ~3min
   final = False
-  #final = True
+  final = True
+  do_cuts = final
+  do_cuts = True
   
   show (surface_filtered, "mask_surface", invisible=final)
   show (rib_solid, "rib", invisible=final)
@@ -769,12 +772,25 @@ def face5_thing():
     FreeCAD.Console.PrintMessage (f"Done making mask_solid at {datetime.datetime.now()}\n")
   
   tube_offset_surface = tube_surface.toShape().makeOffsetShape (-mask_thickness, 0.03, fill = True)
-  show (tube_offset_surface, "tube_offset_surface", invisible = final)
+  show (tube_offset_surface, "tube_offset_surface", invisible = do_cuts)
   FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
   
-  if final:
+  if do_cuts:
     tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
-    tube_cut = surface.toShape().extrude(vector (0, 0, -30)).fuse(box(centered (15), bounds (-70, tube_surface_bottom + 0.3), bounds (17, 25)))
+    tube_cut = surface.toShape().extrude(vector (0, 0, -30))
+    
+    air_exit_hole = FreeCAD_shape_builder().build ([
+      start_at(-57, 8),
+      vertical_to (-8),
+      diagonal_to ((-43, 0)),
+      close(),
+    ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (10))
+    
+    
+    tube_cut = tube_cut.fuse([
+      air_exit_hole.rotated (vector(), vector (0, 1, 0), -30).translated (vector (16, 0, 12)),
+      air_exit_hole.rotated (vector(), vector (0, 1, 0), 30).translated (vector (-16, 0, 12)),
+    ])
     tube_solid = tube_solid_uncut.cut(tube_cut)
     elastic_strut_right_solid = elastic_strut_right_solid.cut(tube_cut)
     elastic_strut_left_solid = elastic_strut_left_solid.cut(tube_cut)
@@ -782,7 +798,7 @@ def face5_thing():
     FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
     show_invisible (tube_solid_uncut, "tube_solid_uncut")
     show_invisible (tube_cut, "tube_cut")
-    Part.show (tube_solid, "tube_solid")
+    show (tube_solid, "tube_solid", invisible = final)
   
   if final:
     show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid]), "final_solid")
