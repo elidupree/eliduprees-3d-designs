@@ -1565,7 +1565,71 @@ def hydra_shade():
   
   Part.show(swept)
   
+
+def comb_scraper():
+  big_count = 29
+  big_total_length = 85
+  big_thickness = 1.2
   
+  small_count = 50
+  small_total_length = 85
+  small_thickness = 1.0
+  
+  fork_thickness = 1.6
+  tine_length = 7
+  
+  fork_handle_length = 30
+  
+  tine_profile_filter = FreeCAD_shape_builder().build ([
+      start_at (0, 0),
+      horizontal_to(tine_length),
+      bezier ([
+        (tine_length - fork_thickness, fork_thickness),
+        (0, fork_thickness),
+      ]),
+      close(),
+  ]).as_yz().to_wire().to_face().fancy_extrude(vector (1, 0, 0), centered(100))
+  
+  def fork(count, total_length, tooth_thickness, tine_count):
+    length = total_length/(count - 1)
+    tine_thickness = length - tooth_thickness - 0.2
+    
+    half_tine = FreeCAD_shape_builder().build ([
+      start_at (- tine_thickness*1.05/2, 0),
+      bezier ([
+        (- tine_thickness*1.0/2, 0),
+        (- tine_thickness*1.0/2, 0.1),
+        (- tine_thickness*1.0/2, tine_length - tine_thickness/2),
+        (0, tine_length),
+      ]),
+      vertical_to(0),
+      close(),
+    ]).to_wire().to_face().extrude(vector (0, 0, fork_thickness))
+    
+    tine = half_tine.fuse(half_tine.mirror(vector(), vector (1, 0, 0)))
+    tines = [tine.translated(vector(length * (index + 0.5 - tine_count/2),0,0)) for index in range (tine_count)]
+    return (tines[0].fuse(tines[1:]).common(tine_profile_filter), length*(tine_count-1) + tine_thickness*1.05)
+    
+  big_fork, big_fork_length = fork(big_count, big_total_length, big_thickness, 5)
+  small_fork, small_fork_length = fork(small_count, small_total_length, small_thickness, 7)
+  
+  small_fork = small_fork.mirror(vector(), vector (0, 1, 0))
+  small_fork.translate (vector (0, - fork_handle_length, 0))
+  
+  body = FreeCAD_shape_builder().build ([
+      start_at (big_fork_length/2, 0),
+      horizontal_to (- big_fork_length/2),
+      diagonal_to((-small_fork_length/2, -fork_handle_length)),
+      horizontal_to (small_fork_length/2),
+      close(),
+    ]).to_wire().to_face().extrude(vector (0, 0, fork_thickness))
+
+  united_fork = body.fuse(
+    [big_fork, small_fork]
+  )
+  
+  show(united_fork, "united fork")
+
 
 #make_snapper()
 #make_clamp_enhancer()
@@ -1574,8 +1638,9 @@ def hydra_shade():
 #face2_thing()
 
 #hydra_shade()
+comb_scraper()
 
-faces.run(globals())
+#faces.run(globals())
 
 
 '''
