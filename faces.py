@@ -789,7 +789,7 @@ def face5_thing():
     
     tube_cut = tube_cut.fuse([
       air_exit_hole.rotated (vector(), vector (0, 1, 0), -30).translated (vector (16, 0, 12)),
-      air_exit_hole.rotated (vector(), vector (0, 1, 0), 30).translated (vector (-16, 0, 12)),
+      #air_exit_hole.rotated (vector(), vector (0, 1, 0), 30).translated (vector (-16, 0, 12)),
     ])
     tube_solid = tube_solid_uncut.cut(tube_cut)
     elastic_strut_right_solid = elastic_strut_right_solid.cut(tube_cut)
