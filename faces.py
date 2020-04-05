@@ -401,6 +401,11 @@ def face5_thing():
   make_bump(13, -20, 5, 3)
   make_bump(3, -10, 3, 1)
   
+  # after 2.0-rc2
+  make_bump(0, -69, 18, -3)
+  make_bump(18, -14, 5, -3)
+  make_bump(21, -18, 5, -3)
+  
   def raw_face_depth(x,y):
     try:
       return rows[-face_bottom + y][-face_left - abs(x)]
@@ -473,7 +478,7 @@ def face5_thing():
     box(centered (70), bounds(-35, -5), centered(200)),
     rounded_box(centered (136), bounds(mask_cheeks_bottom, mask_cheeks_top), centered(200), radius = 5),
   ]).cut(
-    rounded_box(centered (43), bounds(mask_cheeks_bottom, -41), centered(200), radius = 4),
+    rounded_box(centered (43), bounds(-52, -41), centered(200), radius = 4),
   )
   surface_filtered = surface_filtered.common(mask_bounds)
   
@@ -555,37 +560,56 @@ def face5_thing():
     #+ [refined_tube_top(input) for input in approx_density (vector (-25, mask_cheeks_top), vector (-21.5, tube_middle_top), 0.2)]
     + tube_top_last_part
   )
+  tube_top_unexpanded = [face_vector(c) for c in tube_top]
   
   FreeCAD.Console.PrintMessage (f"tube_top{tube_top[-1]}\n")
 
-  tube_splayed_rows = [
-    [top, tube_bottom (top)] for top in tube_top
-  ]
-  tube_splayed_rows = (
-    [tube_splayed_rows [0]]*(tube_horizontal_degree - 1)
-    + tube_splayed_rows
-    + [tube_splayed_rows [-1]]*(tube_horizontal_degree - 1)
-  )
-  tube_splayed_surface = Part.BSplineSurface()
-  tube_splayed_surface.buildFromPolesMultsKnots(tube_splayed_rows,
-    [1]*(len(tube_splayed_rows) + tube_horizontal_degree + 1),
-    [1]*(len (tube_splayed_rows[0]) + 1 + 1),
-    udegree = tube_horizontal_degree,
-    vdegree = 1,
+  def make_tube_splayed_surface(tube_top):
+    tube_splayed_rows = [
+      [top, tube_bottom (top)] for top in tube_top
+    ]
+    tube_splayed_rows = (
+      [tube_splayed_rows [0]]*(tube_horizontal_degree - 1)
+      + tube_splayed_rows
+      + [tube_splayed_rows [-1]]*(tube_horizontal_degree - 1)
     )
+    tube_splayed_surface = Part.BSplineSurface()
+    tube_splayed_surface.buildFromPolesMultsKnots(tube_splayed_rows,
+      [1]*(len(tube_splayed_rows) + tube_horizontal_degree + 1),
+      [1]*(len (tube_splayed_rows[0]) + 1 + 1),
+      udegree = tube_horizontal_degree,
+      vdegree = 1,
+      )
+    return tube_splayed_surface
   
-  
+  tube_splayed_surface = make_tube_splayed_surface(tube_top)
+  tube_splayed_surface_unexpanded = make_tube_splayed_surface(tube_top_unexpanded)
   show_invisible (tube_splayed_surface.toShape(), "tube_splayed_surface")
+  show_invisible (tube_splayed_surface_unexpanded.toShape(), "tube_splayed_surface_unexpanded")
   
   def tube_resampled_entry (horizontal_index, vertical_index):
-    top = tube_top [horizontal_index]
+    if horizontal_index < len(tube_top):
+      top = tube_top [horizontal_index]
+    else:
+      top = tube_top [-2-(horizontal_index-len(tube_top))].copy()
+      top[0] = -top[0]
     bottom = tube_surface_bottom
     close_to_edge_ness = -60 - top[0]
     if close_to_edge_ness > 0:
       bottom += close_to_edge_ness * 0.3
     sample_point =top + vector (0, (bottom - top [1])*vertical_index/(tube_side_samples -1), 0)
     #FreeCAD.Console.PrintMessage (f"sampling at {sample_point}\n")
-    return surface_point_along_line (
+    if sample_point[0] > 0:
+      sample_point[0] = -sample_point[0]
+      result = surface_point_along_line (
+        tube_splayed_surface_unexpanded,
+        sample_point,
+        vector (0, 0, -1)
+      )
+      result[0] = -result[0]
+      return result
+    else:
+      return surface_point_along_line (
         tube_splayed_surface,
         sample_point,
         vector (0, 0, -1)
@@ -603,7 +627,7 @@ def face5_thing():
     tube_resampled_row
   )'''
   
-  tube_resampled_rows = [tube_resampled_row (horizontal_index) for horizontal_index in range (len (tube_top))]
+  tube_resampled_rows = [tube_resampled_row (horizontal_index) for horizontal_index in range (len (tube_top) + len(tube_top_last_part) + tube_horizontal_degree)]
   FreeCAD.Console.PrintMessage (f"Done resampling tube at {datetime.datetime.now()}\n")
   
   def CPAP_point(index, row_index):
@@ -616,7 +640,7 @@ def face5_thing():
     samples = [sample.copy() for sample in samples]
     for sample in samples:
       radius = 30
-      max_z = (28.3 - radius) + math.sqrt (radius*radius - (-41 - sample [1])**2 - min((sample[0]*1.5)**2, 15*15))
+      max_z = (32 - radius) + math.sqrt (radius*radius - (-50 - sample [1])**2 - min((sample[0]*1.5)**2, 15*15))
       if sample [2] >max_z:
         sample [2] = max_z
       #if sample [0] <-68:
@@ -638,21 +662,14 @@ def face5_thing():
     )
     if len (result) != tube_points:
       FreeCAD.Console.PrintError (f"The tube_row code is wrong {len (result)} != {tube_points}\n")
-    return result
-  def flipped_tube_row (samples):
-    result = tube_row (samples)
     for control in result:
-      control [0] = - control [0]
-      offset = max (0, (control [0] - 17)*1.4 - (-41 - control[1])*0.1)
+      offset = max (0, (control [0] - 20)*1.0)
       control [2] = control [2] - offset
     return result
   
-  flipped_source = list (tube_resampled_rows [-2: -1 - len (tube_top_last_part)-tube_horizontal_degree: -1])
-  #flipped_source += [flipped_source [-1]]*(tube_horizontal_degree - 1)
   pure_CPAP_rows = [CPAP_row (index) for index in #[0]*(tube_horizontal_degree - 1)+
       list ( range (num_pure_CPAP_rows))]
-  pure_tube_rows = ([tube_row(row) for row in tube_resampled_rows]
-      + [flipped_tube_row (row) for row in flipped_source])
+  pure_tube_rows = [tube_row(row) for row in tube_resampled_rows]
   transition_rows = [
     [(first + second)*0.5 + vector (-8, 7, 5) for first, second in zip (pure_CPAP_rows [-1], pure_tube_rows [0])]
   ]
@@ -755,6 +772,62 @@ def face5_thing():
   elastic_strut_right_solid = elastic_strut_solid.rotated (vector(), vector (0, 1, 0), 60).translated (vector(68, -43, -43))
   elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -22).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -45, -35.5))
   
+  
+  filter_slot_outer_height = 17
+  filter_slot_side_thickness = 0.4
+  filter_slot_height = filter_slot_outer_height - (filter_slot_side_thickness*2)
+  filter_slider_edge_width = 0.8
+  filter_pillar_width = 1.5
+  filter_slider_outer_height = filter_slot_height - 0.3
+  filter_holes_height = filter_slider_outer_height - (filter_slider_edge_width*2)
+  filter_slider_outer_length = 26
+  filter_holes_length = filter_slider_outer_length - (filter_pillar_width*2)
+  filter_pillars = 2
+  filter_hole_length = (filter_holes_length - filter_pillar_width*filter_pillars)/(filter_pillars + 1)
+  filter_hole_shape = FreeCAD_shape_builder().build ([
+    start_at (0, filter_hole_length/2),
+    vertical_to (filter_holes_height - filter_hole_length/2),
+    diagonal_to (filter_hole_length/2, filter_holes_height),
+    diagonal_to (filter_hole_length, filter_holes_height - filter_hole_length/2),
+    vertical_to (filter_hole_length/2),
+    diagonal_to (filter_hole_length/2, 0),
+    close(),
+  ]).to_wire().to_face()
+  
+  filter_hole_shapes = [
+    filter_hole_shape.translated(vector(x*(filter_hole_length + filter_pillar_width), 0))
+    for x in range(filter_pillars+1)
+  ]
+  filter_holes_shape = filter_hole_shapes[0].fuse (filter_hole_shapes [1:])
+  
+  filter_slider_thickness = 0.36
+  filter_slot_thickness = 1.5+filter_slider_thickness*2
+  filter_slot_side_thickness = 0.4
+  filter_slot_outer_thickness = filter_slot_thickness + filter_slot_side_thickness*2
+  
+  filter_slider = box(filter_slider_outer_length, filter_slider_outer_height, filter_slider_thickness).cut (filter_holes_shape.translated(vector (filter_pillar_width, filter_slider_edge_width)).extrude(vector (0, 0, filter_slider_thickness)))
+  
+  filter_slot_cut = box(filter_slider_outer_length, filter_slot_outer_height, filter_slot_thickness).translated(vector(filter_slot_side_thickness, filter_slot_side_thickness, filter_slot_side_thickness)).fuse([
+      box(filter_slider_outer_length - (filter_slider_edge_width+filter_pillar_width)*2, filter_slot_outer_height - (filter_slider_edge_width+filter_pillar_width)*2, centered(filter_slot_outer_thickness*3)).translated(vector(filter_slot_side_thickness+filter_slider_edge_width+filter_pillar_width, filter_slider_edge_width+filter_pillar_width, 0)),
+   ])
+      
+  filter_slot = box(filter_slider_outer_length+filter_slot_side_thickness*2, filter_slot_outer_height, bounds(-3, filter_slot_outer_thickness)).cut (filter_slot_cut).cut(
+    box(filter_slider_outer_length - (filter_slider_edge_width+filter_pillar_width)*2, filter_slot_outer_height, filter_slot_outer_thickness).translated(vector(filter_slot_side_thickness+filter_slider_edge_width+filter_pillar_width, filter_slider_edge_width+filter_pillar_width, filter_slot_side_thickness))
+  )
+  
+  
+  def position_filter_slot(shape):
+    shape.rotate(vector(), vector (1, 0, 0), 8)
+    shape.rotate(vector(), vector (0, 1, 0), 68)
+    shape.translate (vector (5.5, - 58.9, 29.8))  
+  
+  position_filter_slot(filter_slot)
+  position_filter_slot(filter_slot_cut)
+  
+  show(filter_slider, "filter_slider")
+  show(filter_slot, "filter_slot")
+  
+  
   # cuts = ~30sec, final mask solid generation = ~3min
   final = False
   final = True
@@ -779,29 +852,35 @@ def face5_thing():
     tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
     tube_cut = surface.toShape().extrude(vector (0, 0, -30))
     
-    air_exit_hole = FreeCAD_shape_builder().build ([
+    '''air_exit_hole = FreeCAD_shape_builder().build ([
       start_at(-57, 8),
       vertical_to (-8),
       diagonal_to ((-43, 0)),
       close(),
-    ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (10))
+    ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered (10))'''
     
     
     tube_cut = tube_cut.fuse([
-      air_exit_hole.rotated (vector(), vector (0, 1, 0), -30).translated (vector (16, 0, 12)),
+      #air_exit_hole.rotated (vector(), vector (0, 1, 0), -30).translated (vector (16, 0, 12)),
       #air_exit_hole.rotated (vector(), vector (0, 1, 0), 30).translated (vector (-16, 0, 12)),
+      filter_slot_cut
     ])
     tube_solid = tube_solid_uncut.cut(tube_cut)
     elastic_strut_right_solid = elastic_strut_right_solid.cut(tube_cut)
     elastic_strut_left_solid = elastic_strut_left_solid.cut(tube_cut)
+    tube_interior_cut = tube_surface.toShape().extrude(vector(0,0,-15))
+    show_invisible (tube_interior_cut, "tube_interior_cut")
+    #note: the "common" here should actually be "cut", but FreeCAD did the above extrude wrong somehow, so it's reversed
+    filter_slot = filter_slot.cut(tube_cut).common(tube_interior_cut)
     #tube_solid.re
     FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
     show_invisible (tube_solid_uncut, "tube_solid_uncut")
     show_invisible (tube_cut, "tube_cut")
     show (tube_solid, "tube_solid", invisible = final)
+    show (filter_slot, "filter_slot_cut", invisible = final)
   
   if final:
-    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid]), "final_solid")
+    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid, filter_slot]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   

@@ -1638,9 +1638,9 @@ def comb_scraper():
 #face2_thing()
 
 #hydra_shade()
-comb_scraper()
+#comb_scraper()
 
-#faces.run(globals())
+faces.run(globals())
 
 
 '''
