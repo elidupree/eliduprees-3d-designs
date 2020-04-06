@@ -537,7 +537,7 @@ def face5_thing():
         approximate_normal [1] = 0.0
         approximate_normal.normalize()
         usable_fraction = abs (approximate_normal.dot(angle))
-        usable_fraction = (usable_fraction*2 + 1.0)/3
+        #usable_fraction = (usable_fraction*2 + 1.0)/3
         depth = sample [2] - first [2]
         #return depth - 0.5
         return depth*usable_fraction - mask_thickness
@@ -772,68 +772,62 @@ def face5_thing():
   elastic_strut_right_solid = elastic_strut_solid.rotated (vector(), vector (0, 1, 0), 60).translated (vector(68, -43, -43))
   elastic_strut_left_solid = elastic_strut_solid.mirror(vector(), vector(1, 0, 0)).rotated (vector(), vector (1, 0, 0), -22).rotated (vector(), vector (0, 1, 0), -48).translated (vector(-73, -45, -35.5))
   
-  
-  filter_slot_outer_height = 17
-  filter_slot_side_thickness = 0.4
-  filter_slot_height = filter_slot_outer_height - (filter_slot_side_thickness*2)
-  filter_slider_edge_width = 0.8
-  filter_pillar_width = 1.5
-  filter_slider_outer_height = filter_slot_height - 0.3
-  filter_holes_height = filter_slider_outer_height - (filter_slider_edge_width*2)
-  filter_slider_outer_length = 26
-  filter_holes_length = filter_slider_outer_length - (filter_pillar_width*2)
-  filter_pillars = 2
-  filter_hole_length = (filter_holes_length - filter_pillar_width*filter_pillars)/(filter_pillars + 1)
-  filter_hole_shape = FreeCAD_shape_builder().build ([
-    start_at (0, filter_hole_length/2),
-    vertical_to (filter_holes_height - filter_hole_length/2),
-    diagonal_to (filter_hole_length/2, filter_holes_height),
-    diagonal_to (filter_hole_length, filter_holes_height - filter_hole_length/2),
-    vertical_to (filter_hole_length/2),
-    diagonal_to (filter_hole_length/2, 0),
-    close(),
-  ]).to_wire().to_face()
-  
-  filter_hole_shapes = [
-    filter_hole_shape.translated(vector(x*(filter_hole_length + filter_pillar_width), 0))
-    for x in range(filter_pillars+1)
-  ]
-  filter_holes_shape = filter_hole_shapes[0].fuse (filter_hole_shapes [1:])
-  
+    
+  filter_slot_theoretical_wall_thickness = 0.5
   filter_slider_thickness = 0.36
-  filter_slot_thickness = 1.5+filter_slider_thickness*2
-  filter_slot_side_thickness = 0.4
-  filter_slot_outer_thickness = filter_slot_thickness + filter_slot_side_thickness*2
+  filter_assumed_thickness = 1.5
+  filter_slot_inner_thickness = filter_assumed_thickness+filter_slider_thickness*2
+  filter_slot_outer_thickness = filter_slot_inner_thickness + filter_slot_theoretical_wall_thickness*2
+  filter_slot_grip_size = 1.5
   
-  filter_slider = box(filter_slider_outer_length, filter_slider_outer_height, filter_slider_thickness).cut (filter_holes_shape.translated(vector (filter_pillar_width, filter_slider_edge_width)).extrude(vector (0, 0, filter_slider_thickness)))
+  def filter_slot_boundary (vertical_extension = 0):
+    return FreeCAD_shape_builder().build ([
+      start_at (0, 0),
+      horizontal_to (23),
+      diagonal_to (36, 9),
+      vertical_to (26 + vertical_extension),
+      horizontal_to (18),
+      diagonal_to (0, 14 + vertical_extension),
+      close(),
+    ]).to_wire()
+
   
-  filter_slot_cut = box(filter_slider_outer_length, filter_slot_outer_height, filter_slot_thickness).translated(vector(filter_slot_side_thickness, filter_slot_side_thickness, filter_slot_side_thickness)).fuse([
-      box(filter_slider_outer_length - (filter_slider_edge_width+filter_pillar_width)*2, filter_slot_outer_height - (filter_slider_edge_width+filter_pillar_width)*2, centered(filter_slot_outer_thickness*3)).translated(vector(filter_slot_side_thickness+filter_slider_edge_width+filter_pillar_width, filter_slider_edge_width+filter_pillar_width, 0)),
-   ])
-      
-  filter_slot = box(filter_slider_outer_length+filter_slot_side_thickness*2, filter_slot_outer_height, bounds(-3, filter_slot_outer_thickness)).cut (filter_slot_cut).cut(
-    box(filter_slider_outer_length - (filter_slider_edge_width+filter_pillar_width)*2, filter_slot_outer_height, filter_slot_outer_thickness).translated(vector(filter_slot_side_thickness+filter_slider_edge_width+filter_pillar_width, filter_slider_edge_width+filter_pillar_width, filter_slot_side_thickness))
-  )
+  filter_slot_outer_boundary = filter_slot_boundary()
+  filter_slot_outer_boundary_extended = filter_slot_boundary(10)
+  filter_slot_hole_boundary = filter_slot_outer_boundary.makeOffset2D (-(filter_slot_theoretical_wall_thickness + filter_slot_grip_size))
+  filter_slot_slider_space = filter_slot_outer_boundary_extended.makeOffset2D (-filter_slot_theoretical_wall_thickness).to_face().fancy_extrude(vector(0,0,1), bounds(filter_slot_theoretical_wall_thickness, filter_slot_theoretical_wall_thickness + filter_slot_inner_thickness))
+  filter_slot_outer_shape = filter_slot_outer_boundary.to_face().fancy_extrude(vector(0,0,1), bounds(0, filter_slot_outer_thickness))
+  filter_slot_extra_shape = filter_slot_outer_boundary.to_face().fancy_extrude(vector(0,0,1), bounds(-3, 0)).cut(filter_slot_hole_boundary.to_face().fancy_extrude(vector(0,0,1), bounds(-10, 0)))
+  filter_slot_cut = filter_slot_hole_boundary.to_face().fancy_extrude(vector(0,0,1), bounds(-1.7, filter_slot_outer_thickness+1)).fuse (filter_slot_slider_space)
   
+  filter_slot_precarious_strip_remover = filter_slot_outer_boundary_extended.makeOffset2D (-(filter_slot_theoretical_wall_thickness + filter_slot_grip_size)).to_face().fancy_extrude(vector(0,0,1), bounds(filter_slot_theoretical_wall_thickness, filter_slot_outer_thickness))
+  
+  filter_slot = filter_slot_outer_shape.cut([filter_slot_cut, filter_slot_precarious_strip_remover])
+  #show(filter_slot, "filter_slot1")
+  #show(filter_slot_precarious_strip_remover, "filter_slot_precarious_strip_remover")
   
   def position_filter_slot(shape):
     shape.rotate(vector(), vector (1, 0, 0), 8)
     shape.rotate(vector(), vector (0, 1, 0), 68)
-    shape.translate (vector (5.5, - 58.9, 29.8))  
+    shape.translate (vector (5.5, - 59.2, 29.8))  
   
   position_filter_slot(filter_slot)
+  position_filter_slot(filter_slot_extra_shape)
   position_filter_slot(filter_slot_cut)
   
-  show(filter_slider, "filter_slider")
-  show(filter_slot, "filter_slot")
+  #show(filter_slider, "filter_slider")
   
   
   # cuts = ~30sec, final mask solid generation = ~3min
   final = False
   final = True
   do_cuts = final
-  do_cuts = True
+  #do_cuts = True
   
+  if do_cuts:
+    surface_filtered = surface_filtered.cut(filter_slot_cut)
+  
+  show(filter_slot, "filter_slot", invisible = do_cuts)
   show (surface_filtered, "mask_surface", invisible=final)
   show (rib_solid, "rib", invisible=final)
   show (elastic_strut_right_solid, "elastic_strut_right_solid", invisible=final)
@@ -841,7 +835,7 @@ def face5_thing():
   
   if final:
     mask_solid = surface_filtered.makeOffsetShape (-mask_thickness, 0.03, fill = True)
-    show(mask_solid, "mask_solid")
+    show(mask_solid, "mask_solid", invisible=True)
     FreeCAD.Console.PrintMessage (f"Done making mask_solid at {datetime.datetime.now()}\n")
   
   tube_offset_surface = tube_surface.toShape().makeOffsetShape (-mask_thickness, 0.03, fill = True)
@@ -868,10 +862,11 @@ def face5_thing():
     tube_solid = tube_solid_uncut.cut(tube_cut)
     elastic_strut_right_solid = elastic_strut_right_solid.cut(tube_cut)
     elastic_strut_left_solid = elastic_strut_left_solid.cut(tube_cut)
-    tube_interior_cut = tube_surface.toShape().extrude(vector(0,0,-15))
+    tube_interior_cut = tube_surface.toShape().extrude(vector(0,0,-100))
     show_invisible (tube_interior_cut, "tube_interior_cut")
     #note: the "common" here should actually be "cut", but FreeCAD did the above extrude wrong somehow, so it's reversed
-    filter_slot = filter_slot.cut(tube_cut).common(tube_interior_cut)
+    #filter_slot = filter_slot.common(tube_interior_cut)
+    filter_slot_extra_shape = filter_slot_extra_shape.cut(tube_cut).common(tube_interior_cut)
     #tube_solid.re
     FreeCAD.Console.PrintMessage (f"Done cutting tube_offset_surface at {datetime.datetime.now()}\n")
     show_invisible (tube_solid_uncut, "tube_solid_uncut")
@@ -879,8 +874,10 @@ def face5_thing():
     show (tube_solid, "tube_solid", invisible = final)
     show (filter_slot, "filter_slot_cut", invisible = final)
   
+  show(filter_slot_extra_shape, "filter_slot_extra", invisible=final)
+  
   if final:
-    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid, filter_slot]), "final_solid")
+    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid, filter_slot, filter_slot_extra_shape]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
