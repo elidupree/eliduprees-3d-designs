@@ -546,8 +546,9 @@ def face5_thing():
       average_depth = sum(approximate_depth (sample) for sample in samples)/num_samples
       approximate_area = average_depth*length
       # experimentally determined that pinching one spot to 60mm^2 didn't reduce airflow much;
-      # use 80mm^2 for some leeway
-      if approximate_area >= 80 or bottom[0] >= 0 or bottom[0] <= -68 or coordinates[0] >= 0:
+      # we used to use 80mm^2 for some leeway; after observations that it did seem
+      # to reduce airflow, we increased it
+      if approximate_area >= 120 or bottom[0] >= 0 or bottom[0] <= -68 or coordinates[0] >= 0:
         return result
       result[2] += 0.1
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
@@ -806,6 +807,31 @@ def face5_thing():
   #show(filter_slot, "filter_slot1")
   #show(filter_slot_precarious_strip_remover, "filter_slot_precarious_strip_remover")
   
+  filter_slider_tolerance_each_side = 0.9
+  filter_slider_boundary = filter_slot_outer_boundary.makeOffset2D (- (filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side))
+  filter_slider_interior_offset = filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side + filter_slot_grip_size
+  filter_slider_boundary_inner = filter_slot_outer_boundary.makeOffset2D (- (filter_slider_interior_offset))
+  
+  filter_slider_outer_shape = filter_slider_boundary.to_face().fancy_extrude (vector (0, 0, 1), filter_slider_thickness)
+  filter_slider = filter_slider_outer_shape.cut(filter_slider_boundary_inner.to_face().fancy_extrude (vector (0, 0, 1), filter_slider_thickness))
+  
+  filter_slider_bar_width = 1.5
+  def filter_slider_bars(start, end, count, dim):
+    translation = vector()
+    translation[dim] = 1.0
+    return [box(
+      filter_slider_bar_width if dim == 0 else centered(100),
+      filter_slider_bar_width if dim == 1 else centered(100),
+      centered(100)).translated (translation * ((start - filter_slider_bar_width) + (index+1)*(end - (start - filter_slider_bar_width))/(count+1))) for index in range (count)]
+  
+  
+  filter_slider = filter_slider.fuse(
+    filter_slider_bars(filter_slider_interior_offset, 36-filter_slider_interior_offset, 3, 0) +
+    filter_slider_bars(filter_slider_interior_offset, 26-filter_slider_interior_offset, 2, 1)
+  ).common(filter_slider_outer_shape)
+    
+  
+  
   def position_filter_slot(shape):
     shape.rotate(vector(), vector (1, 0, 0), 8)
     shape.rotate(vector(), vector (0, 1, 0), 68)
@@ -815,7 +841,7 @@ def face5_thing():
   position_filter_slot(filter_slot_extra_shape)
   position_filter_slot(filter_slot_cut)
   
-  #show(filter_slider, "filter_slider")
+  show(filter_slider, "filter_slider")
   
   
   # cuts = ~30sec, final mask solid generation = ~3min
