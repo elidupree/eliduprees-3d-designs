@@ -497,6 +497,7 @@ def face5_thing():
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
   CPAP_outer_radius = 21.5/2
+  CPAP_wall_thickness = 1.0
   num_pure_CPAP_rows = 6
   tube_surface_bottom = mask_cheeks_bottom + mask_thickness
   
@@ -633,7 +634,7 @@ def face5_thing():
   
   def CPAP_point(index, row_index):
     angle = (index - -4)*math.tau/tube_points
-    return CPAP_end_center + (CPAP_up*math.cos (angle) + CPAP_out*math.sin (angle)) * CPAP_outer_radius + row_index*CPAP_forwards*5
+    return CPAP_end_center + (CPAP_up*math.cos (angle) + CPAP_out*math.sin (angle)) * (CPAP_outer_radius-CPAP_wall_thickness) + row_index*CPAP_forwards*5
   
   def CPAP_row (row_index):
     return [CPAP_point(index, row_index) for index in range (tube_points)]
@@ -868,6 +869,10 @@ def face5_thing():
   show (tube_offset_surface, "tube_offset_surface", invisible = do_cuts)
   FreeCAD.Console.PrintMessage (f"Done making tube_offset_surface at {datetime.datetime.now()}\n")
   
+  CPAP_thickener = tube_surface.toShape().common(box(centered(500), bounds(-100, -68), centered(500))).makeOffsetShape (-1.0, 0.03, fill = True)
+  show (CPAP_thickener, "CPAP_thickener", invisible = do_cuts)
+  FreeCAD.Console.PrintMessage (f"Done making CPAP_thickener at {datetime.datetime.now()}\n")
+  
   if do_cuts:
     tube_solid_uncut = tube_offset_surface # Part.makeSolid(tube_offset_surface)
     tube_cut = surface.toShape().extrude(vector (0, 0, -30))
@@ -903,7 +908,7 @@ def face5_thing():
   show(filter_slot_extra_shape, "filter_slot_extra", invisible=final)
   
   if final:
-    show (Part.Compound ([mask_solid, tube_solid, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid, filter_slot, filter_slot_extra_shape]), "final_solid")
+    show (Part.Compound ([mask_solid, tube_solid, CPAP_thickener, rib_solid, elastic_strut_right_solid, elastic_strut_left_solid, filter_slot, filter_slot_extra_shape]), "final_solid")
     pass #Part.show (mask_solid.fuse(tube_solid), "final_solid")
   
   
