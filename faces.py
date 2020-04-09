@@ -496,7 +496,7 @@ def face5_thing():
   CPAP_up = vector(0, 1, -0.5).normalized()
   CPAP_out = vector(-1,0,0)
   CPAP_forwards = CPAP_up.cross (CPAP_out)
-  CPAP_outer_radius = 21.5/2
+  CPAP_outer_radius = (21.5 + (21.5 - 20.7)) / 2 #was just 21.5/2, but rc6 printed slightly warped in a way where the minimum diameter was 20.7, and one of my CPAP hoses was slightly loose on it
   CPAP_wall_thickness = 1.0
   num_pure_CPAP_rows = 6
   tube_surface_bottom = mask_cheeks_bottom + mask_thickness
@@ -808,7 +808,10 @@ def face5_thing():
   #show(filter_slot, "filter_slot1")
   #show(filter_slot_precarious_strip_remover, "filter_slot_precarious_strip_remover")
   
-  filter_slider_tolerance_each_side = 0.9
+  # this tolerance is affected by the print quality!
+  # we set it to 0.9 based on a .28mm-layer-height print,
+  # but 0
+  filter_slider_tolerance_each_side = 0.6
   filter_slider_boundary = filter_slot_outer_boundary.makeOffset2D (- (filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side))
   filter_slider_interior_offset = filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side + filter_slot_grip_size
   filter_slider_boundary_inner = filter_slot_outer_boundary.makeOffset2D (- (filter_slider_interior_offset))
@@ -847,7 +850,7 @@ def face5_thing():
   
   # cuts = ~30sec, final mask solid generation = ~3min
   final = False
-  final = True
+  #final = True
   do_cuts = final
   #do_cuts = True
   
@@ -913,6 +916,11 @@ def face5_thing():
   
   
   FreeCAD.Console.PrintMessage (f"Done at {datetime.datetime.now()}\n")
+  
+  # Printing notes:
+  # Use 235C instead of 255C to reduce stringing somewhat (220 was a bit too low)
+  # "Combing mode: All" also helps with that
+  # It needs to print with support all along the bottom edge, or bits will get bent back and forth a little while printing and make stuff print in slightly the wrong place; I used 50 degrees and added support blockers to avoid unnecessarily supporting stuff above that
 
 
 def run(g):
