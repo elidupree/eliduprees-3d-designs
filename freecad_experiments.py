@@ -1393,7 +1393,7 @@ def make_manual_snapper():
     
     
 
-def make_clamp_enhancer ():
+def make_clamp_enhancer (num_spikes_y, num_spikes_z):
   inner_x = 0
   outer_x = 6.5
   tip_corner_x = outer_x - 2.5
@@ -1443,8 +1443,11 @@ def make_clamp_enhancer ():
     return Part.makeCone (spike_radius, 0, spike_height, vector(plate_left_x + plate_min_thickness/2, y, z), vector(math.cos(math.tau/2 + cone_radius_angle), 0, math.sin(math.tau/2 + cone_radius_angle)))
 
   spikes = [
-  spike(((y-2)/4)*(plate_width-spike_radius*2), (z/4)*(plate_length-spike_radius*2) + spike_radius)
-  for y in range(5) for z in range (5)]
+    spike(
+      (y/(num_spikes_y-1) - 0.5)*(plate_width-spike_radius*2),
+      (z/(num_spikes_z-1))*(plate_length-spike_radius*2) + spike_radius
+    )
+  for y in range(num_spikes_y) for z in range (num_spikes_z)]
   
   clips_box = box (
     bounds (plate_left_x, clip_right_x),
@@ -1632,7 +1635,8 @@ def comb_scraper():
 
 
 #make_snapper()
-#make_clamp_enhancer()
+#make_clamp_enhancer(5, 5)
+#make_clamp_enhancer(10, 10)
 #make_manual_snapper()
 #nose_thing()
 #face2_thing()
