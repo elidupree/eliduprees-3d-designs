@@ -1396,7 +1396,7 @@ def make_manual_snapper():
     
     
 
-def make_clamp_enhancer (num_spikes_y, num_spikes_z):
+def make_clamp_enhancer (num_spikes_y, num_spikes_z, x_offset_frac):
   inner_x = 0
   outer_x = 6.5
   tip_corner_x = outer_x - 2.5
@@ -1442,14 +1442,20 @@ def make_clamp_enhancer (num_spikes_y, num_spikes_z):
   ]).as_xz().to_wire().to_face().fancy_extrude (vector (0, 1, 0), centered (plate_width))
   #Part.show (plate, "Plate")
   
-  def spike(y, z):
-    return Part.makeCone (spike_radius, 0, spike_height, vector(plate_left_x + plate_min_thickness/2, y, z), vector(math.cos(math.tau/2 + cone_radius_angle), 0, math.sin(math.tau/2 + cone_radius_angle)))
-
-  spikes = [
-    spike(
-      (y/(num_spikes_y-1) - 0.5)*(plate_width-spike_radius*2),
-      (z/(num_spikes_z-1))*(plate_length-spike_radius*2) + spike_radius
+  def spike(y, z, x_offset):
+    return Part.makeCone (spike_radius, 0, spike_height, vector(plate_left_x + plate_min_thickness/2 + x_offset, y, z), vector(math.cos(math.tau/2 + cone_radius_angle), 0, math.sin(math.tau/2 + cone_radius_angle)))
+  
+  def spike_from_indices(y, z):
+    y_frac = (y/(num_spikes_y-1) - 0.5)
+    z_frac = (z/(num_spikes_z-1))
+  
+    return spike(
+      y_frac*(plate_width-spike_radius*2),
+      z_frac*(plate_length-spike_radius*2) + spike_radius,
+      (0.5 - abs(y_frac))*2*spike_height*x_offset_frac
     )
+  spikes = [
+    spike_from_indices(y, z)
   for y in range(num_spikes_y) for z in range (num_spikes_z)]
   
   clips_box = box (
@@ -1666,7 +1672,7 @@ def adjustable_elastic_connector():
 
 #make_snapper()
 #make_clamp_enhancer(5, 5)
-#make_clamp_enhancer(10, 10)
+#make_clamp_enhancer(10, 10, x_offset_frac = 0.5)
 #make_manual_snapper()
 #nose_thing()
 #face2_thing()
