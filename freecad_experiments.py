@@ -1634,6 +1634,33 @@ def comb_scraper():
   show(united_fork, "united fork")
 
 
+def adjustable_elastic_connector():
+  # Future note: These were excessively tight;
+  # If/when I print more, they should probably be a few mm wider in the elastic_width direction,
+  # and gap_width increased by a few tenths of mm
+  gap_width = 1.8
+  bar_radius = 1.5
+  sidebar_thickness = 3
+  elastic_width = 10
+  
+  bar = Part.makeCylinder (
+    bar_radius, elastic_width + sidebar_thickness*2,
+    vector (),
+    vector (0, 1, 0),
+  )
+  
+  bars = [bar.translated(vector (i*(bar_radius*2 + gap_width), 0, 0)) for i in range(6)]
+  sidebar = box(5*(bar_radius*2 + gap_width), sidebar_thickness, centered(sidebar_thickness))
+  result = sidebar.fuse([
+    sidebar.translated(vector (0, elastic_width + sidebar_thickness, 0)),
+  ] + bars).cut(box (
+    centered (100), centered (100), bounds (-100, - bar_radius/math.sqrt (2))
+  ))
+  
+  show(result, "adjustable_elastic_connector")
+  
+
+
 #make_snapper()
 #make_clamp_enhancer(5, 5)
 #make_clamp_enhancer(10, 10)
@@ -1644,7 +1671,8 @@ def comb_scraper():
 #hydra_shade()
 #comb_scraper()
 
-faces.run(globals())
+#faces.run(globals())
+adjustable_elastic_connector()
 
 
 '''
