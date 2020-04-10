@@ -8,6 +8,9 @@ class Foo(object):
 a = Foo()
 
 
+print("adapt_anything.py is deprecated; use the FreeCAD versions in air_adpaters.py")
+
+
 class Circle:
   def __init__(self, inner_radius = None, outer_radius = None):
     assert ((inner_radius is None) != (outer_radius is None))

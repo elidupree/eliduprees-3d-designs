@@ -30,6 +30,9 @@ from shape_builder import *
 import faces
 importlib.reload(faces)
 
+import air_adapters
+importlib.reload(air_adapters)
+
 
 
 for document_name in list(FreeCAD.listDocuments().keys()):
@@ -1672,7 +1675,8 @@ def adjustable_elastic_connector():
 #comb_scraper()
 
 #faces.run(globals())
-adjustable_elastic_connector()
+air_adapters.run(globals())
+#adjustable_elastic_connector()
 
 
 '''
