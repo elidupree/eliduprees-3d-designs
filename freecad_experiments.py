@@ -1672,7 +1672,7 @@ def adjustable_elastic_connector():
 
 #make_snapper()
 #make_clamp_enhancer(5, 5)
-#make_clamp_enhancer(10, 10, x_offset_frac = 0.5)
+#make_clamp_enhancer(7, 7, x_offset_frac = 0.35)
 #make_manual_snapper()
 #nose_thing()
 #face2_thing()
@@ -1680,8 +1680,8 @@ def adjustable_elastic_connector():
 #hydra_shade()
 #comb_scraper()
 
-#faces.run(globals())
-air_adapters.run(globals())
+faces.run(globals())
+#air_adapters.run(globals())
 #adjustable_elastic_connector()
 
 

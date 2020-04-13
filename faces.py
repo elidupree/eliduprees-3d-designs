@@ -781,15 +781,19 @@ def face5_thing():
   filter_slot_inner_thickness = filter_assumed_thickness+filter_slider_thickness*2
   filter_slot_outer_thickness = filter_slot_inner_thickness + filter_slot_theoretical_wall_thickness*2
   filter_slot_grip_size = 1.5
+  filter_slot_outer_width = 36
+  filter_slot_outer_height = 26
+  filter_slot_upper_diagonal_width = 18
+  filter_slot_upper_diagonal_height = 26-14
   
   def filter_slot_boundary (vertical_extension = 0):
     return FreeCAD_shape_builder().build ([
       start_at (0, 0),
       horizontal_to (23),
-      diagonal_to (36, 9),
-      vertical_to (26 + vertical_extension),
-      horizontal_to (18),
-      diagonal_to (0, 14 + vertical_extension),
+      diagonal_to (filter_slot_outer_width, 9),
+      vertical_to (filter_slot_outer_height + vertical_extension),
+      horizontal_to (filter_slot_upper_diagonal_width),
+      diagonal_to (0, filter_slot_outer_height - filter_slot_upper_diagonal_height + vertical_extension),
       close(),
     ]).to_wire()
 
@@ -811,9 +815,10 @@ def face5_thing():
   # this tolerance is affected by the print quality!
   # we set it to 0.9 based on a .28mm-layer-height print,
   # but 0
-  filter_slider_tolerance_each_side = 0.6
-  filter_slider_boundary = filter_slot_outer_boundary.makeOffset2D (- (filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side))
-  filter_slider_interior_offset = filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side + filter_slot_grip_size
+  filter_slider_tolerance_each_side = 0.5
+  filter_slider_boundary_offset = filter_slot_theoretical_wall_thickness+filter_slider_tolerance_each_side
+  filter_slider_boundary = filter_slot_outer_boundary.makeOffset2D (- (filter_slider_boundary_offset))
+  filter_slider_interior_offset = filter_slider_boundary_offset + filter_slot_grip_size
   filter_slider_boundary_inner = filter_slot_outer_boundary.makeOffset2D (- (filter_slider_interior_offset))
   
   filter_slider_outer_shape = filter_slider_boundary.to_face().fancy_extrude (vector (0, 0, 1), filter_slider_thickness)
@@ -830,10 +835,18 @@ def face5_thing():
   
   
   filter_slider = filter_slider.fuse(
-    filter_slider_bars(filter_slider_interior_offset, 36-filter_slider_interior_offset, 3, 0) +
-    filter_slider_bars(filter_slider_interior_offset, 26-filter_slider_interior_offset, 2, 1)
+    filter_slider_bars(filter_slider_interior_offset, filter_slot_outer_width-filter_slider_interior_offset, 3, 0) +
+    filter_slider_bars(filter_slider_interior_offset, filter_slot_outer_height-filter_slider_interior_offset, 2, 1)
   ).common(filter_slider_outer_shape)
-    
+  
+  filter_slider_upper_diagonal_angle = math.atan2(filter_slot_upper_diagonal_height, filter_slot_upper_diagonal_width)
+  filter_slider = filter_slider.translated(vector(0, -filter_slot_outer_height + filter_slot_upper_diagonal_height)).rotated(vector(), vector(0,0,1), -filter_slider_upper_diagonal_angle*360/math.tau - 90).translated(vector(-filter_assumed_thickness/2 + filter_slider_boundary_offset, 0, 0))
+  
+  filter_slider_upper_diagonal_length = math.sqrt(filter_slot_upper_diagonal_height**2 + filter_slot_upper_diagonal_width**2)
+  filter_slider = filter_slider.fuse([
+    filter_slider.mirror(vector(), vector (1, 0, 0)),
+    box(centered(filter_assumed_thickness), bounds(-21.3305, -0.535184), filter_slider_thickness)
+  ])
   
   
   def position_filter_slot(shape):
