@@ -33,6 +33,9 @@ importlib.reload(faces)
 import air_adapters
 importlib.reload(air_adapters)
 
+import portable_air_purifier
+importlib.reload(portable_air_purifier)
+
 
 
 for document_name in list(FreeCAD.listDocuments().keys()):
@@ -1680,9 +1683,10 @@ def adjustable_elastic_connector():
 #hydra_shade()
 #comb_scraper()
 
-faces.run(globals())
+#faces.run(globals())
 #air_adapters.run(globals())
 #adjustable_elastic_connector()
+portable_air_purifier.run(globals())
 
 
 '''
