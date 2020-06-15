@@ -501,6 +501,31 @@ def face5_thing():
   num_pure_CPAP_rows = 6
   tube_surface_bottom = mask_cheeks_bottom + mask_thickness
   
+  pupil_location = vector (-36, -5, -25)
+  tube_middle_top = -39.5
+  
+  
+  vision_shadow_top = [face_vector (coordinates) for coordinates in (
+    approx_density (vector (-68, 10), vector (-68, mask_cheeks_top), 0.2)
+    + approx_density (vector (-68, mask_cheeks_top), vector (-21.5, tube_middle_top), 0.2)
+    + approx_density (vector(-21.5, tube_middle_top), vector(0, tube_middle_top), 0.5) + [vector(0, tube_middle_top)]
+  )]
+  vision_shadow_rows = [[top, (top - pupil_location).normalized()*200] for top in vision_shadow_top]
+  vision_shadow_surface = Part.BSplineSurface()
+  vision_shadow_surface.buildFromPolesMultsKnots(vision_shadow_rows,
+      [1]*(len(vision_shadow_rows) + tube_horizontal_degree + 1),
+      [1]*(len (vision_shadow_rows[0]) + 1 + 1),
+      udegree = tube_horizontal_degree,
+      vdegree = 1,
+      )
+  vision_shadow_face = vision_shadow_surface.toShape()
+  vision_solid = vision_shadow_face.extrude (vector (0, 0, 500))
+  vision_solid_mirror = vision_solid.mirror (vector(), vector (1, 0, 0))
+  vision_shadow_face = vision_shadow_face.cut(vision_solid_mirror)
+  vision_shadow_face = vision_shadow_face.fuse (vision_shadow_face.mirror (vector(), vector (1, 0, 0))).common(box(centered(500), bounds(-110, 100), centered(500)))
+  show_invisible(vision_shadow_face, "vision_shadow_face")
+  #return
+  
   
   def tube_bottom (top):
     p = pupil_location.copy()
@@ -554,8 +579,7 @@ def face5_thing():
       result[2] += 0.1
     FreeCAD.Console.PrintError (f"Something weird happened in picking tube coordinates for {coordinates}\n")
   
-  pupil_location = vector (-36, -5, -25)
-  tube_middle_top = -39.5
+  
   tube_top_last_part = [refined_tube_top(vector(x, tube_middle_top)) for x in approx_density (-21.5, 0, 0.5) + [0]]
   tube_top = (
     [refined_tube_top(input) for input in approx_density (vector (-68, mask_cheeks_top), vector (-21.5, tube_middle_top), 0.2)]
