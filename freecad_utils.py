@@ -10,8 +10,12 @@ import FreeCADGui as Gui
 
 from forbiddenfruit import curse
 
+def print(x):
+  FreeCAD.Console.PrintMessage (str(x)+"\n")
+
 def document():
   return FreeCAD.activeDocument()
+
 def vector(*arguments, angle = None, length = 1):
   if angle is not None:
     return FreeCAD.Vector (length*math.cos(angle), length*math.sin (angle))

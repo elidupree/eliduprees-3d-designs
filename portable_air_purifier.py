@@ -1,21 +1,41 @@
-CPAP_outer_radius = 21.5/2
+CPAP_target_outer_radius = 21.5/2
 
 
-def make_portable_air_purifier (wall_thickness):
+def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
+  '''
+  TODO:
+  make the seal edges slant at the edge so they don't catch on the foam as you push the filter in
+  make sure the open edge has a reinforcing wall
+  possibly make the open edge be one of the short edges
+  surround the fan properly (including, probably, a snap-in wall to close it after it's inserted)
+  make pre-filter slot
+  make battery slot, guides for cord, probably a catch to hold the battery in
   
-  # maybe 0.2 is the correct value, but err on the side of loose for a while because it's easier to test it if it's too loose than if it's too tight
-  tight_leeway = 0.4
+  known unresolved issues:
+  pre-filter slot should accommodate multiple thicknesses of prefilter; how?
+  prefilter slot must have a way to insert prefilter
+  
+  '''
+  
+  wall_expansion = (wall_observed_thickness - wall_design_thickness)/2
+  
+  # extra leeway in addition to the wall expansion, for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit
+  tight_leeway = 0.15
   
   strong_filter_length = 151.9 + tight_leeway*2
   strong_filter_width = 101 + tight_leeway*2
-  strong_filter_depth_without_seal = 14 + tight_leeway*2
+  strong_filter_depth_without_seal = 14
   strong_filter_seal_depth_expanded = 2
-  strong_filter_seal_squished_distance = 0.5
-  strong_filter_seal_depth_squished = strong_filter_seal_depth_expanded - strong_filter_seal_squished_distance
+  strong_filter_seal_squish_distance = 0.5
+  strong_filter_seal_depth_squished = strong_filter_seal_depth_expanded - strong_filter_seal_squish_distance
   
-  strong_filter_rim_inset = 5
+  strong_filter_rim_inset = 6
   airspace = 5
-  zigzag_depth = wall_thickness*1.2
+  zigzag_depth = wall_observed_thickness*1.2
+  zigzag_length_limit = 10
+  min_zigzag_wall_thickness = zigzag_depth + wall_observed_thickness/math.cos(math.atan(zigzag_depth/zigzag_length_limit))
+  max_zigzag_wall_thickness = zigzag_depth + wall_observed_thickness/math.cos(math.atan(zigzag_depth/(zigzag_length_limit/2)))
+  print (f"max_zigzag_wall_thickness = {max_zigzag_wall_thickness}; difference from naive guess = {max_zigzag_wall_thickness - (zigzag_depth + wall_observed_thickness)}; difference from min = {max_zigzag_wall_thickness - min_zigzag_wall_thickness}")
   
   fan_thickness = 28 + tight_leeway*2
   fan_width = 79.7 + tight_leeway*2
@@ -23,56 +43,104 @@ def make_portable_air_purifier (wall_thickness):
   fan_exit_width = 26 + tight_leeway*2
   fan_exit_length = 8
   
-  fan_body_left_x = 90
+  
+  strong_filter_holder_plate_design_height = strong_filter_seal_squish_distance + tight_leeway + wall_design_thickness
   
   
   strong_filter_bottom_z = 0
   strong_filter_seal_bottom_z = strong_filter_bottom_z + strong_filter_depth_without_seal
   strong_filter_seal_top_z = strong_filter_seal_bottom_z + strong_filter_seal_depth_squished
-  strong_filter_holder_top_z = strong_filter_seal_top_z + wall_thickness
+  strong_filter_holder_top_z = strong_filter_seal_top_z + wall_observed_thickness
   fan_holder_bottom_z = strong_filter_seal_bottom_z + airspace
-  fan_bottom_z = fan_holder_bottom_z + wall_thickness + zigzag_depth
+  fan_bottom_z = fan_holder_bottom_z + max_zigzag_wall_thickness
   fan_top_z = fan_bottom_z + fan_thickness
   fan_center_z = (fan_bottom_z+fan_top_z)/2
 
   
   strong_filter_front_y = 0
   strong_filter_back_y = strong_filter_front_y + strong_filter_width
-  fan_front_y = strong_filter_front_y
-  fan_back_y = fan_front_y + fan_width
-  fan_exit_front_y = fan_back_y - fan_exit_width
+  fan_back_y = strong_filter_back_y + wall_observed_thickness - max_zigzag_wall_thickness
+  fan_front_y = fan_back_y - fan_length
+  fan_body_front_y = fan_front_y + fan_exit_length
   
   strong_filter_left_x = 0
   strong_filter_right_x = strong_filter_left_x + strong_filter_length
   strong_filter_center_x = (strong_filter_left_x + strong_filter_right_x)/2
-  fan_exit_left_x = fan_body_left_x - fan_exit_length
+  fan_right_x = strong_filter_right_x - strong_filter_rim_inset/2 - max_zigzag_wall_thickness/2
+  fan_left_x = fan_right_x - fan_width
+  fan_exit_right_x = fan_left_x + fan_exit_width
   
-  CPAP_inner_radius = CPAP_outer_radius-wall_thickness
+  CPAP_design_inner_radius = CPAP_target_outer_radius - wall_expansion - wall_design_thickness
   
   
-  strong_filter_box = box (
-    bounds (strong_filter_left_x, strong_filter_right_x),
-    bounds (strong_filter_front_y - wall_thickness, strong_filter_back_y),
-    bounds (strong_filter_bottom_z, strong_filter_seal_top_z),
+  foo = wall_expansion + wall_design_thickness
+  
+  strong_filter_holder_plate = box (
+    bounds (strong_filter_left_x - foo, strong_filter_right_x + foo),
+    bounds (strong_filter_front_y - foo, strong_filter_back_y + foo),
+    bounds (0, strong_filter_holder_plate_design_height),
   )
-  strong_filter_holder_box = box (
-    bounds (strong_filter_left_x - wall_thickness, strong_filter_right_x + wall_thickness),
-    bounds (strong_filter_front_y - wall_thickness, strong_filter_back_y + wall_thickness),
-    bounds (strong_filter_bottom_z - wall_thickness, strong_filter_seal_top_z + wall_thickness),
-  )
-  strong_filter_airspace = box (
-    bounds (strong_filter_left_x + strong_filter_rim_inset, strong_filter_right_x - strong_filter_rim_inset),
-    bounds (strong_filter_front_y + strong_filter_rim_inset, strong_filter_back_y - strong_filter_rim_inset),
-    bounds (strong_filter_bottom_z - airspace, strong_filter_seal_bottom_z + airspace),
-  )
+  
+  strong_filter_holder_plate_cut_profile = FreeCAD_shape_builder().build([
+    start_at(strong_filter_right_x - strong_filter_rim_inset/2, 0),
+    diagonal_to(strong_filter_right_x - strong_filter_rim_inset + wall_expansion, strong_filter_seal_squish_distance + tight_leeway),
+    vertical_to(500),
+    horizontal_to(strong_filter_left_x + strong_filter_rim_inset - wall_expansion),
+    vertical_to(strong_filter_seal_squish_distance + tight_leeway),
+    diagonal_to(strong_filter_left_x + strong_filter_rim_inset/2, 0),
+    vertical_to(-500),
+    close(),
+  ]).as_xz().to_wire().to_face()
+  strong_filter_holder_plate_cut_profile_2 = FreeCAD_shape_builder().build([
+    start_at(strong_filter_left_x + strong_filter_rim_inset/2, 0),
+    diagonal_to(strong_filter_left_x - foo, strong_filter_seal_squish_distance + tight_leeway),
+    vertical_to(-500),
+    close(),
+  ]).as_xz().to_wire().to_face()
+  
+  strong_filter_holder_plate = strong_filter_holder_plate.cut([
+    strong_filter_holder_plate_cut_profile.fancy_extrude(
+      vector (0, 1, 0),
+      bounds (strong_filter_front_y + strong_filter_rim_inset - wall_expansion,
+              strong_filter_back_y - strong_filter_rim_inset + wall_expansion)
+    ),
+    strong_filter_holder_plate_cut_profile_2.fancy_extrude(
+      vector (0, 1, 0),
+      centered(500),
+    ),
+  ])
+  
+  strong_filter_holder_plate = strong_filter_holder_plate.mirror(vector(strong_filter_center_x, 0, 0), vector(1,0,0))
+
+  strong_filter_holder_plates = [
+    strong_filter_holder_plate.translated(vector (0, 0, strong_filter_seal_top_z + wall_expansion)),
+    strong_filter_holder_plate.mirror (vector(), vector (0, 0, 1)). translated (vector (0, 0, strong_filter_bottom_z - wall_expansion)),
+  ]
+
   strong_filter_push_hole = box (
-    centered (25, on=strong_filter_center_x),
-    centered(500),
-    bounds (strong_filter_bottom_z, strong_filter_seal_top_z),
+    centered (500),
+    25,
+    bounds (strong_filter_bottom_z - wall_expansion, strong_filter_seal_top_z + wall_expansion),
   )
+
+  foo = wall_expansion + wall_design_thickness
+  strong_filter_sides = box (
+    bounds (strong_filter_left_x - foo, strong_filter_right_x + foo),
+    bounds (strong_filter_front_y - foo, strong_filter_back_y + foo),
+    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_holder_plate_design_height, strong_filter_seal_top_z + wall_expansion + strong_filter_holder_plate_design_height),
+  ).cut([
+  box (
+    bounds (strong_filter_left_x - wall_expansion, strong_filter_right_x + 500),
+    bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
+    centered(500),
+  ),
+  strong_filter_push_hole.translated(vector(0, strong_filter_front_y - wall_expansion, 0)),
+  strong_filter_push_hole.mirror (vector(), vector (0, 1, 0)).translated(vector(0, strong_filter_back_y + wall_expansion, 0)),
+  ])
   
-  fan_to_filter_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = 6, zigzag_depth = zigzag_depth).build ([
-    start_at (strong_filter_left_x, strong_filter_seal_top_z + wall_thickness),
+  '''
+  fan_to_filter_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
+    start_at (strong_filter_left_x, strong_filter_seal_top_z),
     horizontal_to (strong_filter_right_x),
     vertical_to (fan_holder_bottom_z),
     horizontal_to (fan_body_left_x - wall_thickness - zigzag_depth-0.01),
@@ -88,7 +156,7 @@ def make_portable_air_purifier (wall_thickness):
     close(),
   ]).as_xz().to_wire()
   
-  exit_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = 6, zigzag_depth = zigzag_depth).build ([
+  exit_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
     start_at (strong_filter_left_x + strong_filter_rim_inset, strong_filter_bottom_z),
     vertical_to (strong_filter_bottom_z - airspace),
     horizontal_to (strong_filter_right_x - strong_filter_rim_inset),
@@ -168,14 +236,16 @@ def make_portable_air_purifier (wall_thickness):
     strong_filter_box,
     strong_filter_airspace,
     strong_filter_push_hole,
-  ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)
+  ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)'''
+  
+  foo = strong_filter_sides.fuse(strong_filter_holder_plates)
   
   show (foo, "foo")
 
 def run(g):
   for key, value in g.items():
     globals()[key] = value
-  make_portable_air_purifier(wall_thickness = 0.5)
+  make_portable_air_purifier(wall_design_thickness = 0.5, wall_observed_thickness = 1.0)
   
   
   
