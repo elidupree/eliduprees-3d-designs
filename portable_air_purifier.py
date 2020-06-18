@@ -138,6 +138,66 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   strong_filter_push_hole.mirror (vector(), vector (0, 1, 0)).translated(vector(0, strong_filter_back_y + wall_expansion, 0)),
   ])
   
+  foo = strong_filter_rim_inset/2 + max_zigzag_wall_thickness/2 - wall_expansion
+  bar = max_zigzag_wall_thickness - wall_observed_thickness - wall_expansion
+  strong_filter_airspace_top_profile_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
+    start_at(strong_filter_left_x + foo, strong_filter_front_y + bar),
+    horizontal_to (strong_filter_right_x - foo),
+    vertical_to (strong_filter_back_y - bar),
+    horizontal_to (strong_filter_left_x + foo),
+    close()
+  ]).to_wire()
+  
+  foo = 0
+  bar = -max_zigzag_wall_thickness
+  fan_airspace_extra_top_profile_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
+    start_at(fan_left_x - wall_expansion, strong_filter_front_y + bar),
+    horizontal_to (strong_filter_right_x - foo),
+    vertical_to (strong_filter_back_y - bar),
+    horizontal_to (fan_left_x - wall_expansion),
+    close()
+  ]).to_wire()
+  
+  strong_filter_airspace_top_shape = strong_filter_airspace_top_profile_wire.to_face().fancy_extrude (vector (0, 0, 1), centered (500))
+  strong_filter_airspace_with_wall_top_shape = strong_filter_airspace_top_profile_wire.makeOffset2D(wall_design_thickness, join=2).to_face().fancy_extrude (vector (0, 0, 1), centered (500))
+  
+  fan_airspace_extra_top_shape = fan_airspace_extra_top_profile_wire.to_face().fancy_extrude (vector (0, 0, 1), centered (500))
+  fan_airspace_extra_with_wall_top_shape = fan_airspace_extra_top_profile_wire.makeOffset2D(wall_design_thickness, join=2).to_face().fancy_extrude (vector (0, 0, 1), centered (500))
+  
+  foo = 0
+  bar = airspace + wall_expansion
+  strong_filter_airspace_front_profile_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
+    start_at(strong_filter_left_x + foo, strong_filter_bottom_z - bar),
+    horizontal_to (strong_filter_right_x - foo),
+    vertical_to (strong_filter_seal_bottom_z + bar),
+    horizontal_to (strong_filter_left_x + foo),
+    close()
+  ]).as_xz().to_wire()
+  
+  strong_filter_airspace_front_shape = strong_filter_airspace_front_profile_wire.to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+  strong_filter_airspace_with_wall_front_shape = strong_filter_airspace_front_profile_wire.makeOffset2D(wall_design_thickness, join=2).to_face().fancy_extrude (vector (0, 1, 0), centered (500))
+  
+  filter_exclusion_box =box (
+      centered (500),
+      centered (500),
+      bounds (strong_filter_bottom_z - strong_filter_holder_plate_design_height, strong_filter_seal_top_z + strong_filter_holder_plate_design_height),
+    )
+  strong_filter_airspace = strong_filter_airspace_top_shape.common (strong_filter_airspace_front_shape)
+  strong_filter_airspace_with_wall = strong_filter_airspace_with_wall_top_shape.common (strong_filter_airspace_with_wall_front_shape)
+  strong_filter_airspace_wall = strong_filter_airspace_with_wall.cut ([
+    strong_filter_airspace, filter_exclusion_box
+  ])
+  
+  fan_airspace_top_shape = strong_filter_airspace_top_shape.common (fan_airspace_extra_top_shape)
+  fan_airspace_with_wall_top_shape = strong_filter_airspace_with_wall_top_shape.common (fan_airspace_extra_with_wall_top_shape)
+  fan_airspace_wall = fan_airspace_with_wall_top_shape.cut ([
+    fan_airspace_top_shape, strong_filter_airspace_front_shape
+  ]).common (box (
+    centered (500),
+    centered (500),
+    bounds (strong_filter_seal_top_z, fan_top_z),
+  ))
+  
   '''
   fan_to_filter_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
     start_at (strong_filter_left_x, strong_filter_seal_top_z),
@@ -238,7 +298,29 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     strong_filter_push_hole,
   ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)'''
   
-  foo = strong_filter_sides.fuse(strong_filter_holder_plates)
+  
+  fan_exit_airspace = box (
+    bounds (-500, fan_exit_right_x + wall_expansion),
+    bounds (-500, fan_front_y - wall_expansion),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion),
+    
+  ).fuse (box (
+    bounds (fan_left_x - wall_expansion, fan_exit_right_x + wall_expansion),
+    bounds (-500, fan_body_front_y - wall_expansion),
+    bounds (fan_bottom_z - wall_expansion, fan_top_z + wall_expansion),
+  )).common (fan_airspace_top_shape)
+  
+  fan_exit_airspace_with_wall = box (
+    bounds (-500, fan_exit_right_x + wall_expansion + wall_design_thickness),
+    bounds (-500, fan_body_front_y - wall_expansion),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion + wall_design_thickness),
+  ).common (fan_airspace_top_shape)
+  
+  foo = strong_filter_sides.fuse(strong_filter_holder_plates + [
+    strong_filter_airspace_wall,
+    fan_exit_airspace_with_wall,
+    fan_airspace_wall
+  ]).cut (fan_exit_airspace)
   
   show (foo, "foo")
 
