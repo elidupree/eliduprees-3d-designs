@@ -198,59 +198,58 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     bounds (strong_filter_seal_top_z, fan_top_z),
   ))
   
-  '''
-  fan_to_filter_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
-    start_at (strong_filter_left_x, strong_filter_seal_top_z),
-    horizontal_to (strong_filter_right_x),
-    vertical_to (fan_holder_bottom_z),
-    horizontal_to (fan_body_left_x - wall_thickness - zigzag_depth-0.01),
-    vertical_to (fan_top_z),
-    horizontal_to (fan_exit_left_x),
-    bezier([
-      (fan_exit_left_x - 20, fan_top_z),
-      (fan_exit_left_x - 20, fan_center_z),
-      (fan_exit_left_x - 20, fan_bottom_z),
-      (fan_exit_left_x - 40, fan_bottom_z),
-    ]),
-    horizontal_to (strong_filter_left_x),
-    close(),
-  ]).as_xz().to_wire()
+  fan_exit_airspace = box (
+    bounds (-500, 500),
+    bounds (-500, fan_front_y + wall_expansion),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion),
+    
+  ).fuse (box (
+    bounds (fan_left_x - wall_expansion, fan_exit_right_x + wall_expansion),
+    bounds (-500, fan_body_front_y - wall_expansion),
+    bounds (fan_bottom_z - wall_expansion, fan_top_z + wall_expansion),
+  )).cut(filter_exclusion_box).fuse (box (
+    bounds(-500, strong_filter_right_x - strong_filter_rim_inset + wall_expansion),
+    bounds (strong_filter_front_y + strong_filter_rim_inset - wall_expansion, fan_front_y - wall_expansion),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion),
+  )).common (fan_airspace_top_shape)
   
-  exit_profile_inner_wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build ([
-    start_at (strong_filter_left_x + strong_filter_rim_inset, strong_filter_bottom_z),
-    vertical_to (strong_filter_bottom_z - airspace),
-    horizontal_to (strong_filter_right_x - strong_filter_rim_inset),
-    vertical_to (strong_filter_bottom_z),
-    close(),
-  ]).as_xz().to_wire()
+  fan_exit_airspace_with_wall = box (
+    bounds (-500, fan_exit_right_x + wall_expansion + wall_design_thickness),
+    bounds (-500, fan_body_front_y - wall_expansion),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion + wall_design_thickness),
+  ).fuse(
+    box (
+      bounds (-500, 500),
+      bounds (-500, fan_front_y + wall_expansion + wall_design_thickness),
+      bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion + wall_design_thickness),
+    )
+  ).common (fan_airspace_top_shape).cut(strong_filter_airspace_with_wall_front_shape)
   
-  fan_to_filter_profile_outer_wire = fan_to_filter_profile_inner_wire.makeOffset2D(wall_thickness, join=2)
-  exit_profile_outer_wire = exit_profile_inner_wire.makeOffset2D(wall_thickness, join=2)
   
-  fan_to_filter_solid = fan_to_filter_profile_outer_wire.to_face().fancy_extrude (vector (0, 1, 0), bounds (strong_filter_front_y - wall_thickness, strong_filter_back_y + wall_thickness))
-  fan_to_filter_airspace = fan_to_filter_profile_inner_wire.to_face().fancy_extrude (vector (0, 1, 0), bounds (strong_filter_front_y, strong_filter_back_y))
   
-  exit_solid = exit_profile_outer_wire.to_face().fancy_extrude (vector (0, 1, 0), bounds (strong_filter_front_y + strong_filter_rim_inset - wall_thickness, strong_filter_back_y - strong_filter_rim_inset + wall_thickness))
-  exit_airspace = exit_profile_inner_wire.to_face().fancy_extrude (vector (0, 1, 0), bounds (strong_filter_front_y + strong_filter_rim_inset, strong_filter_back_y - strong_filter_rim_inset))
   
   CPAP_build_list = [
-    start_at(CPAP_inner_radius, 0),
+    start_at(CPAP_design_inner_radius, 0),
     vertical_to(20),
     bezier([
-      (CPAP_inner_radius, 35),
+      (CPAP_design_inner_radius, 35),
       (25, 50),
       (25, 100),
     ]),
   ]
   CPAP_inner_wire = FreeCAD_shape_builder().build (CPAP_build_list).as_xz().to_wire()
-  CPAP_foo = 30
   
   rotate_to_diagonal_angle = math.atan(math.sqrt(2))*360/math.tau
-  bottom_corner = vector(strong_filter_right_x + wall_thickness, strong_filter_back_y + wall_thickness, strong_filter_bottom_z - wall_thickness)
+  foo = wall_expansion + wall_design_thickness
+  bottom_corner = vector(
+    strong_filter_right_x + foo,
+    strong_filter_back_y + foo,
+    strong_filter_bottom_z - strong_filter_holder_plate_design_height - foo
+  )
   def rotated_to_diagonal (foo):
     return foo.rotated(vector(), vector(1, -1, 0), rotate_to_diagonal_angle)
   def CPAP_transformed (foo):
-    return rotated_to_diagonal (foo.translated(vector(-CPAP_foo, -CPAP_foo, 0))).translated(bottom_corner).cut(box(centered(500), centered(500), bounds(strong_filter_bottom_z, 500)))
+    return rotated_to_diagonal (foo.translated(vector(-43, -27, 0))).translated(bottom_corner).cut([strong_filter_airspace, box(centered(500), centered(500), bounds(strong_filter_bottom_z, 500))])
   
   CPAP_airspace = FreeCAD_shape_builder().build (CPAP_build_list+[
     horizontal_to (0),
@@ -259,68 +258,30 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]).as_xz().to_wire().to_face().revolve (vector(), vector (0, 0, 1), 360)
   CPAP_airspace = CPAP_transformed (CPAP_airspace)
   
-  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut(box(centered(500), centered(500), bounds(-500, 0)))
+  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_design_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut(box(centered(500), centered(500), bounds(-500, 0)))
   CPAP_solid = CPAP_transformed (CPAP_solid)
   
   artifical_support = rotated_to_diagonal (box (
     bounds (-8, 3),
     bounds (-8, 3),
     bounds (0, 20),
-  )).translated (bottom_corner)
-  
-  
-  fan_exit_box = box (
-    bounds (fan_exit_left_x, fan_body_left_x),
-    bounds (fan_exit_front_y, fan_back_y),
-    bounds (fan_bottom_z, fan_top_z),
-  )
-  fan_exit_holder = box (
-    bounds (fan_exit_left_x, fan_body_left_x),
-    bounds (fan_exit_front_y - wall_thickness, fan_back_y + wall_thickness),
-    bounds (fan_bottom_z - wall_thickness, fan_top_z + wall_thickness),
-  )
-  
-  foo = fan_to_filter_solid.fuse([
-    exit_solid,
-    CPAP_solid,
-    artifical_support
-  ]).cut([
-    fan_to_filter_airspace,
-    exit_airspace,
-    CPAP_airspace,
-  ]).fuse([
-    fan_exit_holder.common(fan_to_filter_solid),
-    strong_filter_holder_box,
-  ]).cut([
-    fan_exit_box,
-    strong_filter_box,
-    strong_filter_airspace,
-    strong_filter_push_hole,
-  ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)'''
-  
-  
-  fan_exit_airspace = box (
-    bounds (-500, fan_exit_right_x + wall_expansion),
-    bounds (-500, fan_front_y - wall_expansion),
-    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion),
-    
-  ).fuse (box (
-    bounds (fan_left_x - wall_expansion, fan_exit_right_x + wall_expansion),
-    bounds (-500, fan_body_front_y - wall_expansion),
-    bounds (fan_bottom_z - wall_expansion, fan_top_z + wall_expansion),
-  )).common (fan_airspace_top_shape)
-  
-  fan_exit_airspace_with_wall = box (
-    bounds (-500, fan_exit_right_x + wall_expansion + wall_design_thickness),
-    bounds (-500, fan_body_front_y - wall_expansion),
-    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion + wall_design_thickness),
-  ).common (fan_airspace_top_shape)
+  )).translated (bottom_corner).cut([strong_filter_airspace, box(
+    centered(500),
+    bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
+    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, 500)
+  )])
+
   
   foo = strong_filter_sides.fuse(strong_filter_holder_plates + [
     strong_filter_airspace_wall,
     fan_exit_airspace_with_wall,
-    fan_airspace_wall
-  ]).cut (fan_exit_airspace)
+    fan_airspace_wall,
+    CPAP_solid,
+    artifical_support,
+  ]).cut ([
+    fan_exit_airspace,
+    CPAP_airspace,
+  ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)
   
   show (foo, "foo")
 
