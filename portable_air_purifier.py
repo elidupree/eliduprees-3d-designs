@@ -29,6 +29,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   strong_filter_seal_squish_distance = 0.5
   strong_filter_seal_depth_squished = strong_filter_seal_depth_expanded - strong_filter_seal_squish_distance
   
+  battery_thickness = 27.8 + tight_leeway*2
+  battery_width = 85.5 + tight_leeway*2
+  battery_length = 144.2 + tight_leeway*2
+  
   strong_filter_rim_inset = 6
   airspace = 5
   zigzag_depth = wall_observed_thickness*1.2
@@ -55,6 +59,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_bottom_z = fan_holder_bottom_z + max_zigzag_wall_thickness
   fan_top_z = fan_bottom_z + fan_thickness
   fan_center_z = (fan_bottom_z+fan_top_z)/2
+  fan_airspace_top_z = fan_top_z + airspace
+  battery_bottom_z = fan_airspace_top_z + max_zigzag_wall_thickness
+  battery_top_z = battery_bottom_z + battery_thickness
+  
 
   
   strong_filter_front_y = 0
@@ -62,6 +70,9 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_back_y = strong_filter_back_y + wall_observed_thickness - max_zigzag_wall_thickness
   fan_front_y = fan_back_y - fan_length
   fan_body_front_y = fan_front_y + fan_exit_length
+  battery_front_y = strong_filter_front_y - wall_observed_thickness + max_zigzag_wall_thickness
+  battery_back_y = battery_front_y + battery_width
+  
   
   strong_filter_left_x = 0
   strong_filter_right_x = strong_filter_left_x + strong_filter_length
@@ -69,6 +80,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_right_x = strong_filter_right_x - strong_filter_rim_inset/2 - max_zigzag_wall_thickness/2
   fan_left_x = fan_right_x - fan_width
   fan_exit_right_x = fan_left_x + fan_exit_width
+  battery_right_x = fan_right_x
+  battery_left_x = battery_right_x - battery_length
   
   CPAP_design_inner_radius = CPAP_target_outer_radius - wall_expansion - wall_design_thickness
   
@@ -195,7 +208,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]).common (box (
     centered (500),
     centered (500),
-    bounds (strong_filter_seal_top_z, fan_top_z),
+    bounds (strong_filter_seal_top_z, fan_top_z + wall_expansion + wall_design_thickness),
   ))
   
   fan_exit_airspace = box (
@@ -248,6 +261,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
   def rotated_to_diagonal (foo):
     return foo.rotated(vector(), vector(1, -1, 0), rotate_to_diagonal_angle)
+  def rotated_from_diagonal (foo):
+    return foo.rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)
   def CPAP_transformed (foo):
     return rotated_to_diagonal (foo.translated(vector(-43, -27, 0))).translated(bottom_corner).cut([strong_filter_airspace, box(centered(500), centered(500), bounds(strong_filter_bottom_z, 500))])
   
@@ -281,9 +296,19 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]).cut ([
     fan_exit_airspace,
     CPAP_airspace,
-  ]).rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)
+  ])
+  
+  foo = rotated_from_diagonal (foo)
   
   show (foo, "foo")
+  
+  battery_box = rotated_from_diagonal (box(
+    bounds (battery_left_x, battery_right_x),
+    bounds (battery_front_y, battery_back_y),
+    bounds (battery_bottom_z, battery_top_z),
+  ))
+  
+  show (battery_box, "battery_box")
 
 def run(g):
   for key, value in g.items():
