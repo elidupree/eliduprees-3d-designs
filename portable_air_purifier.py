@@ -34,6 +34,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_length = 78.9 + tight_leeway*2
   fan_exit_width = 26 + tight_leeway*2
   fan_exit_length = 8
+  fan_intake_circle_measured_radius = 24.4
+  fan_intake_circle_design_radius = fan_intake_circle_measured_radius + 5
   
   battery_thickness = 27.8 + tight_leeway*2
   battery_width = 85.5 + tight_leeway*2
@@ -42,7 +44,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   strong_filter_rim_inset = 6
   prefilter_rim_inset = 4
   airspace = 5
-  zigzag_depth = wall_observed_thickness*1.2
+  zigzag_depth = max(wall_observed_thickness*1.2, 1.2) # make sure to have enough room for the 0.9mm radius wires
   zigzag_length_limit = 10
   min_zigzag_wall_thickness = zigzag_depth + wall_observed_thickness/math.cos(math.atan(zigzag_depth/zigzag_length_limit))
   max_zigzag_wall_thickness = zigzag_depth + wall_observed_thickness/math.cos(math.atan(zigzag_depth/(zigzag_length_limit/2)))
@@ -64,6 +66,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_airspace_top_z = fan_top_z + wall_observed_thickness + airspace
   battery_bottom_z = fan_airspace_top_z + max_zigzag_wall_thickness
   battery_top_z = battery_bottom_z + battery_thickness
+  beyond_top_z = battery_top_z + beyond_distance
+  beyond_bottom_z = strong_filter_bottom_z - beyond_distance
   
 
   
@@ -78,6 +82,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   beyond_front_y = strong_filter_front_y - beyond_distance
   prefilter_front_y = battery_front_y
   prefilter_back_y = fan_back_y
+  fan_intake_circle_center_y = fan_front_y + tight_leeway + 40.3
   
   
   strong_filter_left_x = 0
@@ -92,6 +97,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   battery_left_x = battery_right_x - battery_length
   beyond_right_x = strong_filter_right_x + beyond_distance
   beyond_left_x = strong_filter_left_x - beyond_distance
+  fan_intake_circle_center_x = fan_left_x + tight_leeway + 44
   
   CPAP_design_inner_radius = CPAP_target_outer_radius - wall_expansion - wall_design_thickness
   
@@ -244,12 +250,27 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     dimension = 1,
   )
   
-  battery_space_side_profile = AirspaceProfile (
+  battery_space_bottom_profile = AirspaceProfile (
     beyond_front_y,
     battery_bottom_z - wall_expansion,
     beyond_back_y,
-    battery_top_z + wall_expansion,
+    beyond_top_z,
     dimension = 0,
+  )
+  
+  battery_space_top_profile = AirspaceProfile (
+    beyond_left_x,
+    beyond_bottom_z,
+    beyond_right_x,
+    battery_top_z + wall_expansion,
+    dimension = 1,
+  )
+  
+  battery_space_back_profile = AirspaceProfile (
+    beyond_left_x,
+    beyond_front_y,
+    beyond_right_x,
+    battery_back_y + wall_expansion,
   )
   
   strong_filter_airspace_top_profile = AirspaceIntersection ([
@@ -279,6 +300,28 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     strong_filter_airspace.inner_shape, filter_exclusion_box
   ])
   
+  battery_space = AirspaceIntersection ([
+    side_walls_profile,
+    battery_space_back_profile,
+    battery_space_top_profile,
+    battery_space_bottom_profile,
+    right_wall_profile,
+  ])
+  
+  battery_space_wall = battery_space.outer_shape.cut ([
+    battery_space.inner_shape,
+    box(
+      bounds(-500, battery_right_x - tight_leeway - 120 + wall_expansion),
+      centered(500),
+      centered(500),
+    ),
+    box(
+      centered(500),
+      centered(25 + wall_expansion*2, on = (battery_front_y + battery_back_y)/2),
+      bounds(battery_bottom_z - wall_expansion, battery_top_z + wall_expansion),
+    ),
+  ])
+  
   fan_airspace_wall = fan_airspace_top_profile.outer_shape.cut ([
     fan_airspace_top_profile.inner_shape, strong_filter_airspace_front_profile.inner_shape
   ]).common (box (
@@ -293,7 +336,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     bounds (fan_top_z + wall_expansion, battery_bottom_z),
   )).cut([
     strong_filter_airspace_top_profile.inner_shape,
-    battery_space_side_profile.inner_shape
+    battery_space_bottom_profile.inner_shape
   ])
   
   fan_intake_airspace_top_wall = strong_filter_airspace_top_profile.outer_shape.common(box(
@@ -301,9 +344,9 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     centered (500),
     bounds (fan_top_z + wall_expansion + wall_design_thickness, battery_bottom_z),
   )).common([
-    battery_space_side_profile.outer_shape
+    battery_space_bottom_profile.outer_shape
   ]).cut([
-    battery_space_side_profile.inner_shape
+    battery_space_bottom_profile.inner_shape
   ])
   
   fan_intake_airspace_rim = (box(
@@ -327,7 +370,21 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
       )
     ])
     
+  )
+  
+  fan_intake_circle_wall = (box(
+    centered (500),
+    centered (500),
+    bounds (fan_top_z + wall_expansion, fan_top_z + wall_expansion + wall_design_thickness)
+  )
+    .common (fan_airspace_top_profile.inner_shape)
+    .cut (
+      Part.makeCylinder (fan_intake_circle_design_radius, 500, vector (fan_intake_circle_center_x, fan_intake_circle_center_y, -250))
     )
+    
+  )
+
+  
   
   fan_exit_airspace = box (
     bounds (-500, 500),
@@ -422,6 +479,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     fan_intake_airspace_side_walls,
     fan_intake_airspace_top_wall,
     fan_intake_airspace_rim,
+    fan_intake_circle_wall,
+    battery_space_wall,
   ]).cut ([
     fan_exit_airspace,
     CPAP_airspace,
