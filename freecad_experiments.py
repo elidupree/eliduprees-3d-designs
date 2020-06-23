@@ -1699,21 +1699,49 @@ def ice_bottle_thing():
 
   )
   
-  ice_slice = ice_slice.makeFillet(5, ice_slice.Edges)
+  #def horizontal_filter (edge):
+  
+  
+      
+  ice_slice = ice_slice.makeChamfer(5, [edge for edge in ice_slice.Edges if
+        True #edge.BoundBox.ZMax == ice_length
+      ])
   
   show_invisible (ice_slice, "ice_slice")
   
   ice_slice_with_wall = ice_slice.makeOffsetShape (wall_thickness, 0.01)
   
   wall = ice_slice_with_wall.cut(ice_slice)
+  wall = wall.fuse(wall.translated(vector (0, 0, 0.28*3-wall_thickness)))
   show_invisible (wall, "wall")
   
   ice_middle_radius = inner_radius + ice_thickness/2
   neck_base = vector (ice_middle_radius*math.cos(angle/2), ice_middle_radius*math.sin (angle/2), ice_length)
   neck_inner = Part.makeCylinder (neck_inner_radius, neck_length + 10, neck_base - vector (0, 0, 10))
-  neck_outer = Part.makeCylinder (neck_inner_radius + wall_thickness, neck_length, neck_base)
+  neck_outer = Part.makeCylinder (neck_inner_radius + wall_thickness, neck_length + 10, neck_base - vector (0, 0, 10)).cut (ice_slice)
   
-  bottle = wall.fuse (neck_outer).cut (neck_inner)
+  
+  handle = FreeCAD_shape_builder().build ([
+      start_at (-wall_thickness, -17),
+      diagonal_to(5, -8),
+      vertical_to(8),
+      diagonal_to(-wall_thickness, 17),
+      vertical_to (7),
+      horizontal_to (3),
+      vertical_to (-7),
+      horizontal_to (-wall_thickness),
+      close(),
+    ]).as_xz().to_wire().to_face().fancy_extrude(vector (0, 1, 0), centered (3)).translated (vector (inner_radius + ice_thickness + wall_thickness))
+    
+  handles = [
+    handle.translated (vector (0, 0, handle_height))
+          .rotated (vector(), vector (0, 0, 1), handle_angle*360/math.tau)
+    for handle_angle in [angle/8, angle*7/8]
+    for handle_height in [22, ice_length - 22]
+  ]
+  
+  bottle = wall.fuse (neck_outer).cut (neck_inner).fuse (handles)
+  
   show (bottle, "bottle")
 
 
