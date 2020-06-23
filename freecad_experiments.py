@@ -1673,6 +1673,51 @@ def adjustable_elastic_connector():
   
 
 
+def ice_bottle_thing():
+  inner_radius = 38
+  angle = math.tau/6
+  ice_thickness = 20
+  ice_length = 110
+  wall_thickness = 0.45
+  neck_inner_radius = 6
+  neck_length = 15
+  
+  inner_circle = Part.Shape([Part.Circle(vector(), vector (0, 0, 1), inner_radius)]).to_wire().to_face()
+  outer_circle = Part.Shape([Part.Circle(vector(), vector (0, 0, 1), inner_radius + ice_thickness)]).to_wire().to_face()
+  
+  ice_full = outer_circle.cut(inner_circle).extrude(vector (0, 0, ice_length))
+  
+  show_invisible (ice_full, "ice_full")
+  
+  ice_slice = ice_full.common(
+    FreeCAD_shape_builder().build ([
+      start_at (0, 0),
+      horizontal_to(500),
+      vertical_to(500*math.tan(angle)),
+      close(),
+    ]).to_wire().to_face().extrude(vector (0, 0, ice_length))
+
+  )
+  
+  ice_slice = ice_slice.makeFillet(5, ice_slice.Edges)
+  
+  show_invisible (ice_slice, "ice_slice")
+  
+  ice_slice_with_wall = ice_slice.makeOffsetShape (wall_thickness, 0.01)
+  
+  wall = ice_slice_with_wall.cut(ice_slice)
+  show_invisible (wall, "wall")
+  
+  ice_middle_radius = inner_radius + ice_thickness/2
+  neck_base = vector (ice_middle_radius*math.cos(angle/2), ice_middle_radius*math.sin (angle/2), ice_length)
+  neck_inner = Part.makeCylinder (neck_inner_radius, neck_length + 10, neck_base - vector (0, 0, 10))
+  neck_outer = Part.makeCylinder (neck_inner_radius + wall_thickness, neck_length, neck_base)
+  
+  bottle = wall.fuse (neck_outer).cut (neck_inner)
+  show (bottle, "bottle")
+
+
+
 #make_snapper()
 #make_clamp_enhancer(5, 5)
 #make_clamp_enhancer(7, 7, x_offset_frac = 0.35)
@@ -1682,11 +1727,12 @@ def adjustable_elastic_connector():
 
 #hydra_shade()
 #comb_scraper()
+ice_bottle_thing()
 
 #faces.run(globals())
 #air_adapters.run(globals())
 #adjustable_elastic_connector()
-portable_air_purifier.run(globals())
+#portable_air_purifier.run(globals())
 
 
 '''
