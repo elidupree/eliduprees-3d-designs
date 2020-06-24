@@ -1678,7 +1678,7 @@ def ice_bottle_thing():
   angle = math.tau/6
   ice_thickness = 20
   ice_length = 110
-  wall_thickness = 0.45
+  wall_thickness = 1
   neck_inner_radius = 6
   neck_length = 15
   
@@ -1712,7 +1712,8 @@ def ice_bottle_thing():
   ice_slice_with_wall = ice_slice.makeOffsetShape (wall_thickness, 0.01)
   
   wall = ice_slice_with_wall.cut(ice_slice)
-  wall = wall.fuse(wall.translated(vector (0, 0, 0.28*3-wall_thickness)))
+  if wall_thickness < 0.28*3:
+    wall = wall.fuse(wall.translated(vector (0, 0, 0.28*3-wall_thickness)))
   show_invisible (wall, "wall")
   
   ice_middle_radius = inner_radius + ice_thickness/2
