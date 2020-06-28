@@ -1756,12 +1756,12 @@ def ice_bottle_thing():
 
 #hydra_shade()
 #comb_scraper()
-ice_bottle_thing()
+#ice_bottle_thing()
 
 #faces.run(globals())
 #air_adapters.run(globals())
 #adjustable_elastic_connector()
-#portable_air_purifier.run(globals())
+portable_air_purifier.run(globals())
 
 
 '''
