@@ -155,7 +155,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     ),
   ])
   
-  strong_filter_holder_plate = strong_filter_holder_plate.mirror(vector(strong_filter_center_x, 0, 0), vector(1,0,0))
+  #strong_filter_holder_plate = strong_filter_holder_plate.mirror(vector(strong_filter_center_x, 0, 0), vector(1,0,0))
 
   strong_filter_holder_plates = [
     strong_filter_holder_plate.translated(vector (0, 0, strong_filter_seal_top_z + wall_expansion)),
@@ -175,7 +175,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     bounds (strong_filter_bottom_z - wall_expansion - strong_filter_holder_plate_design_height, strong_filter_seal_top_z + wall_expansion + strong_filter_holder_plate_design_height),
   ).cut([
   box (
-    bounds (strong_filter_left_x - wall_expansion, strong_filter_right_x + 500),
+    bounds (strong_filter_left_x - 500, strong_filter_right_x + wall_expansion),
     bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
     centered(500),
   ),
@@ -458,21 +458,22 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]
   CPAP_inner_wire = FreeCAD_shape_builder().build (CPAP_build_list).as_xz().to_wire()
   
+  rotate_y_direction = -1
   rotate_to_diagonal_angle = math.atan(math.sqrt(2))*360/math.tau
   
   foo = (max_zigzag_wall_thickness - wall_expansion)/2 # approximate
   
   bottom_corner = vector(
     strong_filter_right_x + foo,
-    strong_filter_back_y + foo,
+    (strong_filter_back_y if rotate_y_direction == 1 else strong_filter_front_y) + foo*rotate_y_direction,
     strong_filter_bottom_z - strong_filter_holder_plate_design_height - foo
   )
   def rotated_to_diagonal (foo):
-    return foo.rotated(vector(), vector(1, -1, 0), rotate_to_diagonal_angle)
+    return foo.rotated(vector(), vector(1, -1*rotate_y_direction, 0), rotate_to_diagonal_angle*rotate_y_direction)
   def rotated_from_diagonal (foo):
-    return foo.rotated(vector(), vector(1, -1, 0), -rotate_to_diagonal_angle)
+    return foo.rotated(vector(), vector(1, -1*rotate_y_direction, 0), -rotate_to_diagonal_angle*rotate_y_direction)
   def CPAP_transformed (foo):
-    return rotated_to_diagonal (foo.translated(vector(-43, -27, 0))).translated(bottom_corner).cut([strong_filter_airspace.inner_shape, box(centered(500), centered(500), bounds(strong_filter_bottom_z, 500))])
+    return rotated_to_diagonal (foo.translated(vector(-43, -27*rotate_y_direction, 0))).translated(bottom_corner).cut([strong_filter_airspace.inner_shape, box(centered(500), centered(500), bounds(strong_filter_bottom_z, 500))])
   
   CPAP_airspace = FreeCAD_shape_builder().build (CPAP_build_list+[
     horizontal_to (0),
@@ -486,7 +487,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   
   artifical_support = rotated_to_diagonal (box (
     bounds (-8, 3),
-    bounds (-8, 3),
+    bounds (-8, 3) if rotate_y_direction == 1 else bounds(-3, 8),
     bounds (0, 20),
   )).translated (bottom_corner).cut([strong_filter_airspace.inner_shape, box(
     centered(500),
