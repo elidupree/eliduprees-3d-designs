@@ -49,6 +49,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   battery_socket_length = 38.2
   
   fan_cord_socket_slit_width = 15
+  fan_cord_socket_slit_length = 40
   
   strong_filter_rim_inset = 6
   prefilter_rim_inset = 4
@@ -360,14 +361,17 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   
   fan_cord_socket_slit = box (
     bounds (fan_space_right_x -fan_cord_socket_slit_width - wall_expansion, 500),
-    centered (500),
+    bounds (-500, fan_front_y +fan_cord_socket_slit_length + wall_expansion),
     centered (500),
   )
   fan_cord_socket_slit_wall = box (
-    bounds (fan_space_right_x -fan_cord_socket_slit_width - wall_expansion - wall_design_thickness, fan_space_right_x -fan_cord_socket_slit_width - wall_expansion),
-    centered (500),
+    bounds (fan_space_right_x -fan_cord_socket_slit_width - wall_expansion - wall_design_thickness, 500),
+    bounds (-500, fan_front_y +fan_cord_socket_slit_length + wall_expansion + wall_design_thickness),
     bounds (fan_top_z + wall_expansion, battery_bottom_z),
-  ).common (fan_intake_airspace_top_profile.inner_shape).cut(battery_space_bottom_profile.outer_shape)
+  ).common (fan_intake_airspace_top_profile.inner_shape).cut([
+    fan_cord_socket_slit,
+    battery_space_bottom_profile.outer_shape,
+  ])
   
   fan_intake_airspace_top_wall = fan_intake_airspace_top_profile.outer_shape.common(box(
     centered (500),
@@ -377,7 +381,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     battery_space_bottom_profile.outer_shape
   ]).cut([
     battery_space_bottom_profile.inner_shape,
-    fan_cord_socket_slit
+    fan_cord_socket_slit,
   ])
   
   fan_intake_airspace_rim = (box(
@@ -404,13 +408,14 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
   
   fan_intake_circle_wall = (box(
-    bounds (-500, fan_space_right_x -fan_cord_socket_slit_width - wall_expansion),
+    centered (500),
     centered (500),
     bounds (fan_top_z + wall_expansion, fan_top_z + wall_expansion + wall_design_thickness)
   )
     .common (fan_airspace_top_profile.inner_shape)
     .cut ([
       Part.makeCylinder (fan_intake_circle_design_radius, 500, vector (fan_intake_circle_center_x, fan_intake_circle_center_y, -250)),
+      fan_cord_socket_slit,
     ])
     
   )
