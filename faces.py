@@ -307,7 +307,7 @@ def face5_thing():
   flip_matrix.scale (-1, 1, -1)
   face.transform (flip_matrix)
   
-  show_invisible (face, "face")
+  show (face, "face")
   
   
   face_original = Mesh.Mesh(eliduprees_3d_designs_path+"private/face5-d7.obj")

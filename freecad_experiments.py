@@ -36,6 +36,9 @@ importlib.reload(air_adapters)
 import portable_air_purifier
 importlib.reload(portable_air_purifier)
 
+import full_face_mask
+importlib.reload(full_face_mask)
+
 
 
 for document_name in list(FreeCAD.listDocuments().keys()):
@@ -1758,10 +1761,11 @@ def ice_bottle_thing():
 #comb_scraper()
 #ice_bottle_thing()
 
-#faces.run(globals())
+full_face_mask.run(globals())
+faces.run(globals())
 #air_adapters.run(globals())
 #adjustable_elastic_connector()
-portable_air_purifier.run(globals())
+#portable_air_purifier.run(globals())
 
 
 '''

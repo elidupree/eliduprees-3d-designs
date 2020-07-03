@@ -35,7 +35,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   fan_exit_width = 26 + tight_leeway*2
   fan_exit_length = 8
   fan_intake_circle_measured_radius = 24.4
-  fan_intake_circle_design_radius = fan_intake_circle_measured_radius + 5
+  fan_intake_circle_hole_radius = fan_intake_circle_measured_radius + 2.5
   fan_intake_circle_center_from_front = tight_leeway + 40.3
   fan_intake_circle_center_from_left = tight_leeway + 44
   fan_intake_circle_center_to_back = fan_length - fan_intake_circle_center_from_front
@@ -99,8 +99,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   strong_filter_right_x = strong_filter_left_x + strong_filter_length
   strong_filter_center_x = (strong_filter_left_x + strong_filter_right_x)/2
   fan_space_right_x = strong_filter_right_x - strong_filter_rim_inset/2 - max_zigzag_wall_thickness/2
-  fan_intake_circle_right_x = fan_space_right_x - fan_cord_socket_slit_width - wall_observed_thickness
-  fan_intake_circle_center_x = fan_intake_circle_right_x - fan_intake_circle_design_radius
+  fan_intake_circle_right_x = fan_space_right_x - fan_cord_socket_slit_width - 10 - wall_observed_thickness
+  fan_intake_circle_center_x = fan_intake_circle_right_x - fan_intake_circle_hole_radius
   fan_right_x = fan_intake_circle_center_x + fan_intake_circle_center_to_right
   fan_left_x = fan_right_x - fan_width
   fan_exit_right_x = fan_left_x + fan_exit_width
@@ -165,7 +165,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
 
   strong_filter_push_hole = box (
     centered (500),
-    25,
+    15,
     bounds (strong_filter_bottom_z - wall_expansion, strong_filter_seal_top_z + wall_expansion),
   )
 
@@ -414,11 +414,22 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
     .common (fan_airspace_top_profile.inner_shape)
     .cut ([
-      Part.makeCylinder (fan_intake_circle_design_radius, 500, vector (fan_intake_circle_center_x, fan_intake_circle_center_y, -250)),
+      Part.makeCylinder (fan_intake_circle_hole_radius + wall_expansion, 500, vector (fan_intake_circle_center_x, fan_intake_circle_center_y, -250)),
+      box(
+        bounds (fan_intake_circle_center_x - (fan_intake_circle_hole_radius + wall_expansion), fan_intake_circle_center_x),
+        bounds (fan_intake_circle_center_y, fan_intake_circle_center_y + (fan_intake_circle_hole_radius + wall_expansion)),
+        centered(500),
+      ),
       fan_cord_socket_slit,
     ])
     
   )
+  
+  fan_restraining_wall = box (
+    bounds (fan_right_x + wall_expansion, fan_right_x + wall_expansion + wall_design_thickness),
+    bounds (fan_front_y - wall_expansion, 500),
+    bounds (strong_filter_seal_top_z, fan_bottom_z + 3 - wall_expansion),
+  ).common (fan_airspace_top_profile.inner_shape).cut (strong_filter_airspace_front_profile.outer_shape)
 
   
   
@@ -517,7 +528,8 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     fan_intake_airspace_top_wall,
     fan_intake_airspace_rim,
     fan_intake_circle_wall,
-    battery_space_wall,
+    fan_restraining_wall,
+    #battery_space_wall,
     fan_cord_socket_slit_wall,
   ]).cut ([
     fan_exit_airspace,
