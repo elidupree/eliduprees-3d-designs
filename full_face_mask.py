@@ -157,15 +157,15 @@ def make_full_face_mask():
   )
   
   subdivisions = 40
-  
-  def refined_side_point (parameter):
-    intermediate = source_side_curve.value (parameter)
+  source_side_curve_length = source_side_curve.length()
+  def refined_side_point (distance):
+    intermediate = source_side_curve.value (source_side_curve.parameterAtDistance (distance))
     return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
   side_points = [
-    refined_side_point (index/subdivisions)
+    refined_side_point (source_side_curve_length * index / (subdivisions -1))
     for index in range (subdivisions)
   ]
-  side_points = side_points + [source_side_points[-1]] + [ShieldSurfacePoint (z= point.z, x= -point.x) for point in reversed(side_points)]
+  side_points = side_points + [ShieldSurfacePoint (z= point.z, x= -point.x) for point in reversed(side_points[:-1])]
   
   degree = 3
   side_poles = [a.position for a in side_points]
