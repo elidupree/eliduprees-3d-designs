@@ -1761,11 +1761,16 @@ def ice_bottle_thing():
 #comb_scraper()
 #ice_bottle_thing()
 
-full_face_mask.run(globals())
+
 #faces.run(globals())
 #air_adapters.run(globals())
 #adjustable_elastic_connector()
 #portable_air_purifier.run(globals())
+
+do_faces = False
+do_faces = full_face_mask.run(globals())
+if do_faces:
+  faces.run(globals())
 
 
 '''
