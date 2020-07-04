@@ -1,6 +1,9 @@
 def make_full_face_mask():
-  slot_width = 0.5
-  slot_depth = 5
+  shield_slot_width = 0.5
+  shield_slot_depth = 5
+  elastic_slot_catch_length = 2
+  elastic_slot_width = 8
+  elastic_slot_depth = 5
   min_wall_thickness = 1.0
   
   displayed_objects = {}
@@ -53,7 +56,7 @@ def make_full_face_mask():
   top_major_radius = -back_edge*2
   shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
   lenient_box = box(centered (500), bounds (back_edge, 500), bounds(-180, 20))
-  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, slot_depth))
+  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
   shield_top_curve = shield_top_full_wire.common(shield_box)
   #show_transformed(shield_box, "shield_box")
   
@@ -110,9 +113,6 @@ def make_full_face_mask():
         assert (abs (recalculated_x - self.x) <0.01)
       else:
         self.y = y
-        print(y)
-        print(z)
-        print(self.major_radius)
         u = math.asin((y - z/shield_focal_ratio)/self.major_radius + 1.0)
         self.u = u
         self.parameter = u
@@ -136,15 +136,16 @@ def make_full_face_mask():
   
   
   source_side_points = [
+    ShieldSurfacePoint (z=shield_slot_depth, y= back_edge),
     ShieldSurfacePoint (z=0, y= back_edge),
     ShieldSurfacePoint (z= -20, y= back_edge),
     ShieldSurfacePoint (z= -40, y= back_edge),
-    ShieldSurfacePoint (z= -60, y= forehead_point[1] - 85),
-    ShieldSurfacePoint (z= -80, y= forehead_point[1] - 65),
-    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 45),
-    ShieldSurfacePoint (z= -120, x = 50),
-    ShieldSurfacePoint (z= -140, x = 25),
-    ShieldSurfacePoint (z= -140, x = 0),
+    ShieldSurfacePoint (z= -60, y= back_edge),
+    ShieldSurfacePoint (z= -80, y= forehead_point[1] - 85),
+    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 65),
+    ShieldSurfacePoint (z= -120, x = 65),
+    ShieldSurfacePoint (z= -135, x = 25),
+    ShieldSurfacePoint (z= -135, x = 0),
   ]
   
   degree = 3
@@ -156,11 +157,28 @@ def make_full_face_mask():
     degree = degree,
   )
   
-  subdivisions = 40
+  show_transformed (source_side_curve.toShape(), "source_side_curve")
+  
+  subdivisions = 100
   source_side_curve_length = source_side_curve.length()
   def refined_side_point (distance):
-    intermediate = source_side_curve.value (source_side_curve.parameterAtDistance (distance))
-    return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
+    parameter = source_side_curve.parameterAtDistance (distance)
+    
+    intermediate = source_side_curve.value (parameter)
+    #print (f" parameter: {parameter}, distance: {distance}, intermediate: {intermediate}")
+    y_based = ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
+   
+    x_frac = (intermediate[1] - -140)/60
+    if x_frac < 0:
+      return ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
+    elif x_frac > 1:
+      return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
+    else:
+      x_based = ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
+      y_based = ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
+      intermediate = x_based.position*x_frac + y_based.position*(1-x_frac)
+      return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
+  
   side_points = [
     refined_side_point (source_side_curve_length * index / (subdivisions -1))
     for index in range (subdivisions)
@@ -178,19 +196,52 @@ def make_full_face_mask():
   
   show_transformed (side_curve.toShape(), "side_curve")
   
-  side_strut_shape = FreeCAD_shape_builder().build ([
-        start_at(-slot_width- min_wall_thickness, 0),
+  shield_slot_top = min_wall_thickness + shield_slot_depth
+  elastic_slot_bottom = shield_slot_top - elastic_slot_width - min_wall_thickness*2
+  side_shield_slot_shape = FreeCAD_shape_builder().build ([
+        start_at(-shield_slot_width- min_wall_thickness, 0),
+        diagonal_to (0, elastic_slot_bottom),
+        horizontal_to (elastic_slot_depth + elastic_slot_catch_length + min_wall_thickness*2),
+        vertical_to (elastic_slot_bottom+ min_wall_thickness),
+        diagonal_to (elastic_slot_depth + min_wall_thickness*2, elastic_slot_bottom+ elastic_slot_catch_length + min_wall_thickness),
+        horizontal_to (elastic_slot_depth + min_wall_thickness),
+        vertical_to (elastic_slot_bottom+ min_wall_thickness),
         horizontal_to (min_wall_thickness),
-        vertical_to (min_wall_thickness + slot_depth),
+        vertical_to (shield_slot_top - min_wall_thickness),
+        horizontal_to (elastic_slot_depth + min_wall_thickness),
+        vertical_to (shield_slot_top - min_wall_thickness - elastic_slot_catch_length),
+        horizontal_to (elastic_slot_depth + min_wall_thickness*2),
+        diagonal_to (elastic_slot_depth + min_wall_thickness*2 + elastic_slot_catch_length, shield_slot_top - min_wall_thickness),
+        vertical_to (shield_slot_top),
         horizontal_to (0),
         vertical_to (min_wall_thickness),
-        horizontal_to (-slot_width),
-        vertical_to (min_wall_thickness + slot_depth),
-        horizontal_to (-slot_width- min_wall_thickness),
+        horizontal_to (-shield_slot_width),
+        vertical_to (min_wall_thickness + shield_slot_depth),
+        horizontal_to (-shield_slot_width- min_wall_thickness),
         close()
       ]).to_wire() #.to_face()
   
-  side_strut_pieces = []
+  '''elastic_slot_shape = FreeCAD_shape_builder().build ([
+        start_at(0, 0),
+        horizontal_to (min_wall_thickness+elastic_slot_depth),
+        vertical_to (min_wall_thickness),
+        horizontal_to (min_wall_thickness),
+        vertical_to (elastic_slot_width + min_wall_thickness),
+        horizontal_to (min_wall_thickness+elastic_slot_depth),
+        vertical_to (elastic_slot_width + min_wall_thickness*2),
+        horizontal_to (0),
+        close()
+      ]).to_wire()'''
+      
+  def matrix_from_columns(a,b,c,d):
+    return FreeCAD.Matrix(
+      a[0], b[0], c[0], d[0],
+      a[1], b[1], c[1], d[1],
+      a[2], b[2], c[2], d[2],
+    )
+  
+  side_shield_slot_pieces = []
+  #side_elastic_slot_pieces = []
   for index, point in enumerate (side_points):
     position = point.position
     parameter = side_curve.parameter (position)
@@ -198,18 +249,23 @@ def make_full_face_mask():
     normal = point.normal
     away = tangent.cross (normal)
     
-    matrix = FreeCAD.Matrix(
-      normal [0], -away [0], tangent [0], position[0],
-      normal [1], -away [1], tangent [1], position[1],
-      normal [2], -away [2], tangent [2], position[2],
-    )
-    shape = side_strut_shape.copy()
-    shape.transformShape (matrix)
-    side_strut_pieces.append(shape)
+    shield_slot_matrix = matrix_from_columns(normal, -away, tangent, position)
+    shield_shape = side_shield_slot_shape.copy()
+    shield_shape.transformShape (shield_slot_matrix)
+    side_shield_slot_pieces.append(shield_shape)
     #show_transformed (shape,f"side_strut_shape_{index}")
+    
+    '''curve_normal = vector (*side_curve.normal(parameter))
+    elastic_slot_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(tangent), tangent, position)
+    elastic_shape = elastic_slot_shape.copy()
+    elastic_shape.transformShape (elastic_slot_matrix)
+    side_elastic_slot_pieces.append(elastic_shape)'''
   
-  side_strut = Part.makeLoft (side_strut_pieces, True)
-  show_transformed (side_strut,f"side_strut")
+  side_shield_slot = Part.makeLoft (side_shield_slot_pieces, True)
+  show_transformed (side_shield_slot,f"side_shield_slot")
+  
+  #side_elastic_slot = Part.makeLoft (side_elastic_slot_pieces, True)
+  #show_transformed (side_elastic_slot,f"side_elastic_slot")
   
   
   shield_extension_zs = [-180, 20]
@@ -233,20 +289,20 @@ def make_full_face_mask():
   
   #show_transformed(shield_outer_surface, "shield_outer_surface")
   
-  shield_solid = shield_outer_surface.makeOffsetShape (slot_width, 0.01, fill = True).common (shield_box)
+  shield_solid = shield_outer_surface.makeOffsetShape (shield_slot_width, 0.01, fill = True).common (shield_box)
   
   show_transformed(shield_solid, "shield_solid")
   
   visor = box(
     centered (500),
     centered (500),
-    bounds (0, slot_depth + min_wall_thickness),
+    bounds (0, shield_slot_depth + min_wall_thickness),
   ).common (lenient_box).common(frame_space).cut (forehead_exclusion).cut(shield_solid)
   
   show_transformed (visor, "visor")
   
   on_face = False
-  #on_face = True
+  on_face = True
   for name, object in displayed_objects.items():
     if on_face:
       object = (object
