@@ -75,7 +75,7 @@ def make_full_face_mask():
   x = top_minor_radius*oval_size_factor*cos(u)
   
   dy/du = top_major_radius*oval_size_factor*cos(u)
-  dy/dz = top_major_radius*sin(u)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio
+  dy/dz = top_major_radius*(sin(u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio
   dx/du = top_minor_radius*oval_size_factor*-sin(u)
   dx/dz = top_minor_radius*cos(u)*(-1.0 / shield_focal_z)
   dz/du = 0
@@ -122,7 +122,7 @@ def make_full_face_mask():
       self.position = vector (self.x, self.y, self.z)
       self.ddz = vector (
         top_minor_radius*math.cos(u)*(-1.0 / shield_focal_z),
-        top_major_radius*math.sin(u)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio,
+        top_major_radius*(math.sin (self.parameter)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio,
         1
       )
       self.ddu = vector (
@@ -189,8 +189,8 @@ def make_full_face_mask():
     offset_fraction = offset_distance / -shield_focal_point[2]
     show_transformed (shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction), f"shield_cross_section_{index}")
   
-  show_transformed(shield_extension_curves[0], "shield_extension_curve_0")
-  show_transformed(shield_extension_curves[1], "shield_extension_curve_1")
+  #show_transformed(shield_extension_curves[0], "shield_extension_curve_0")
+  #show_transformed(shield_extension_curves[1], "shield_extension_curve_1")
   
   shield_outer_surface = Part.makeRuledSurface(*shield_extension_curves).common(lenient_box)
   
