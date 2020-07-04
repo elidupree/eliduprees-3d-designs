@@ -135,7 +135,7 @@ def make_full_face_mask():
       self.normal = self.ddu.cross(self.ddz).normalized()
   
   
-  side_points = [
+  source_side_points = [
     ShieldSurfacePoint (z=0, y= back_edge),
     ShieldSurfacePoint (z= -20, y= back_edge),
     ShieldSurfacePoint (z= -40, y= back_edge),
@@ -146,6 +146,26 @@ def make_full_face_mask():
     ShieldSurfacePoint (z= -140, x = 25),
     ShieldSurfacePoint (z= -140, x = 0),
   ]
+  
+  degree = 3
+  source_side_poles = [a.position for a in source_side_points]
+  source_side_curve = Part.BSplineCurve()
+  source_side_curve.buildFromPolesMultsKnots(
+    source_side_poles,
+    mults = [degree+1] + [1]*(len(source_side_poles) - degree - 1) + [degree+1],
+    degree = degree,
+  )
+  
+  subdivisions = 40
+  
+  def refined_side_point (parameter):
+    intermediate = source_side_curve.value (parameter)
+    return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
+  side_points = [
+    refined_side_point (index/subdivisions)
+    for index in range (subdivisions)
+  ]
+  side_points = side_points + [source_side_points[-1]] + [ShieldSurfacePoint (z= point.z, x= -point.x) for point in reversed(side_points)]
   
   degree = 3
   side_poles = [a.position for a in side_points]
