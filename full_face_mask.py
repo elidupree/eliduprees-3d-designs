@@ -178,6 +178,40 @@ def make_full_face_mask():
   
   show_transformed (side_curve.toShape(), "side_curve")
   
+  side_strut_shape = FreeCAD_shape_builder().build ([
+        start_at(-slot_width- min_wall_thickness, 0),
+        horizontal_to (min_wall_thickness),
+        vertical_to (min_wall_thickness + slot_depth),
+        horizontal_to (0),
+        vertical_to (min_wall_thickness),
+        horizontal_to (-slot_width),
+        vertical_to (min_wall_thickness + slot_depth),
+        horizontal_to (-slot_width- min_wall_thickness),
+        close()
+      ]).to_wire() #.to_face()
+  
+  side_strut_pieces = []
+  for index, point in enumerate (side_points):
+    position = point.position
+    parameter = side_curve.parameter (position)
+    tangent = vector (*side_curve.tangent (parameter)).normalized()
+    normal = point.normal
+    away = tangent.cross (normal)
+    
+    matrix = FreeCAD.Matrix(
+      normal [0], -away [0], tangent [0], position[0],
+      normal [1], -away [1], tangent [1], position[1],
+      normal [2], -away [2], tangent [2], position[2],
+    )
+    shape = side_strut_shape.copy()
+    shape.transformShape (matrix)
+    side_strut_pieces.append(shape)
+    #show_transformed (shape,f"side_strut_shape_{index}")
+  
+  side_strut = Part.makeLoft (side_strut_pieces, True)
+  show_transformed (side_strut,f"side_strut")
+  
+  
   shield_extension_zs = [-180, 20]
   def shield_extension_curve (z):
     offset_fraction = z / shield_focal_point[2]
