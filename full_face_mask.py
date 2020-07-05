@@ -392,6 +392,17 @@ def make_full_face_mask():
   
   show_transformed (intake_solid, "intake_solid")
   
+  top_splitter = box (centered (500), centered (500), bounds (0, 500))
+  show_transformed (top_splitter, "top_splitter")
+  show_transformed (Part.Compound ([
+    visor,
+    side_shield_slot.common(top_splitter)
+  ]), "augmented_visor")
+  
+  side_splitter = box (bounds (56, 500), centered (500), centered (500))
+  side_splitter_2 = box (bounds (-56, 56), centered (500), centered (500))
+  show_transformed (side_shield_slot. common (side_splitter_2), "bottom_slot")
+  show_transformed (side_shield_slot.cut(top_splitter).common (side_splitter), "side_slot")
   
   on_face = False
   #on_face = True
