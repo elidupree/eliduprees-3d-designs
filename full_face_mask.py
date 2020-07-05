@@ -39,8 +39,11 @@ def make_full_face_mask():
     vector (62, -35),
     vector (70, -53),
     vector (79, -90),
-    vector (79, -110),
-    vector (79, -130),
+    vector (81, -106),
+    vector (88, -107),
+    vector (94, -106),
+    vector (100, -106),
+    vector (100, -206),
   ]
   degree = 3
   forehead_poles = [forehead_point + vector (-a[0], a[1]) for a in reversed(forehead_points)] + [forehead_point] + [forehead_point + a for a in forehead_points]
@@ -52,10 +55,16 @@ def make_full_face_mask():
   )
   forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
   
+  forehead_elastic_hole = Part.makeCylinder (2, 50, vector (-85.4, -161, -4))
+  forehead_exclusion = forehead_exclusion.fuse ([
+    forehead_elastic_hole,
+    forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
+  ])
+  
   top_minor_radius = 100
   top_major_radius = -back_edge*2
   shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
-  lenient_box = box(centered (500), bounds (back_edge, 500), bounds(-180, 20))
+  lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
   shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
   shield_top_curve = shield_top_full_wire.common(shield_box)
   #show_transformed(shield_box, "shield_box")
@@ -302,7 +311,7 @@ def make_full_face_mask():
   show_transformed (visor, "visor")
   
   on_face = False
-  on_face = True
+  #on_face = True
   for name, object in displayed_objects.items():
     if on_face:
       object = (object
