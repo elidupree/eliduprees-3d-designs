@@ -1,5 +1,5 @@
 def make_full_face_mask():
-  shield_slot_width = 1.0
+  shield_slot_width = 1.3
   shield_slot_depth = 5
   elastic_slot_catch_length = 2
   elastic_slot_width = 8
