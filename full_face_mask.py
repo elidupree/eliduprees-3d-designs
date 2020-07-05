@@ -1,5 +1,5 @@
 def make_full_face_mask():
-  shield_slot_width = 0.5
+  shield_slot_width = 1.0
   shield_slot_depth = 5
   elastic_slot_catch_length = 2
   elastic_slot_width = 8
@@ -32,18 +32,18 @@ def make_full_face_mask():
   
   forehead_points = [
     vector (15, 0),
-    vector (25, -3.5),
+    vector (25, -2.5),
     vector (35, -7),
-    vector (45, -12),
-    vector (55, -22),
-    vector (62, -35),
-    vector (70, -53),
+    vector (45, -14),
+    vector (55, -27),
+    vector (62, -37),
+    vector (71, -53),
     vector (79, -90),
-    vector (81, -106),
-    vector (88, -107),
-    vector (94, -106),
-    vector (100, -106),
-    vector (100, -206),
+    vector (81, -107),
+    vector (88, -108),
+    vector (94, -107),
+    vector (100, -107),
+    vector (100, -207),
   ]
   degree = 3
   forehead_poles = [forehead_point + vector (-a[0], a[1]) for a in reversed(forehead_points)] + [forehead_point] + [forehead_point + a for a in forehead_points]
@@ -55,7 +55,8 @@ def make_full_face_mask():
   )
   forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
   
-  forehead_elastic_hole = Part.makeCylinder (2, 50, vector (-85.4, -161, -4))
+  #forehead_elastic_hole = Part.makeCylinder (3, 50, vector (-86.4, -161, -4))
+  forehead_elastic_hole = box (centered (1), 5, centered (100)).makeOffsetShape (1.5, 0.01).rotated (vector(), vector (0, 0, 1), -10).translated (vector (-85.4, -162, -4))
   forehead_exclusion = forehead_exclusion.fuse ([
     forehead_elastic_hole,
     forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
@@ -72,7 +73,7 @@ def make_full_face_mask():
   show_transformed(shield_top_curve, "shield_top_curve")
   
   shield_focal_z = 400
-  shield_focal_ratio = 1.8
+  shield_focal_ratio = 2
   shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
   #shield_focal_point = vector (0, back_edge, back_edge*2)
   
@@ -308,18 +309,24 @@ def make_full_face_mask():
     bounds (0, shield_slot_depth + min_wall_thickness),
   ).common (lenient_box).common(frame_space).cut (forehead_exclusion).cut(shield_solid)
   
+  #forehead_expanded = forehead_curve.toShape().to_wire().makeOffset2D (1).to_face().fancy_extrude (vector (0, 0, 1), bounds (0, 4))
+  #show_transformed (forehead_expanded.common (lenient_box).common(frame_space).cut (forehead_exclusion), "forehead_shape")
+  
+  
   show_transformed (visor, "visor")
+  #show_transformed (visor.common(box(centered (30, on = 85), centered (40, on = -160), centered (500))), "visor_fragment")
+  #show_transformed (side_shield_slot.common(box(centered (30, on = 85), centered (40, on = -160), centered (40))), "side_shield_slot_fragment")
   
   on_face = False
-  #on_face = True
+  on_face = True
   for name, object in displayed_objects.items():
     if on_face:
       object = (object
       .translated (- forehead_point)
       .as_xz()
       .mirror(vector(), vector(0,1,0))
-      .rotated(vector(), vector(1, 0, 0), 360/math.tau*math.atan2(-42,123))
-      .translated (vector (0, 14, 0.25)))
+      .rotated(vector(), vector(1, 0, 0), 360/math.tau*math.atan2(-28,123))
+      .translated (vector (0, 18, 0.25)))
     show (object, name)
     
   return on_face
