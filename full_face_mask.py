@@ -62,7 +62,7 @@ def make_full_face_mask():
   
   show_transformed(shield_top_curve, "shield_top_curve")
   
-  shield_focal_z = 100
+  shield_focal_z = 200
   shield_focal_ratio = 1.8
   shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
   #shield_focal_point = vector (0, back_edge, back_edge*2)
@@ -140,12 +140,12 @@ def make_full_face_mask():
     ShieldSurfacePoint (z=0, y= back_edge),
     ShieldSurfacePoint (z= -20, y= back_edge),
     ShieldSurfacePoint (z= -40, y= back_edge),
-    ShieldSurfacePoint (z= -60, y= back_edge),
-    ShieldSurfacePoint (z= -80, y= forehead_point[1] - 85),
-    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 65),
+    ShieldSurfacePoint (z= -60, y= forehead_point[1] - 90),
+    ShieldSurfacePoint (z= -80, y= forehead_point[1] - 75),
+    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 60),
     ShieldSurfacePoint (z= -120, x = 65),
-    ShieldSurfacePoint (z= -135, x = 25),
-    ShieldSurfacePoint (z= -135, x = 0),
+    ShieldSurfacePoint (z= -140, x = 25),
+    ShieldSurfacePoint (z= -140, x = 0),
   ]
   
   degree = 3
