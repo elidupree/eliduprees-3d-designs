@@ -143,7 +143,7 @@ def make_full_face_mask():
     ShieldSurfacePoint (z= -60, y= forehead_point[1] - 90),
     ShieldSurfacePoint (z= -80, y= forehead_point[1] - 75),
     ShieldSurfacePoint (z= -100, y= forehead_point[1] - 60),
-    ShieldSurfacePoint (z= -120, x = 50),
+    ShieldSurfacePoint (z= -120, x = 54),
     ShieldSurfacePoint (z= -140, x = 25),
     ShieldSurfacePoint (z= -140, x = 0),
   ]
