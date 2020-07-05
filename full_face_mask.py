@@ -5,6 +5,8 @@ def make_full_face_mask():
   elastic_slot_width = 8
   elastic_slot_depth = 5
   min_wall_thickness = 1.0
+  CPAP_outer_radius = 21.5/2
+  CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
   
   displayed_objects = {}
   def show_transformed(a,b):
@@ -251,6 +253,8 @@ def make_full_face_mask():
     )
   
   side_shield_slot_pieces = []
+  intake_flat_outside_edge = []
+  intake_flat_inside_edge = []
   #side_elastic_slot_pieces = []
   for index, point in enumerate (side_points):
     position = point.position
@@ -270,6 +274,11 @@ def make_full_face_mask():
     elastic_shape = elastic_slot_shape.copy()
     elastic_shape.transformShape (elastic_slot_matrix)
     side_elastic_slot_pieces.append(elastic_shape)'''
+    
+    if position [0] <0 and position [2] >= -100 and position [2] <= -60:
+      intake_flat_outside_edge.append (position - normal*(shield_slot_width + min_wall_thickness*1.6))
+      intake_flat_inside_edge.append (position - normal*(shield_slot_width + min_wall_thickness*1.6 + 7))
+  intake_flat_inside_edge.reverse()
   
   side_shield_slot = Part.makeLoft (side_shield_slot_pieces, True)
   show_transformed (side_shield_slot,f"side_shield_slot")
@@ -287,7 +296,7 @@ def make_full_face_mask():
   shield_cross_section = shield_top_full_wire.to_face().common(shield_box)
   for index, offset_distance in enumerate (20.0*x for x in range(10)):
     offset_fraction = offset_distance / -shield_focal_point[2]
-    show_transformed (shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction), f"shield_cross_section_{index}")
+    #show_transformed (shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction), f"shield_cross_section_{index}")
   
   #show_transformed(shield_extension_curves[0], "shield_extension_curve_0")
   #show_transformed(shield_extension_curves[1], "shield_extension_curve_1")
@@ -317,8 +326,75 @@ def make_full_face_mask():
   #show_transformed (visor.common(box(centered (30, on = 85), centered (40, on = -160), centered (500))), "visor_fragment")
   #show_transformed (side_shield_slot.common(box(centered (30, on = 85), centered (40, on = -160), centered (40))), "side_shield_slot_fragment")
   
+  intake_flat_width = 7
+  intake_center = min (
+    (side_point for side_point in side_points if side_point.position [0] <0),
+    key = lambda side_point: abs (-80 - side_point.position [2])
+  )
+  intake_direction = intake_center.normal.cross (vector (0, 0, -1)).normalized()
+  intake_sideways = vector (*side_curve.tangent (side_curve.parameter (intake_center. position)))
+  intake_flat_subdivisions = 10
+  intake_flat_height = 40
+  def intake_flat_wire (expansion, forwards_offset):
+    outside_edge = []
+    inside_edge = []
+    height = intake_flat_height + expansion*2
+    center_source = intake_center.position - intake_direction*forwards_offset
+    center = ShieldSurfacePoint (z = center_source [2], y = center_source [1])
+    center = ShieldSurfacePoint (z = center_source [2], x = -center.position[0])
+    
+    for index in range (intake_flat_subdivisions):
+      fraction = index/(intake_flat_subdivisions -1)
+      offset = (fraction - 0.5)*height/intake_sideways [2]
+      source = center.position + intake_sideways*offset
+      precise = ShieldSurfacePoint (z = source [2], y = source [1])
+      precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
+      
+      # we have to project everything onto the same plane so that the loft can be closed
+      def projected (position):
+        threeD_offset = position - center.position
+        normal_component = center.normal.dot (threeD_offset)
+        sideways_component = intake_sideways.dot(threeD_offset)
+        result = center.position + center.normal*normal_component + intake_sideways*sideways_component
+        #print (f"{result - position}, {normal_component}, {sideways_component}, {center.normal}, {intake_sideways}")
+        return result
+      
+      outside_edge.append (projected (precise.position - precise.normal*(shield_slot_width + min_wall_thickness - expansion)))
+      inside_edge.append (projected (precise.position - precise.normal*(shield_slot_width + min_wall_thickness + intake_flat_width + expansion)))
+    outside_edge.reverse()
+    degree = 3
+    poles = outside_edge + inside_edge
+    intake_flat_curve = Part.BSplineCurve()
+    intake_flat_curve.buildFromPolesMultsKnots(
+      poles,
+      degree = degree,
+      periodic = True,
+    )
+    return intake_flat_curve.toShape().to_wire()
+      
+  
+  def intake_loft_components (expansion):
+    CPAP_wire = Part.Shape ([Part.Circle (intake_center.position + intake_direction*45 - intake_center.normal*(shield_slot_width + min_wall_thickness + intake_flat_width/2) + vector (0, 0, 3), intake_direction, CPAP_inner_radius + expansion)]).to_wire()
+    result = []
+    if expansion == 0:
+      flat_start = -1
+    return (
+      [intake_flat_wire(expansion, 7-index*2) for index in range (5)]
+      + [CPAP_wire.translated (intake_direction*index*4) for index in range (5)])
+    
+  intake_interior = Part.makeLoft (intake_loft_components (0.0), True)
+  intake_exterior = Part.makeLoft (intake_loft_components (min_wall_thickness), True)
+  
+  show_transformed (intake_interior, "intake_interior")
+  show_transformed (intake_exterior, "intake_exterior")
+  
+  intake_solid = intake_exterior.cut (intake_interior) #intake_surface.makeOffsetShape (min_wall_thickness, 0.01, fill=True)
+  
+  show_transformed (intake_solid, "intake_solid")
+  
+  
   on_face = False
-  on_face = True
+  #on_face = True
   for name, object in displayed_objects.items():
     if on_face:
       object = (object
