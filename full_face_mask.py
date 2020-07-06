@@ -407,6 +407,52 @@ def make_full_face_mask():
   show_transformed (side_shield_slot. common (side_splitter_2), "bottom_slot")
   show_transformed (side_shield_slot.common (side_splitter), "side_slot")
   
+  
+  front_normal = (vector() - shield_focal_point).normalized()
+  back_normal = (vector(0, -top_major_radius*2, 0) - shield_focal_point).normalized()
+  radius_per_distance_from_focal_point = (front_normal - back_normal).Length/2
+  vertical = -((front_normal + back_normal)/2).normalized()
+  horizontal = vector (0, 1, 0).cross (vertical).normalized()
+  forwards = vertical.cross (horizontal)
+  #print (f" directions: {vertical}, {horizontal}, {forwards}")
+  horizontal_shift = 0
+  def unrolled(surface):
+    offset = surface.position - shield_focal_point
+    distance = offset.Length
+    conic_angle = math.atan2(offset.dot(forwards), offset.dot(horizontal))
+    radius = distance * radius_per_distance_from_focal_point
+    reconstructed = shield_focal_point+vertical*offset.dot(vertical) + forwards*radius*math.sin(conic_angle) + horizontal*radius*math.cos(conic_angle)
+    print (f"original: {surface.position}, reconstructed: {reconstructed}")
+    #wrong: conic_angle = surface.parameter
+    #print (f" angles: {conic_angle}, {surface.parameter}")
+    paper_radians = (conic_angle - math.tau/4)*radius_per_distance_from_focal_point
+    result = vector (distance*math.cos(paper_radians) + horizontal_shift, distance*math.sin (paper_radians))
+    return (surface, result)
+  def segments (vertices):
+    result = []
+    for (a,b), (c,d) in zip (vertices [: -1], vertices [1:]):
+      original = (a.position - c.position).Length
+      derived = (b - d).Length
+      print (f"distances: {original}, {derived}, {derived/original}")
+      result.append(Part.LineSegment (b, d))
+    return result
+  
+  horizontal_shift = 26 - unrolled(ShieldSurfacePoint(z=shield_slot_depth, y=0))[1][0]
+  
+  unrolled_side = [unrolled (surface) for surface in side_points
+    if surface.position [0] >= 0
+    ]
+  unrolled_top_subdivisions = 40
+  unrolled_top = [unrolled (ShieldSurfacePoint(z=shield_slot_depth, y=index * back_edge  / (unrolled_top_subdivisions-1))) for index in range (unrolled_top_subdivisions)]
+  
+  unrolled = Part.Shape(
+    segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[0][1])]
+  )
+  
+  show_transformed (unrolled, "unrolled")
+  
+    
+  
   on_face = False
   #on_face = True
   for name, object in displayed_objects.items():
