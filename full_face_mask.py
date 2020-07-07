@@ -1,3 +1,39 @@
+'''
+
+Big list of considerations after completing first mask prototype:
+
+STRUCTURE:
+– Currently, the forehead is shaped exactly for my forehead. Consider how to make the mask more one-size-fits-all.
+– Currently, the mask doesn't have much resistance to being tilted up/down or sideways. The only resistance to torque comes from the tension of the headband elastic, combined with the contact force at the forehead. These forces have infinite mechanical disadvantage when the mask is in standard position, so it always end up being slightly tilted. Furthermore, there is always torque on the mask - the weight of the CPAP hose, and also the tension of the elastic that holds the cloth on to the chin. Improve this situation.
+– Related to the above, it isn't perfectly comfortable right now – even after I glued some foam onto the forehead part, the force on my forehead is a little high.
+– Even when not tilted, the chin piece is within my visual range. Move it lower.
+– The mask is too bulky near my ears for me to wear my noise canceling headphones with it. Can this be fixed?
+– The intake is currently angled too far out to the side, increasing the unwanted torque and potentially making it more likely to bump into things.
+– Consider concerns about whether, in a bicycle crash, mask pieces would break in a dangerous way
+
+PRINTING PRACTICALITIES:
+– Probably we will ultimately use a manufacturing process that is not FDM - perhaps Shapeways SLS, perhaps even injection molding.
+– The connection between the intake and the frame needs to be stronger (probably just by printing it as one piece; I still need to 3d-model this).
+– The forehead piece isn't perfectly printable. Using my home 3D printer, it warped a little. Using SLS or injection molding, it won't be able to print as a hollow solid the same way it currently does. Improve this situation. (This may be rendered moot by structure changes)
+
+FACE SHIELD:
+– Glue it on instead of being clever with a slot. (The slot didn't hold it well enough, and also the shield buzzed when I talked.) Probably just remove one side of the slot, so there's an exposed face to glue to. (Keep the outer rim, to help with positioning and to make it so the face doesn't touch other objects if you put it down on a flat surface.)
+– Pursue antireflective coating, perhaps http://www.mecanusa.com/polarizer/AR-film/AR_roll.htm.
+– Probably use a material that is slightly thicker – we still want it to be possible to curve by hand, but the current version bends a little too easily, making it scrunch up a little under moderate force, which will put more and more bend marks on the surface over time.
+
+CLOTH:
+– The current mechanism of attaching the cloth was very inconvenient. Come up with a better one.
+– How to properly seal the cloth around the intake?
+– Generate a pattern for the cloth.
+– Pick a good kind of cloth to use, perhaps based on https://pubs.acs.org/doi/full/10.1021/acsnano.0c03252
+– Research whether there's any automation nowadays that would be less work than "a human manually cuts cloth using the pattern, sews it using a sewing machine, and threads the elastic".
+
+AIR PURIFIER:
+– This isn't about the mask per se, but there wasn't quite enough airflow for me to breathe hard. Make sure the air purifier provides more airflow.
+
+'''
+
+
 def make_full_face_mask():
   shield_slot_width = 1.3
   shield_slot_depth = 5
