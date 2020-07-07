@@ -110,12 +110,18 @@ def make_full_face_mask():
   '''
   
   class ShieldSurfacePoint:
-    def __init__(self, z = None, x = None, y = None):
+    def __init__(self, z = None, x = None, y = None, parameter = None):
       self.oval_size_factor = 1.0 - z / shield_focal_z
       self.minor_radius = top_minor_radius*self.oval_size_factor
       self.major_radius = top_major_radius*self.oval_size_factor
       self.z = z
-      if x is not None:
+      if parameter is not None:
+        u = parameter
+        self.u = u
+        self.parameter = u
+        self.x = self.minor_radius*math.cos (self.parameter)
+        self.y = self.major_radius*(math.sin (self.parameter)-1.0) + z/shield_focal_ratio
+      elif x is not None:
         self.x = x
         u = math.acos(x / self.minor_radius)
         self.u = u
@@ -408,6 +414,35 @@ def make_full_face_mask():
   show_transformed (side_shield_slot.common (side_splitter), "side_slot")
   
   
+  
+  flat_approximation_increments = 201
+  flat_approximation_factor = math.tau/2/(flat_approximation_increments -1)
+  previous_surface = None
+  flat_approximations = [0]
+  for index in range (flat_approximation_increments):
+    parameter = index*flat_approximation_factor
+    surface = ShieldSurfacePoint(z=shield_slot_depth, parameter = parameter)
+    if previous_surface is not None:
+      difference = surface.position - previous_surface.position
+      average = (surface.position + previous_surface.position)/2
+      from_focus = (average - shield_focal_point)
+      relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
+      angle = math.atan2(relevant_difference.Length, from_focus.Length)
+      flat_approximations.append (flat_approximations [-1] + angle)
+    previous_surface = surface
+  #should print (f"{flat_approximations}")
+  def flat_approximate_angle (surface):
+    adjusted = surface.parameter/flat_approximation_factor
+    #linearly interpolate
+    floor = math.floor (adjusted)
+    fraction = adjusted - floor
+    previous = flat_approximations [floor]
+    next = flat_approximations [floor + 1]
+    result = next*fraction + previous*(1-fraction)
+    #print (f" angles: {surface.parameter}, {adjusted}, floor: {floor}, {fraction}, {previous}, {next}, {result}, ")
+    # put 0 in the middle
+    return result - flat_approximations [(flat_approximation_increments -1)//2]
+  
   front_normal = (vector() - shield_focal_point).normalized()
   back_normal = (vector(0, -top_major_radius*2, 0) - shield_focal_point).normalized()
   radius_per_distance_from_focal_point = (front_normal - back_normal).Length/2
@@ -419,13 +454,13 @@ def make_full_face_mask():
   def unrolled(surface):
     offset = surface.position - shield_focal_point
     distance = offset.Length
-    conic_angle = math.atan2(offset.dot(forwards), offset.dot(horizontal))
-    radius = distance * radius_per_distance_from_focal_point
-    reconstructed = shield_focal_point+vertical*offset.dot(vertical) + forwards*radius*math.sin(conic_angle) + horizontal*radius*math.cos(conic_angle)
-    print (f"original: {surface.position}, reconstructed: {reconstructed}")
+    #conic_angle = math.atan2(offset.dot(forwards), offset.dot(horizontal))
+    #radius = distance * radius_per_distance_from_focal_point
+    #reconstructed = shield_focal_point+vertical*offset.dot(vertical) + forwards*radius*math.sin(conic_angle) + horizontal*radius*math.cos(conic_angle)
+    #print (f"original: {surface.position}, reconstructed: {reconstructed}")
     #wrong: conic_angle = surface.parameter
     #print (f" angles: {conic_angle}, {surface.parameter}")
-    paper_radians = (conic_angle - math.tau/4)*radius_per_distance_from_focal_point
+    paper_radians = flat_approximate_angle (surface) #(conic_angle - math.tau/4)*radius_per_distance_from_focal_point
     result = vector (distance*math.cos(paper_radians) + horizontal_shift, distance*math.sin (paper_radians))
     return (surface, result)
   def segments (vertices):
@@ -433,8 +468,12 @@ def make_full_face_mask():
     for (a,b), (c,d) in zip (vertices [: -1], vertices [1:]):
       original = (a.position - c.position).Length
       derived = (b - d).Length
+      ratio = derived/original
+      
       print (f"distances: {original}, {derived}, {derived/original}")
+      assert (abs (1 - ratio) <=0.01)
       result.append(Part.LineSegment (b, d))
+    print (f"total length: {sum( segment.length() for segment in result)}")
     return result
   
   horizontal_shift = 26 - unrolled(ShieldSurfacePoint(z=shield_slot_depth, y=0))[1][0]
@@ -443,7 +482,12 @@ def make_full_face_mask():
     if surface.position [0] >= 0
     ]
   unrolled_top_subdivisions = 40
-  unrolled_top = [unrolled (ShieldSurfacePoint(z=shield_slot_depth, y=index * back_edge  / (unrolled_top_subdivisions-1))) for index in range (unrolled_top_subdivisions)]
+  unrolled_top_back = ShieldSurfacePoint(z=shield_slot_depth, y= back_edge)
+  unrolled_top_parameter_range = unrolled_top_back.parameter - math.tau/4
+  unrolled_top = [
+    unrolled (
+      ShieldSurfacePoint(z=shield_slot_depth, parameter = math.tau/4 + index*unrolled_top_parameter_range/(unrolled_top_subdivisions - 1))
+    ) for index in range (unrolled_top_subdivisions)]
   
   unrolled = Part.Shape(
     segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[0][1])]
