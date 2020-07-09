@@ -85,7 +85,7 @@ def make_full_face_mask():
       show (object, name, invisible = invisible)
     return on_face
     
-  def matrix_from_columns(a,b,c,d=vector()):
+  def matrix_from_columns(a=vector(1,0,0),b=vector(0,1,0),c=vector(0,0,1),d=vector()):
     return FreeCAD.Matrix(
       a[0], b[0], c[0], d[0],
       a[1], b[1], c[1], d[1],
@@ -102,16 +102,17 @@ def make_full_face_mask():
   elastic_slot_width = 8 # deprecated
   elastic_slot_depth = 5 # deprecated
   shield_glue_face_width = 5
-  min_wall_thickness = 1.0
+  min_wall_thickness = 0.6
   CPAP_outer_radius = 21.5/2
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
-  headband_thickness = 0.6
+  headband_thickness = min_wall_thickness
   headband_width = 16
   headband_cut_radius = 25
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
   shield_back = headphones_front + min_wall_thickness
   back_edge = forehead_point[1] - 96
+  elastic_holder_depth = 5
   
   
   ########################################################################
@@ -147,9 +148,9 @@ def make_full_face_mask():
   u = asin((y - z/shield_focal_ratio)/top_major_radius*oval_size_factor + 1.0)
   '''
   
-  top_minor_radius = 95
+  top_minor_radius = 93
   top_major_radius = -back_edge*2
-  shield_focal_z = 300
+  shield_focal_z = 280
   shield_focal_ratio = 2
   shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
 
@@ -287,8 +288,8 @@ def make_full_face_mask():
     ShieldSurfacePoint (z= -20, y= shield_back),
     ShieldSurfacePoint (z= -40, y= shield_back),
     ShieldSurfacePoint (z= -60, y= shield_back),
-    ShieldSurfacePoint (z= -80, y= shield_back),
-    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 60),
+    ShieldSurfacePoint (z= -80, y= shield_back+1),
+    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 63),
     ShieldSurfacePoint (z= -135, x = 54),
     ShieldSurfacePoint (z= -155, x = 25),
     ShieldSurfacePoint (z= -155, x = 0),
@@ -306,7 +307,7 @@ def make_full_face_mask():
 
   show_transformed (source_side_curve.toShape(), "source_side_curve", invisible=True)
   
-  subdivisions = 100
+  subdivisions = 40
   source_side_curve_length = source_side_curve.length()
   def refined_side_point (distance):
     parameter = source_side_curve.parameterAtDistance (distance)
@@ -345,6 +346,9 @@ def make_full_face_mask():
   
   
   
+  
+  side_plate_bottom_z = -82
+  
   side_rim_hoop_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
         vertical_to (shield_glue_face_width),
@@ -354,8 +358,14 @@ def make_full_face_mask():
         vertical_to (0),
         close()
       ]).to_wire()
+  elastic_tension_wire = FreeCAD_shape_builder().build ([
+        start_at(0, 0),
+        horizontal_to (shield_glue_face_width),
+      ]).to_wire()
   
   side_rim_hoops = []
+  elastic_holder_hoops = []
+  elastic_tension_hoops = []
   for index, point in enumerate (side_points):
     position = point.position
     parameter = side_curve.parameter (position)
@@ -368,10 +378,54 @@ def make_full_face_mask():
     shield_shape.transformShape (shield_slot_matrix)
     side_rim_hoops.append(shield_shape)
     #show_transformed (shape,f"side_strut_shape_{index}")
+    
+    if position [2] < side_plate_bottom_z - 4:
+      elastic_holder_hoop_wire = FreeCAD_shape_builder().build ([
+        start_at(-min_wall_thickness, 0),
+        vertical_to (-min_wall_thickness - elastic_holder_depth),
+        horizontal_to (0),
+        vertical_to (-min_wall_thickness),
+        horizontal_to (elastic_holder_depth),
+        vertical_to (0),
+        close()
+      ]).to_wire()
+      elastic_holder_hoop_wire.transformShape (shield_slot_matrix)
+      elastic_holder_hoops.append(elastic_holder_hoop_wire)
+    
+    curve_normal = vector (*side_curve.normal(parameter))
+    elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(tangent), tangent, position)
+    elastic_tension_shape = elastic_tension_wire.copy()
+    elastic_tension_shape.transformShape (elastic_tension_matrix)
+    elastic_tension_hoops.append(elastic_tension_shape)
   
   side_rim = Part.makeLoft (side_rim_hoops, True)
   show_transformed (side_rim, "side_rim")
+  side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
+  show_transformed (side_elastic_holder, "side_elastic_holder")
+  
+  show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
 
+  side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
+    vector(0, headphones_front), vector(500, headphones_front)
+  ))[0])
+  side_plate_bottom = ShieldSurfacePoint (z= side_plate_bottom_z, y= headphones_front).position
+  side_plate_top_frontish = vector(forehead_curve.intersect(Part.LineSegment(
+    vector(0, side_plate_top[1] + shield_glue_face_width+min_wall_thickness), vector(500, side_plate_top[1] + shield_glue_face_width+min_wall_thickness)
+  ))[0])
+  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + shield_glue_face_width+min_wall_thickness).position
+  side_plate_forwards = (side_plate_top_frontish - side_plate_top).normalized()
+  side_plate_z_vector = side_plate_bottom_frontish - vector (min_wall_thickness, 0, 0) - side_plate_top_frontish
+  side_plate = box (min_wall_thickness, shield_glue_face_width+min_wall_thickness, side_plate_z_vector.Length)
+  #show_transformed (side_plate.copy(), "side_plate2")
+  matrix = matrix_from_columns(vector(1,0,0), side_plate_forwards, side_plate_z_vector.normalized(), side_plate_top)
+  print (matrix)
+  side_plate = side_plate.transformGeometry(matrix)
+  show_transformed (side_plate, "side_plate")
+
+
+  ################################################
+  ############### end of current code ############
+  ################################################
   return finish()
 
   forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
