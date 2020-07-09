@@ -279,7 +279,7 @@ def make_full_face_mask():
   
   
   ########################################################################
-  ########  Side rim  #######
+  ########  Side curve definition  #######
   ########################################################################
   
   source_side_points = [
@@ -346,8 +346,21 @@ def make_full_face_mask():
   
   
   
+  ########################################################################
+  ########  Side rim and stuff #######
+  ########################################################################
   
   side_plate_bottom_z = -82
+  side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
+    vector(0, headphones_front), vector(500, headphones_front)
+  ))[0])
+  side_plate_bottom = ShieldSurfacePoint (z= side_plate_bottom_z, y= headphones_front).position
+  side_plate_top_frontish = vector(forehead_curve.intersect(Part.LineSegment(
+    vector(0, side_plate_top[1] + shield_glue_face_width+min_wall_thickness), vector(500, side_plate_top[1] + shield_glue_face_width+min_wall_thickness)
+  ))[0])
+  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + shield_glue_face_width+min_wall_thickness).position
+  side_plate_forwards = (side_plate_top_frontish - side_plate_top).normalized()
+  side_plate_z_vector = side_plate_bottom_frontish - vector (min_wall_thickness, 0, 0) - side_plate_top_frontish
   
   side_rim_hoop_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
@@ -364,6 +377,7 @@ def make_full_face_mask():
       ]).to_wire()
   
   side_rim_hoops = []
+  side_plate_hoops = []
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   for index, point in enumerate (side_points):
@@ -392,6 +406,21 @@ def make_full_face_mask():
       elastic_holder_hoop_wire.transformShape (shield_slot_matrix)
       elastic_holder_hoops.append(elastic_holder_hoop_wire)
     
+    if position [2] >= side_plate_bottom_z and position [0] > 0:
+      fraction = position [2]/side_plate_z_vector[2]
+      offset = side_plate_z_vector * fraction
+      reference = side_plate_top + offset
+      flat_away = vector(away[0], away[1], 0).normalized()
+      aligned_position = position - flat_away*(position[1] - headphones_front)/flat_away[1]
+      points = [
+        reference,
+        aligned_position,
+        aligned_position - flat_away*(shield_glue_face_width+min_wall_thickness),
+        reference + side_plate_forwards*(shield_glue_face_width+min_wall_thickness),
+      ]
+      wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
+      side_plate_hoops.append(wire)
+      
     curve_normal = vector (*side_curve.normal(parameter))
     elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(tangent), tangent, position)
     elastic_tension_shape = elastic_tension_wire.copy()
@@ -402,25 +431,18 @@ def make_full_face_mask():
   show_transformed (side_rim, "side_rim")
   side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
   show_transformed (side_elastic_holder, "side_elastic_holder")
+  side_plate = Part.makeLoft (side_plate_hoops, True)
+  show_transformed (side_plate, "side_plate")
   
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
 
-  side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, headphones_front), vector(500, headphones_front)
-  ))[0])
-  side_plate_bottom = ShieldSurfacePoint (z= side_plate_bottom_z, y= headphones_front).position
-  side_plate_top_frontish = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, side_plate_top[1] + shield_glue_face_width+min_wall_thickness), vector(500, side_plate_top[1] + shield_glue_face_width+min_wall_thickness)
-  ))[0])
-  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + shield_glue_face_width+min_wall_thickness).position
-  side_plate_forwards = (side_plate_top_frontish - side_plate_top).normalized()
-  side_plate_z_vector = side_plate_bottom_frontish - vector (min_wall_thickness, 0, 0) - side_plate_top_frontish
-  side_plate = box (min_wall_thickness, shield_glue_face_width+min_wall_thickness, side_plate_z_vector.Length)
+  
+  '''side_plate = box (min_wall_thickness, shield_glue_face_width+min_wall_thickness, side_plate_z_vector.Length)
   #show_transformed (side_plate.copy(), "side_plate2")
   matrix = matrix_from_columns(vector(1,0,0), side_plate_forwards, side_plate_z_vector.normalized(), side_plate_top)
   print (matrix)
   side_plate = side_plate.transformGeometry(matrix)
-  show_transformed (side_plate, "side_plate")
+  show_transformed (side_plate, "side_plate")'''
 
 
   ################################################
