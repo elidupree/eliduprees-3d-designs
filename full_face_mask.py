@@ -199,7 +199,7 @@ def make_full_face_mask():
   
   
   ########################################################################
-  ########  Forehead/headband  #######
+  ########  Forehead/headband/top rim  #######
   ########################################################################
   
   
@@ -258,54 +258,28 @@ def make_full_face_mask():
     #top_point = ShieldSurfacePoint(z=shield_glue_face_width + min_wall_thickness, parameter=parameter)
     towards_focus = (shield_focal_point - bottom_point.position).normalized()
     towards_focus_skewed = towards_focus/towards_focus[2]
-    wall_thickness_skewed = min_wall_thickness/towards_focus[2]
+    wall_thickness_skewed = min_wall_thickness/towards_focus.cross(bottom_point.normal).Length
     flat_outwards = (bottom_point.normal - vector(0,0,bottom_point.normal[2])).normalized()
-    points = [
-      bottom_point.position,
-      bottom_point.position + towards_focus_skewed*shield_glue_face_width,
-      bottom_point.position + towards_focus_skewed*shield_glue_face_width + flat_outwards*wall_thickness_skewed,
-      bottom_point.position + towards_focus_skewed*(shield_glue_face_width + min_wall_thickness) + flat_outwards*wall_thickness_skewed,
-      bottom_point.position + towards_focus_skewed*(shield_glue_face_width + min_wall_thickness) - flat_outwards*wall_thickness_skewed,
-      bottom_point.position - flat_outwards*wall_thickness_skewed,
+    coords = [
+      (0, 0),
+      (0, shield_glue_face_width),
+      (wall_thickness_skewed, shield_glue_face_width),
+      (wall_thickness_skewed, shield_glue_face_width + min_wall_thickness),
+      (-wall_thickness_skewed, shield_glue_face_width + min_wall_thickness),
+      (-wall_thickness_skewed, 0),
     ]
+    points = [bottom_point.position + towards_focus_skewed*b + flat_outwards*a for a,b in coords]
     wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
     top_rim_hoops.append (wire)
     
   
   top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
   show_transformed (top_rim, "top_rim")
-    
-    
-
-
-  return finish()
-
-  forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
-  
-  #forehead_elastic_hole = Part.makeCylinder (3, 50, vector (-86.4, -161, -4))
-  forehead_elastic_hole = box (centered (1), 5, centered (100)).makeOffsetShape (1.5, 0.01).rotated (vector(), vector (0, 0, 1), -10).translated (vector (-85.4, -162, -4))
-  forehead_exclusion = forehead_exclusion.fuse ([
-    forehead_elastic_hole,
-    forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
-  ])
   
   
-  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
-  lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
-  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
-  shield_top_curve = shield_top_full_wire.common(shield_box)
-  #show_transformed(shield_box, "shield_box")
-  
-  show_transformed(shield_top_curve, "shield_top_curve")
-  
-  
-  
-  # note: this line of code is written with the assumptions that
-  # (1) no part of the side frame may go behind headphones_front, and
-  # (2) the side curve defines the edge of the face shield, before any walls that restrain it, and
-  # (3) the side frame has only one wall restraining it
-  # as I write this comment, 2 and 3 are not true in the code, but I anticipate that I'll change the code so it is true.
-  shield_back = headphones_front + min_wall_thickness
+  ########################################################################
+  ########  Side rim  #######
+  ########################################################################
   
   source_side_points = [
     ShieldSurfacePoint (z=shield_slot_depth, y= shield_back),
@@ -328,8 +302,9 @@ def make_full_face_mask():
     mults = [degree+1] + [1]*(len(source_side_poles) - degree - 1) + [degree+1],
     degree = degree,
   )
-  
-  show_transformed (source_side_curve.toShape(), "source_side_curve")
+
+
+  show_transformed (source_side_curve.toShape(), "source_side_curve", invisible=True)
   
   subdivisions = 100
   source_side_curve_length = source_side_curve.length()
@@ -367,6 +342,58 @@ def make_full_face_mask():
   )
   
   show_transformed (side_curve.toShape(), "side_curve")
+  
+  
+  
+  side_rim_hoop_wire = FreeCAD_shape_builder().build ([
+        start_at(0, 0),
+        vertical_to (shield_glue_face_width),
+        horizontal_to (-min_wall_thickness),
+        vertical_to (-min_wall_thickness),
+        horizontal_to (min_wall_thickness),
+        vertical_to (0),
+        close()
+      ]).to_wire()
+  
+  side_rim_hoops = []
+  for index, point in enumerate (side_points):
+    position = point.position
+    parameter = side_curve.parameter (position)
+    tangent = vector (*side_curve.tangent (parameter)).normalized()
+    normal = point.normal
+    away = tangent.cross (normal)
+    
+    shield_slot_matrix = matrix_from_columns(normal, -away, tangent, position)
+    shield_shape = side_rim_hoop_wire.copy()
+    shield_shape.transformShape (shield_slot_matrix)
+    side_rim_hoops.append(shield_shape)
+    #show_transformed (shape,f"side_strut_shape_{index}")
+  
+  side_rim = Part.makeLoft (side_rim_hoops, True)
+  show_transformed (side_rim, "side_rim")
+
+  return finish()
+
+  forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
+  
+  #forehead_elastic_hole = Part.makeCylinder (3, 50, vector (-86.4, -161, -4))
+  forehead_elastic_hole = box (centered (1), 5, centered (100)).makeOffsetShape (1.5, 0.01).rotated (vector(), vector (0, 0, 1), -10).translated (vector (-85.4, -162, -4))
+  forehead_exclusion = forehead_exclusion.fuse ([
+    forehead_elastic_hole,
+    forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
+  ])
+  
+  
+  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
+  lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
+  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
+  shield_top_curve = shield_top_full_wire.common(shield_box)
+  #show_transformed(shield_box, "shield_box")
+  
+  show_transformed(shield_top_curve, "shield_top_curve")
+  
+  
+  
   
   shield_slot_top = min_wall_thickness + shield_slot_depth
   elastic_slot_bottom = shield_slot_top - elastic_slot_width - min_wall_thickness*2
