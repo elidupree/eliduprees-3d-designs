@@ -85,7 +85,12 @@ def make_full_face_mask():
       show (object, name, invisible = invisible)
     return on_face
     
-  
+  def matrix_from_columns(a,b,c,d=vector()):
+    return FreeCAD.Matrix(
+      a[0], b[0], c[0], d[0],
+      a[1], b[1], c[1], d[1],
+      a[2], b[2], c[2], d[2],
+    )
   
   ########################################################################
   ########  Constants  #######
@@ -105,6 +110,7 @@ def make_full_face_mask():
   headband_cut_radius = 25
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
+  shield_back = headphones_front + min_wall_thickness
   back_edge = forehead_point[1] - 96
   
   
@@ -238,15 +244,38 @@ def make_full_face_mask():
   headband = headband.fuse([
     headband_elastic_link,
     headband_elastic_link.mirror(vector(), vector(1,0,0)),
-  ])
+  ]).translated(vector(0,0,shield_glue_face_width + min_wall_thickness - headband_width))
   show_transformed (headband, "headband")
   
   
-  top_rim_subdivisions = 40
+  top_rim_subdivisions = 10
   min_parameter = ShieldSurfacePoint(z=0, x=0).parameter
-  max_parameter =ShieldSurfacePoint(z=0, y=0).parameter
+  max_parameter = ShieldSurfacePoint(z=0, y=shield_back).parameter
+  top_rim_hoops = []
   for index in range (top_rim_subdivisions):
-    pass
+    parameter = min_parameter + (max_parameter-min_parameter)*index/(top_rim_subdivisions-1)
+    bottom_point = ShieldSurfacePoint(z=0, parameter=parameter)
+    #top_point = ShieldSurfacePoint(z=shield_glue_face_width + min_wall_thickness, parameter=parameter)
+    towards_focus = (shield_focal_point - bottom_point.position).normalized()
+    towards_focus_skewed = towards_focus/towards_focus[2]
+    wall_thickness_skewed = min_wall_thickness/towards_focus[2]
+    flat_outwards = (bottom_point.normal - vector(0,0,bottom_point.normal[2])).normalized()
+    points = [
+      bottom_point.position,
+      bottom_point.position + towards_focus_skewed*shield_glue_face_width,
+      bottom_point.position + towards_focus_skewed*shield_glue_face_width + flat_outwards*wall_thickness_skewed,
+      bottom_point.position + towards_focus_skewed*(shield_glue_face_width + min_wall_thickness) + flat_outwards*wall_thickness_skewed,
+      bottom_point.position + towards_focus_skewed*(shield_glue_face_width + min_wall_thickness) - flat_outwards*wall_thickness_skewed,
+      bottom_point.position - flat_outwards*wall_thickness_skewed,
+    ]
+    wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
+    top_rim_hoops.append (wire)
+    
+  
+  top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
+  show_transformed (top_rim, "top_rim")
+    
+    
 
 
   return finish()
@@ -376,12 +405,7 @@ def make_full_face_mask():
         close()
       ]).to_wire()'''
       
-  def matrix_from_columns(a,b,c,d):
-    return FreeCAD.Matrix(
-      a[0], b[0], c[0], d[0],
-      a[1], b[1], c[1], d[1],
-      a[2], b[2], c[2], d[2],
-    )
+  
   
   side_shield_slot_pieces = []
   intake_flat_outside_edge = []
