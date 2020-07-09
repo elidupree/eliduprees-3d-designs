@@ -50,97 +50,67 @@ Hmm, there could be a bunch of parallel curved slightly-flexible rims, dividing 
 If I do use cloth on the forehead area, that combines this with the other main design challenge, which is how to attach the cloth conveniently. Cloth for the forehead might also reduce the amount of noise (by reducing the amount of solid interior surfaces that reflect sound back to the wearer)
 
 For the chin cloth:
-– To attach it to the frame, I'm thinking we can just make the elastic be sewn into the cloth and have a loop at each end, which goes over a hook built into the frame; it doesn't need to be adjustable. Then it's just a matter of making it easy to set into the frame (perhaps by making the contact surface rotate with the normal to the curve, plus making some cutaways in the sides of the slot so that you can get your fingers in to press it into the slot). Note that in order to form a good seal, we only need the elastic to hold the cloth taut onto the frame, which automatically happens if it's in the normal direction, as long as the curvature isn't too low. The curvature near the top is pretty low; we might need a technique to fix this, or it might become moot due to other changes. The slot doesn't need to have solid walls on the non-normal sides, it could theoretically just be rows of prongs that keep the elastic from sliding off.
+– To attach it to the frame, I'm thinking we can just make the elastic be sewn into the cloth and have a loop at each end, which goes over a hook built into the frame; it doesn't need to be adjustable. Then it's just a matter of making it easy to set into the frame (perhaps by making the contact surface rotate with the normal to the curve, plus making some cutaways in the sides of the channel so that you can get your fingers in to press it into the channel). Note that in order to form a good seal, we only need the elastic to hold the cloth taut onto the frame, which automatically happens if it's in the normal direction, as long as the curvature isn't too low. The curvature near the top is pretty low; we might need a technique to fix this, or it might become moot due to other changes. The channel doesn't need to have solid walls on the non-normal sides, it could theoretically just be rows of prongs that keep the elastic from sliding off.
 – To attach it to the neck, we can do the same thing except that it now needs to be adjustable – but the elastic can be bent over the headband and attached to one of *several* hooks at different positions down the outside frame (which I guess have to be in front of the place the cloth attaches to the frame...)
 – Wait, just doing both of those things means the cloth is loose at the top corner, creating a leak. This could be resolved by putting an additional, very short piece of elastic between the ends of the chin elastic and the end of the frame elastic (elastic short enough that it will be taut around the frame even when the neck elastic is at the loosest hook, but inside a cloth tube long enough that it can reach the tightest hook)
 – None of these techniques make the cloth itself taut, so they don't immediately solve the forehead thing
 – since the forehead thing shouldn't be flexing all that much, an exact-sized cloth might be good enough
-– To deal with the intake, try to route the cloth-slot BEHIND the intake rather than in front of it
+– To deal with the intake, try to route the cloth-channel BEHIND the intake rather than in front of it
+– New idea: with apologies for trying to describe a 3D shape in text: the channel on the side/bottom rim only needs to go up to around Z=-70, from which the remainder of the side frame is almost vertical. If we can put a nonconcave surface on the faceward side of the frame above that, then the elastic can be pulled taut along that whole nonconcave surface, then go over the headband and hook onto a hook on the outside of the headband. Then it only needs to hook in *one* place on each side rather than two, simplifying the design significantly. (The only reason we still need a channel on the rest of the frame is that the bottom of the mask isn't *straight*). This allows the frame to be slimmer at the sides, allowing the sides to go less far back near the ears while still staying out of the vision area.
+
+The current design assumes that the face does not get wider as you move down from the temple. But some people have faces that do that. We don't necessarily need to PERFECTLY avoid the edges of the vision on all faces; it would be tolerable to have the side of the mask end in a vertical edge that bows outwards along with whatever point of the cheek sticks out the furthest. If the frame is slightly flexible, the face shield can afford to bow outwards in approximately this way. (It can unroll along the cone.) What we want to avoid is the case where bowing the face shield also bows out the headband, losing the seal. To accomplish both of these things at the same time, there cannot be a direct attachment between the headband and the corner of the shield. That seems fairly complicated to pull off while also attaching the cloth appropriately. Another possibility is to let the face shield bow to a position where the cheek DOES stick out further than the temple. A third possibility is to just make the mask wider at the cheek regardless, SLIGHTLY reducing the visual range.
 
 '''
 
 
 def make_full_face_mask():
-  shield_slot_width = 1.3
-  shield_slot_depth = 5
-  elastic_slot_catch_length = 2
-  elastic_slot_width = 8
-  elastic_slot_depth = 5
+  ########################################################################
+  ########  Code bureaucracy  #######
+  ########################################################################
+  displayed_objects = {}
+  def show_transformed(a,b, invisible = False):
+    displayed_objects[b] = (a, invisible)
+  
+  on_face = False
+  #on_face = True
+  def finish():
+    for name, (object, invisible) in displayed_objects.items():
+      if on_face:
+        object = (object
+        .translated (- forehead_point)
+        .as_xz()
+        .mirror(vector(), vector(0,1,0))
+        .rotated(vector(), vector(1, 0, 0), 360/math.tau*math.atan2(-28,123))
+        .translated (vector (0, 18, 0.25)))
+      show (object, name, invisible = invisible)
+    return on_face
+    
+  
+  
+  ########################################################################
+  ########  Constants  #######
+  ########################################################################
+    
+  shield_slot_width = 1.3 # deprecated
+  shield_slot_depth = 5 # deprecated
+  elastic_slot_catch_length = 2 # deprecated
+  elastic_slot_width = 8 # deprecated
+  elastic_slot_depth = 5 # deprecated
+  shield_glue_face_width = 5
   min_wall_thickness = 1.0
   CPAP_outer_radius = 21.5/2
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
-  
-  displayed_objects = {}
-  def show_transformed(a,b):
-    displayed_objects[b] = a
-  
+  headband_thickness = 0.6
+  headband_width = 16
+  headband_cut_radius = 25
   forehead_point = vector (0, -58)
+  headphones_front = forehead_point[1] - 75
   back_edge = forehead_point[1] - 96
-  '''shield_top_points = [
-    vector (10, 0),
-    vector (30, -10),
-    vector (50, -25),
-    vector (60, -40),
-    vector (70, -57),
-    vector (80, -75),
-    vector (100, back_edge),
-  ]
-  degree = 3
-  shield_top_poles = [vector (-a[0], a[1]) for a in reversed(shield_top_points)] + [vector(0, 0)] + shield_top_points
-  shield_top_curve = Part.BSplineCurve()
-  shield_top_curve.buildFromPolesMultsKnots(
-    shield_top_poles,
-    [degree+1] + [1]*(len(shield_top_poles) - degree - 1) + [degree+1],
-    degree = degree,
-  )'''
   
-  forehead_points = [
-    vector (15, 0),
-    vector (25, -2.5),
-    vector (35, -7),
-    vector (45, -14),
-    vector (55, -27),
-    vector (62, -37),
-    vector (71, -53),
-    vector (79, -90),
-    vector (81, -107),
-    vector (88, -108),
-    vector (94, -107),
-    vector (100, -107),
-    vector (100, -207),
-  ]
-  degree = 3
-  forehead_poles = [forehead_point + vector (-a[0], a[1]) for a in reversed(forehead_points)] + [forehead_point] + [forehead_point + a for a in forehead_points]
-  forehead_curve = Part.BSplineCurve()
-  forehead_curve.buildFromPolesMultsKnots(
-    forehead_poles,
-    degree = degree,
-    periodic = True,
-  )
-  forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
   
-  #forehead_elastic_hole = Part.makeCylinder (3, 50, vector (-86.4, -161, -4))
-  forehead_elastic_hole = box (centered (1), 5, centered (100)).makeOffsetShape (1.5, 0.01).rotated (vector(), vector (0, 0, 1), -10).translated (vector (-85.4, -162, -4))
-  forehead_exclusion = forehead_exclusion.fuse ([
-    forehead_elastic_hole,
-    forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
-  ])
-  
-  top_minor_radius = 100
-  top_major_radius = -back_edge*2
-  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
-  lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
-  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
-  shield_top_curve = shield_top_full_wire.common(shield_box)
-  #show_transformed(shield_box, "shield_box")
-  
-  show_transformed(shield_top_curve, "shield_top_curve")
-  
-  shield_focal_z = 400
-  shield_focal_ratio = 2
-  shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
-  #shield_focal_point = vector (0, back_edge, back_edge*2)
-  
+  ########################################################################
+  ########  Generalized cone definitions  #######
+  ########################################################################
   '''
   
   formulas:
@@ -171,6 +141,12 @@ def make_full_face_mask():
   u = asin((y - z/shield_focal_ratio)/top_major_radius*oval_size_factor + 1.0)
   '''
   
+  top_minor_radius = 95
+  top_major_radius = -back_edge*2
+  shield_focal_z = 300
+  shield_focal_ratio = 2
+  shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
+
   class ShieldSurfacePoint:
     def __init__(self, z = None, x = None, y = None, parameter = None):
       self.oval_size_factor = 1.0 - z / shield_focal_z
@@ -215,17 +191,104 @@ def make_full_face_mask():
       self.normal = self.ddu.cross(self.ddz).normalized()
   
   
+  
+  ########################################################################
+  ########  Forehead/headband  #######
+  ########################################################################
+  
+  
+  
+  forehead_points = [
+    vector (0, 0),
+    vector (15, 0),
+    vector (25, -2.5),
+    vector (35, -7),
+    vector (45, -14),
+    vector (55, -27),
+    vector (62, -37),
+    vector (71, -53),
+    vector (79, -90),
+    vector (81, -107),
+    vector (81, -130),
+    vector (60, -180),
+    vector (15, -195),
+    vector (0, -195),
+  ]
+  degree = 3
+  forehead_poles = [forehead_point + vector (-a[0], a[1]) for a in reversed(forehead_points[1:])] + [forehead_point + a for a in forehead_points[:-1]]
+  forehead_curve = Part.BSplineCurve()
+  forehead_curve.buildFromPolesMultsKnots(
+    forehead_poles,
+    degree = degree,
+    periodic = True,
+  )
+  show_transformed (forehead_curve.toShape(), "forehead_curve")
+  
+  
+  headband_cut_box = box(centered (50), bounds (-500, forehead_point[1]-100), centered(500))
+  headband_interior_2D = forehead_curve.toShape().to_wire().to_face()
+  show_transformed (headband_interior_2D , "headband_interior_2D", invisible=True)
+  headband_2D = forehead_curve.toShape().makeOffset2D (headband_thickness, fill = True).cut(headband_cut_box)
+  
+  headband = headband_2D.extrude (vector (0, 0, headband_width))
+  
+  # using a weird shaped way to attach the elastic for now, just for FDM convenience
+  headband_elastic_link_radius = 3
+  headband_elastic_link = Part.Circle(vector(), vector(0,0,1), headband_elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), headband_elastic_link_radius).toShape().to_wire().to_face()).translated(vector(-25 - (headband_elastic_link_radius + headband_thickness/2), forehead_point[1]-192, 0)).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
+  headband = headband.fuse([
+    headband_elastic_link,
+    headband_elastic_link.mirror(vector(), vector(1,0,0)),
+  ])
+  show_transformed (headband, "headband")
+  
+  
+  top_rim_subdivisions = 40
+  min_parameter = ShieldSurfacePoint(z=0, x=0).parameter
+  max_parameter =ShieldSurfacePoint(z=0, y=0).parameter
+  for index in range (top_rim_subdivisions):
+    pass
+
+
+  return finish()
+
+  forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
+  
+  #forehead_elastic_hole = Part.makeCylinder (3, 50, vector (-86.4, -161, -4))
+  forehead_elastic_hole = box (centered (1), 5, centered (100)).makeOffsetShape (1.5, 0.01).rotated (vector(), vector (0, 0, 1), -10).translated (vector (-85.4, -162, -4))
+  forehead_exclusion = forehead_exclusion.fuse ([
+    forehead_elastic_hole,
+    forehead_elastic_hole.mirror (vector(), vector (1, 0, 0)),
+  ])
+  
+  
+  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
+  lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
+  shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
+  shield_top_curve = shield_top_full_wire.common(shield_box)
+  #show_transformed(shield_box, "shield_box")
+  
+  show_transformed(shield_top_curve, "shield_top_curve")
+  
+  
+  
+  # note: this line of code is written with the assumptions that
+  # (1) no part of the side frame may go behind headphones_front, and
+  # (2) the side curve defines the edge of the face shield, before any walls that restrain it, and
+  # (3) the side frame has only one wall restraining it
+  # as I write this comment, 2 and 3 are not true in the code, but I anticipate that I'll change the code so it is true.
+  shield_back = headphones_front + min_wall_thickness
+  
   source_side_points = [
-    ShieldSurfacePoint (z=shield_slot_depth, y= back_edge),
-    ShieldSurfacePoint (z=0, y= back_edge),
-    ShieldSurfacePoint (z= -20, y= back_edge),
-    ShieldSurfacePoint (z= -40, y= back_edge),
-    ShieldSurfacePoint (z= -60, y= forehead_point[1] - 90),
-    ShieldSurfacePoint (z= -80, y= forehead_point[1] - 75),
+    ShieldSurfacePoint (z=shield_slot_depth, y= shield_back),
+    ShieldSurfacePoint (z=0, y= shield_back),
+    ShieldSurfacePoint (z= -20, y= shield_back),
+    ShieldSurfacePoint (z= -40, y= shield_back),
+    ShieldSurfacePoint (z= -60, y= shield_back),
+    ShieldSurfacePoint (z= -80, y= shield_back),
     ShieldSurfacePoint (z= -100, y= forehead_point[1] - 60),
-    ShieldSurfacePoint (z= -120, x = 54),
-    ShieldSurfacePoint (z= -140, x = 25),
-    ShieldSurfacePoint (z= -140, x = 0),
+    ShieldSurfacePoint (z= -135, x = 54),
+    ShieldSurfacePoint (z= -155, x = 25),
+    ShieldSurfacePoint (z= -155, x = 0),
   ]
   
   degree = 3
@@ -362,9 +425,12 @@ def make_full_face_mask():
   shield_extension_curves = [shield_extension_curve (z) for z in shield_extension_zs]
   
   shield_cross_section = shield_top_full_wire.to_face().common(shield_box)
-  for index, offset_distance in enumerate (20.0*x for x in range(10)):
+  shield_cross_sections = []
+  for offset_distance in (20.0*x for x in range(10)):
     offset_fraction = offset_distance / -shield_focal_point[2]
-    #show_transformed (shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction), f"shield_cross_section_{index}")
+    shield_cross_sections.append(shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction))
+    
+  show_transformed (Part.Compound (shield_cross_sections), "shield_cross_sections")
   
   #show_transformed(shield_extension_curves[0], "shield_extension_curve_0")
   #show_transformed(shield_extension_curves[1], "shield_extension_curve_1")
@@ -559,19 +625,7 @@ def make_full_face_mask():
   
     
   
-  on_face = False
-  #on_face = True
-  for name, object in displayed_objects.items():
-    if on_face:
-      object = (object
-      .translated (- forehead_point)
-      .as_xz()
-      .mirror(vector(), vector(0,1,0))
-      .rotated(vector(), vector(1, 0, 0), 360/math.tau*math.atan2(-28,123))
-      .translated (vector (0, 18, 0.25)))
-    show (object, name)
-    
-  return on_face
+  return finish()
 
 def run(g):
   for key, value in g.items():
