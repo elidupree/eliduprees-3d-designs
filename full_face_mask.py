@@ -313,7 +313,7 @@ def make_full_face_mask():
   ########################################################################
   
   source_side_points = [
-    ShieldSurfacePoint (z=shield_slot_depth, y= shield_back),
+    ShieldSurfacePoint (z=shield_glue_face_width, y= shield_back),
     ShieldSurfacePoint (z=0, y= shield_back),
     ShieldSurfacePoint (z= -20, y= shield_back),
     ShieldSurfacePoint (z= -40, y= shield_back),
@@ -465,30 +465,42 @@ def make_full_face_mask():
   show_transformed (side_plate, "side_plate")
   
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
+  
+  elastic_hook_base_length = 6
+  elastic_hook_outwards = 10
+  elastic_hook_forwards = 10
+  
+  elastic_hook = Part.makePolygon([
+    vector(0,0),
+    vector(elastic_hook_outwards,elastic_hook_forwards-1.25),
+    vector(elastic_hook_outwards,elastic_hook_forwards),
+    vector(0,elastic_hook_base_length),
+    vector(0,0),
+  ]).to_face().extrude(vector(0,0,min_wall_thickness))
 
-  side_hook_period = 6
-  side_hook_outwards = 10
-  side_hook_downwards = 10
+
   def side_hook(distance):
+    
     top = side_curve.value (side_curve.parameterAtDistance (distance))
-    bottom = side_curve.value (side_curve.parameterAtDistance (distance+side_hook_downwards))
+    bottom = side_curve.value (side_curve.parameterAtDistance (distance+elastic_hook_forwards))
     downwards = (bottom-top).normalized()
-    middle = top + downwards * side_hook_period
-    point = bottom + downwards.cross (vector(0,1,0))*10
-    return Part.makePolygon([top, middle, point, point-downwards*1.25, top]).to_face().extrude(vector (0,-min_wall_thickness,0))
+    matrix = matrix_from_columns(downwards.cross (vector(0,1,0)), downwards, vector(0,-1,0), top)
+    hook = elastic_hook.copy()
+    hook.transformShape (matrix)
+    return hook
 
-  side_hooks = Part.Compound ([
-    side_hook(side_hook_period*index) for index in range(8)
+  rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= shield_back+shield_glue_face_width + 10)
+  rim_hook_front = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y=rim_hook_back.position[1]+elastic_hook_forwards)
+  rim_hook_forwards = (rim_hook_front.position - rim_hook_back.position).normalized()
+  rim_hook = elastic_hook.copy()
+  matrix = matrix_from_columns(rim_hook_forwards.cross (vector(0,0,1)), -rim_hook_forwards, vector(0,0,-1), rim_hook_front.position)
+  rim_hook.transformShape (matrix)
+  side_hooks = Part.Compound ([rim_hook]+[
+    side_hook(elastic_hook_base_length*index) for index in range(8)
   ])
   
   show_transformed (side_hooks, "side_hooks")
   
-  '''side_plate = box (min_wall_thickness, shield_glue_face_width+min_wall_thickness, side_plate_z_vector.Length)
-  #show_transformed (side_plate.copy(), "side_plate2")
-  matrix = matrix_from_columns(vector(1,0,0), side_plate_forwards, side_plate_z_vector.normalized(), side_plate_top)
-  print (matrix)
-  side_plate = side_plate.transformGeometry(matrix)
-  show_transformed (side_plate, "side_plate")'''
   
   ########################################################################
   ########  Intake  #######
@@ -625,6 +637,10 @@ def make_full_face_mask():
     side_rim,
     side_elastic_holder,
     side_plate,
+    side_plate.mirror(vector(), vector (1, 0, 0)),
+    side_hooks,
+    side_hooks.mirror(vector(), vector (1, 0, 0)),
+    intake_solid,
   ]), "whole_frame", invisible=True)
   return finish()
   
