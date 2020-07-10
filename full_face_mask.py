@@ -467,11 +467,15 @@ def make_full_face_mask():
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
 
   side_hook_period = 6
+  side_hook_outwards = 10
+  side_hook_downwards = 10
   def side_hook(distance):
     top = side_curve.value (side_curve.parameterAtDistance (distance))
-    middle = side_curve.value (side_curve.parameterAtDistance (distance+side_hook_period))
-    bottom = side_curve.value (side_curve.parameterAtDistance (distance+10))
-    return Part.makePolygon([top, middle, bottom + (bottom-top).normalized().cross (vector(0,1,0))*10, top]).to_face().extrude(vector (0,-min_wall_thickness,0))
+    bottom = side_curve.value (side_curve.parameterAtDistance (distance+side_hook_downwards))
+    downwards = (bottom-top).normalized()
+    middle = top + downwards * side_hook_period
+    point = bottom + downwards.cross (vector(0,1,0))*10
+    return Part.makePolygon([top, middle, point, point-downwards*1.25, top]).to_face().extrude(vector (0,-min_wall_thickness,0))
 
   side_hooks = Part.Compound ([
     side_hook(side_hook_period*index) for index in range(8)
