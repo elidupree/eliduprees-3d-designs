@@ -107,7 +107,7 @@ def make_full_face_mask():
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
   CPAP_hose_helix_outer_radius = 22/2
   headband_thickness = min_wall_thickness
-  headband_width = 16
+  headband_width = 12
   headband_cut_radius = 25
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
@@ -375,6 +375,11 @@ def make_full_face_mask():
   show_transformed (side_curve.toShape(), "side_curve")
   
   
+  def side_curve_at_z(z, which = 0):
+    return vector(side_curve.intersect(
+      Part.Plane (vector(0,0,z), vector(0,0,1))
+    )[0][which])
+  
   
   ########################################################################
   ########  Side rim and stuff #######
@@ -460,7 +465,6 @@ def make_full_face_mask():
   side_rim = Part.makeLoft (side_rim_hoops, True)
   show_transformed (side_rim, "side_rim")
   side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
-  show_transformed (side_elastic_holder, "side_elastic_holder")
   side_plate = Part.makeLoft (side_plate_hoops, True)
   show_transformed (side_plate, "side_plate")
   
@@ -501,6 +505,42 @@ def make_full_face_mask():
   
   show_transformed (side_hooks, "side_hooks")
   
+  side_elastic_holder_cuts = []
+  def make_side_elastic_holder_cut(top_z, bottom_z):
+    top = side_curve_at_z(top_z)
+    bottom = side_curve_at_z(bottom_z)
+    
+    middle_parameter = side_curve.parameter ((top+bottom)/2)
+    middle = side_curve.value (middle_parameter)
+    middle = ShieldSurfacePoint (z=middle[2], y=middle[1])
+    along = (top-bottom).normalized()
+    normal = middle.normal
+    away = -along.cross(middle.normal).normalized()
+    
+    cut = Part.makePolygon([
+      top + min_wall_thickness*away,
+      bottom + min_wall_thickness*away,
+      bottom + (min_wall_thickness+20)*away,
+      top + (min_wall_thickness+20)*away,
+      top + min_wall_thickness*away,
+    ]).to_face().fancy_extrude(normal, centered (10))
+
+
+    
+    #matrix = matrix_from_columns(along, middle.normal, along.cross(middle.normal), top)
+    #cut = box((top-bottom).Length, bounds(min_wall_thickness, 20), centered (10))
+    #cut.transformGeometry(matrix)
+    side_elastic_holder_cuts.append(cut)
+  
+  make_side_elastic_holder_cut(-90, -97)
+  make_side_elastic_holder_cut(-130, -136)
+  
+  side_elastic_holder_cuts = [cut.mirror(vector(), vector(1,0,0)) for cut in side_elastic_holder_cuts]
+    
+  side_elastic_holder = side_elastic_holder.cut(side_elastic_holder_cuts)
+  show_transformed (side_elastic_holder, "side_elastic_holder")
+  show_transformed (Part.Compound (side_elastic_holder_cuts), "side_elastic_holder_cuts", invisible = True)
+  
   
   ########################################################################
   ########  Intake  #######
@@ -511,9 +551,7 @@ def make_full_face_mask():
   intake_flat_subdivisions = 10
   
   
-  intake_center = vector(side_curve.intersect(
-    Part.Plane (vector(0,0,-115), vector(0,0,1))
-  )[0][1])
+  intake_center = side_curve_at_z(-115, 1)
   intake_center_parameter = side_curve.parameter (intake_center)
   intake_center_distance = side_curve.length (0, intake_center_parameter)
   intake_center_on_shield = ShieldSurfacePoint (z = intake_center[2], y = intake_center[1])
