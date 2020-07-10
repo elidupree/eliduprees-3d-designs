@@ -479,13 +479,13 @@ def make_full_face_mask():
   ########  Intake  #######
   ########################################################################
   
-  intake_flat_thickness = 7
+  intake_flat_thickness_base = 7
   intake_flat_width = 40
   intake_flat_subdivisions = 10
   
   
   intake_center = vector(side_curve.intersect(
-    Part.Plane (vector(0,0,-100), vector(0,0,1))
+    Part.Plane (vector(0,0,-115), vector(0,0,1))
   )[0][1])
   intake_center_parameter = side_curve.parameter (intake_center)
   intake_center_distance = side_curve.length (0, intake_center_parameter)
@@ -493,69 +493,111 @@ def make_full_face_mask():
   intake_center_on_shield = ShieldSurfacePoint (z = intake_center_on_shield.position[2], x = -intake_center_on_shield.position [0])
   intake_center_tangent = tangent = vector (*side_curve.tangent (intake_center_parameter)).normalized()
   intake_center_away = intake_center_tangent.cross (intake_center_on_shield.normal)
+  intake_skew_factor = 0.3
+  intake_forwards = ((- intake_center_away) - intake_center_tangent*intake_skew_factor).normalized()
   
-  intake_outer_hoops = []
-  intake_inner_hoops = []
   
-  def intake_flat_wire (expansion, forwards_offset):
-    outside_edge = []
-    inside_edge = []
-    height = intake_flat_width + expansion*2
-    
-    for index in range (intake_flat_subdivisions):
-      fraction = index/(intake_flat_subdivisions -1)
-      offset = (fraction - 0.5)*height
-      parameter = side_curve.parameterAtDistance (intake_center_distance + offset)
+  class IntakeSurface:
+    def __init__(self, outside):
+      self.outside = outside
+      self.expansion = min_wall_thickness if outside else 0
+      self.degree = 3
+      self.num_points = intake_flat_subdivisions*2
+      if outside:
+        self.num_points += (self.degree - 1)*2
       
-      source = side_curve.value(parameter)
-      precise = ShieldSurfacePoint (z = source [2], y = source [1])
-      precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
+      self.hoops = [self.flat_hoop (shield_glue_face_width-index*2) for index in range (5)] + [self.CPAP_hoop (index*4) for index in range (5)]
+      self.ends = [
+        self.wire (self.hoops[0]),
+        self.wire (self.hoops[-1])
+      ]
+      self.surface = Part.BSplineSurface()
+      self.surface.buildFromPolesMultsKnots(self.hoops,
+        [self.degree+1] + [1]*(len(self.hoops) - self.degree - 1) + [self.degree+1],
+        [1]*(len (self.hoops[0]) + 1),
+        udegree = self.degree,
+        vdegree = self.degree,
+        vperiodic=True,
+      )
       
-      tangent = vector (*side_curve.tangent (parameter)).normalized()
-      normal = precise.normal
-      away = tangent.cross (normal)
+    def wire(self, hoop):
+      curve = Part.BSplineCurve()
+      curve.buildFromPolesMultsKnots(
+        hoop,
+        degree = self.degree,
+        periodic = True,
+      )
+      return curve.toShape().to_wire()
+       
+    def CPAP_hoop (self, offset):
+      center = intake_center - intake_forwards*45 - intake_center_on_shield.normal*(min_wall_thickness + intake_flat_thickness_base/2) - intake_forwards*offset
+      direction = -intake_forwards.cross (intake_center_on_shield.normal).normalized()
+      other_direction = -direction.cross (intake_forwards)
+      def CPAP_point (index):
+        angle = index/self.num_points*math.tau
+        return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
+      return [CPAP_point (index) for index in range (self.num_points)]
+
+    def flat_hoop(self, forwards_offset):
+      rim_edge = self.flat_edge (forwards_offset, True)
+      other_edge = self.flat_edge (forwards_offset, False)
+      return rim_edge [len(rim_edge)//2:] + other_edge + rim_edge [:len(rim_edge)//2]
+    def flat_edge(self, forwards_offset, rim_side):
+      edge = []
+      height = intake_flat_width + self.expansion*2
+      if self.outside and rim_side:
+        height += 8
+      for index in range (intake_flat_subdivisions):
+        fraction = index/(intake_flat_subdivisions -1)
+        offset = (fraction - 0.5)*height - forwards_offset*intake_skew_factor
+        parameter = side_curve.parameterAtDistance (intake_center_distance + offset)
       
-      outside_edge.append (precise.position - away*forwards_offset - normal*(min_wall_thickness - expansion))
-      inside_edge.append (precise.position - away*forwards_offset - normal*(min_wall_thickness + intake_flat_thickness + expansion))
-    outside_edge.reverse()
-    degree = 3
-    poles = outside_edge + inside_edge
-    intake_flat_curve = Part.BSplineCurve()
-    intake_flat_curve.buildFromPolesMultsKnots(
-      poles,
-      degree = degree,
-      periodic = True,
-    )
-    return intake_flat_curve.toShape().to_wire()
-    
-  def intake_loft_components (expansion):
-    CPAP_wire = Part.Shape ([Part.Circle (
-      intake_center + intake_center_away*45 - intake_center_on_shield.normal*(min_wall_thickness + intake_flat_thickness/2),
-      intake_center_away,
-      CPAP_inner_radius + expansion
-    )]).to_wire()
-    result = []
-    return (
-      [intake_flat_wire(expansion, shield_glue_face_width-index*2) for index in range (5)]
-      + [CPAP_wire.translated (intake_center_away*index*4) for index in range (5)])
+        source = side_curve.value(parameter)
+        precise = ShieldSurfacePoint (z = source [2], y = source [1])
+        precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
+      
+        tangent = vector (*side_curve.tangent (parameter)).normalized()
+        normal = precise.normal
+        away = tangent.cross (normal)
+      
+        if rim_side:
+          normal_distance = min_wall_thickness - self.expansion
+        else:
+          thickness = intake_flat_thickness_base*0.5*(1+math.sin(fraction*math.tau/2))
+          normal_distance = min_wall_thickness + thickness + self.expansion
+      
+        edge.append (precise.position - away*forwards_offset - normal*normal_distance)
+      if rim_side:
+        edge.reverse()
+        if self.outside:
+          edge = [edge [0]]*(self.degree - 1) + edge + [edge [-1]]*(self.degree - 1)
+      return edge
   
-  intake_interior_components = intake_loft_components (0.0)
-  intake_exterior_components = intake_loft_components (min_wall_thickness)
-  intake_interior = Part.makeLoft (intake_interior_components, True)
-  intake_exterior = Part.makeLoft (intake_exterior_components, True)
+  intake_interior = IntakeSurface (False)
+  intake_exterior = IntakeSurface (True)
   def intake_cover(index):
-    return Part.makeRuledSurface(intake_interior_components[index], intake_exterior_components[index])
+    return Part.makeRuledSurface(intake_interior.ends[index], intake_exterior.ends[index])
   intake_CPAP_cover = intake_cover (-1)
   intake_flat_cover = intake_cover (0)
-  show_transformed (intake_interior, "intake_interior")
-  show_transformed (intake_exterior, "intake_exterior")
+  show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
+  show_transformed (intake_exterior.surface.toShape(), "intake_exterior", invisible = True)
+  show_transformed (intake_CPAP_cover, "intake_CPAP_cover", invisible = True)
+  show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)
+  intake_solid = Part.Solid(Part.Shell (Part.Compound ([
+    Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()]),
+    intake_CPAP_cover,
+    intake_flat_cover,
+  ]).Faces))
   
-  intake_solid = Part.Solid(Part.Compound([
-    intake_interior,
-    intake_exterior,
+  '''intake_surfaces_shell = Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()])
+  print (intake_surfaces_shell)
+  show_transformed (intake_surfaces_shell, "intake_surfaces_shell", invisible = True)
+  intake_solid = Part.Solid(Part.Compound ([
+    Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()]),
     intake_CPAP_cover,
     intake_flat_cover,
   ]))
+  print (intake_solid)'''
   
   show_transformed (intake_solid, "intake_solid")
 
