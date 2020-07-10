@@ -474,7 +474,90 @@ def make_full_face_mask():
   print (matrix)
   side_plate = side_plate.transformGeometry(matrix)
   show_transformed (side_plate, "side_plate")'''
-
+  
+  ########################################################################
+  ########  Intake  #######
+  ########################################################################
+  
+  intake_flat_thickness = 7
+  intake_flat_width = 40
+  intake_flat_subdivisions = 10
+  
+  
+  intake_center = vector(side_curve.intersect(
+    Part.Plane (vector(0,0,-100), vector(0,0,1))
+  )[0][1])
+  intake_center_parameter = side_curve.parameter (intake_center)
+  intake_center_distance = side_curve.length (0, intake_center_parameter)
+  intake_center_on_shield = ShieldSurfacePoint (z = intake_center[2], y = intake_center[1])
+  intake_center_on_shield = ShieldSurfacePoint (z = intake_center_on_shield.position[2], x = -intake_center_on_shield.position [0])
+  intake_center_tangent = tangent = vector (*side_curve.tangent (intake_center_parameter)).normalized()
+  intake_center_away = intake_center_tangent.cross (intake_center_on_shield.normal)
+  
+  intake_outer_hoops = []
+  intake_inner_hoops = []
+  
+  def intake_flat_wire (expansion, forwards_offset):
+    outside_edge = []
+    inside_edge = []
+    height = intake_flat_width + expansion*2
+    
+    for index in range (intake_flat_subdivisions):
+      fraction = index/(intake_flat_subdivisions -1)
+      offset = (fraction - 0.5)*height
+      parameter = side_curve.parameterAtDistance (intake_center_distance + offset)
+      
+      source = side_curve.value(parameter)
+      precise = ShieldSurfacePoint (z = source [2], y = source [1])
+      precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
+      
+      tangent = vector (*side_curve.tangent (parameter)).normalized()
+      normal = precise.normal
+      away = tangent.cross (normal)
+      
+      outside_edge.append (precise.position - away*forwards_offset - normal*(min_wall_thickness - expansion))
+      inside_edge.append (precise.position - away*forwards_offset - normal*(min_wall_thickness + intake_flat_thickness + expansion))
+    outside_edge.reverse()
+    degree = 3
+    poles = outside_edge + inside_edge
+    intake_flat_curve = Part.BSplineCurve()
+    intake_flat_curve.buildFromPolesMultsKnots(
+      poles,
+      degree = degree,
+      periodic = True,
+    )
+    return intake_flat_curve.toShape().to_wire()
+    
+  def intake_loft_components (expansion):
+    CPAP_wire = Part.Shape ([Part.Circle (
+      intake_center + intake_center_away*45 - intake_center_on_shield.normal*(min_wall_thickness + intake_flat_thickness/2),
+      intake_center_away,
+      CPAP_inner_radius + expansion
+    )]).to_wire()
+    result = []
+    return (
+      [intake_flat_wire(expansion, shield_glue_face_width-index*2) for index in range (5)]
+      + [CPAP_wire.translated (intake_center_away*index*4) for index in range (5)])
+  
+  intake_interior_components = intake_loft_components (0.0)
+  intake_exterior_components = intake_loft_components (min_wall_thickness)
+  intake_interior = Part.makeLoft (intake_interior_components, True)
+  intake_exterior = Part.makeLoft (intake_exterior_components, True)
+  def intake_cover(index):
+    return Part.makeRuledSurface(intake_interior_components[index], intake_exterior_components[index])
+  intake_CPAP_cover = intake_cover (-1)
+  intake_flat_cover = intake_cover (0)
+  show_transformed (intake_interior, "intake_interior")
+  show_transformed (intake_exterior, "intake_exterior")
+  
+  intake_solid = Part.Solid(Part.Compound([
+    intake_interior,
+    intake_exterior,
+    intake_CPAP_cover,
+    intake_flat_cover,
+  ]))
+  
+  show_transformed (intake_solid, "intake_solid")
 
   ################################################
   ############### end of current code ############
@@ -622,72 +705,8 @@ def make_full_face_mask():
   #show_transformed (visor.common(box(centered (30, on = 85), centered (40, on = -160), centered (500))), "visor_fragment")
   #show_transformed (side_shield_slot.common(box(centered (30, on = 85), centered (40, on = -160), centered (40))), "side_shield_slot_fragment")
   
-  intake_flat_width = 7
-  intake_center = min (
-    (side_point for side_point in side_points if side_point.position [0] <0),
-    key = lambda side_point: abs (-80 - side_point.position [2])
-  )
-  intake_direction = intake_center.normal.cross (vector (0, 0, -1)).normalized()
-  intake_sideways = vector (*side_curve.tangent (side_curve.parameter (intake_center. position)))
-  intake_flat_subdivisions = 10
-  intake_flat_height = 40
-  def intake_flat_wire (expansion, forwards_offset):
-    outside_edge = []
-    inside_edge = []
-    height = intake_flat_height + expansion*2
-    center_source = intake_center.position - intake_direction*forwards_offset
-    center = ShieldSurfacePoint (z = center_source [2], y = center_source [1])
-    center = ShieldSurfacePoint (z = center_source [2], x = -center.position[0])
-    
-    for index in range (intake_flat_subdivisions):
-      fraction = index/(intake_flat_subdivisions -1)
-      offset = (fraction - 0.5)*height/intake_sideways [2]
-      source = center.position + intake_sideways*offset
-      precise = ShieldSurfacePoint (z = source [2], y = source [1])
-      precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
-      
-      # we have to project everything onto the same plane so that the loft can be closed
-      def projected (position):
-        threeD_offset = position - center.position
-        normal_component = center.normal.dot (threeD_offset)
-        sideways_component = intake_sideways.dot(threeD_offset)
-        result = center.position + center.normal*normal_component + intake_sideways*sideways_component
-        #print (f"{result - position}, {normal_component}, {sideways_component}, {center.normal}, {intake_sideways}")
-        return result
-      
-      outside_edge.append (projected (precise.position - precise.normal*(shield_slot_width + min_wall_thickness - expansion)))
-      inside_edge.append (projected (precise.position - precise.normal*(shield_slot_width + min_wall_thickness + intake_flat_width + expansion)))
-    outside_edge.reverse()
-    degree = 3
-    poles = outside_edge + inside_edge
-    intake_flat_curve = Part.BSplineCurve()
-    intake_flat_curve.buildFromPolesMultsKnots(
-      poles,
-      degree = degree,
-      periodic = True,
-    )
-    return intake_flat_curve.toShape().to_wire()
-      
-  
-  def intake_loft_components (expansion):
-    CPAP_wire = Part.Shape ([Part.Circle (intake_center.position + intake_direction*45 - intake_center.normal*(shield_slot_width + min_wall_thickness + intake_flat_width/2) + vector (0, 0, 3), intake_direction, CPAP_inner_radius + expansion)]).to_wire()
-    result = []
-    if expansion == 0:
-      flat_start = -1
-    return (
-      [intake_flat_wire(expansion, 7-index*2) for index in range (5)]
-      + [CPAP_wire.translated (intake_direction*index*4) for index in range (5)])
-    
-  intake_interior = Part.makeLoft (intake_loft_components (0.0), True)
-  intake_exterior = Part.makeLoft (intake_loft_components (min_wall_thickness), True)
-  
-  show_transformed (intake_interior, "intake_interior")
-  show_transformed (intake_exterior, "intake_exterior")
-  
-  intake_solid = intake_exterior.cut (intake_interior) #intake_surface.makeOffsetShape (min_wall_thickness, 0.01, fill=True)
-  
-  show_transformed (intake_solid, "intake_solid")
-  
+
+
   top_splitter = box (bounds (0, 500), centered (500), bounds (0, 500))
   top_splitter2 = box (bounds (-500, 0), centered (500), bounds (0, 500))
   #show_transformed (top_splitter, "top_splitter")
