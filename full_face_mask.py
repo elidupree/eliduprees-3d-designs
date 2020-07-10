@@ -105,6 +105,7 @@ def make_full_face_mask():
   min_wall_thickness = 0.6
   CPAP_outer_radius = 21.5/2
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
+  CPAP_hose_helix_outer_radius = 22/2
   headband_thickness = min_wall_thickness
   headband_width = 16
   headband_cut_radius = 25
@@ -199,6 +200,18 @@ def make_full_face_mask():
   
   
   
+  
+  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
+  shield_box = box(centered (500), bounds (shield_back, 500), bounds (-180, 0))
+  shield_cross_section = shield_top_full_wire.to_face()
+  shield_cross_sections = []
+  for offset_distance in (20.0*x for x in range(10)):
+    offset_fraction = offset_distance / -shield_focal_point[2]
+    shield_cross_sections.append(shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction).common(shield_box))
+    
+  show_transformed (Part.Compound (shield_cross_sections), "shield_cross_sections", invisible=True)
+  
+  
   ########################################################################
   ########  Forehead/headband/top rim  #######
   ########################################################################
@@ -229,7 +242,7 @@ def make_full_face_mask():
     degree = degree,
     periodic = True,
   )
-  show_transformed (forehead_curve.toShape(), "forehead_curve")
+  show_transformed (forehead_curve.toShape(), "forehead_curve", invisible=True)
   
   
   headband_cut_box = box(centered (50), bounds (-500, forehead_point[1]-100), centered(500))
@@ -240,13 +253,30 @@ def make_full_face_mask():
   headband = headband_2D.extrude (vector (0, 0, headband_width))
   
   # using a weird shaped way to attach the elastic for now, just for FDM convenience
-  headband_elastic_link_radius = 3
-  headband_elastic_link = Part.Circle(vector(), vector(0,0,1), headband_elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), headband_elastic_link_radius).toShape().to_wire().to_face()).translated(vector(-25 - (headband_elastic_link_radius + headband_thickness/2), forehead_point[1]-192, 0)).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
+  elastic_link_radius = 3
+  elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), elastic_link_radius).toShape().to_wire().to_face())
+  
+  headband_elastic_link = elastic_link.translated(vector(-25 - (elastic_link_radius + headband_thickness/2), forehead_point[1]-192, 0)).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
   headband = headband.fuse([
     headband_elastic_link,
     headband_elastic_link.mirror(vector(), vector(1,0,0)),
   ]).translated(vector(0,0,shield_glue_face_width + min_wall_thickness - headband_width))
   show_transformed (headband, "headband")
+  
+  CPAP_grabber = (
+    Part.Circle(vector(), vector(0,0,1), CPAP_hose_helix_outer_radius + min_wall_thickness).toShape().to_wire().to_face()
+    .cut(Part.Circle(vector(), vector(0,0,1), CPAP_hose_helix_outer_radius).toShape().to_wire().to_face())
+    .cut(FreeCAD_shape_builder().build ([
+        start_at(0, 0),
+        diagonal_to(-50, -100),
+        horizontal_to(50),
+        close()
+      ]).to_wire().to_face())
+    .fuse(elastic_link.translated(vector(CPAP_hose_helix_outer_radius + min_wall_thickness + elastic_link_radius, 0, 0)))
+    .extrude(vector (0, 0, headband_width))
+  )
+  show_transformed (CPAP_grabber, "CPAP_grabber")
+  
   
   
   top_rim_subdivisions = 10
@@ -399,7 +429,7 @@ def make_full_face_mask():
         vertical_to (-min_wall_thickness - elastic_holder_depth),
         horizontal_to (0),
         vertical_to (-min_wall_thickness),
-        horizontal_to (elastic_holder_depth),
+        horizontal_to (elastic_holder_depth), #  * 0.5*(1.01+math.cos((point.parameter-math.tau/4) * 19)) --- can't do this as a smooth curve because the elastic would slip off
         vertical_to (0),
         close()
       ]).to_wire()
@@ -437,6 +467,7 @@ def make_full_face_mask():
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
 
   
+  
   '''side_plate = box (min_wall_thickness, shield_glue_face_width+min_wall_thickness, side_plate_z_vector.Length)
   #show_transformed (side_plate.copy(), "side_plate2")
   matrix = matrix_from_columns(vector(1,0,0), side_plate_forwards, side_plate_z_vector.normalized(), side_plate_top)
@@ -448,7 +479,17 @@ def make_full_face_mask():
   ################################################
   ############### end of current code ############
   ################################################
+  show_transformed (Part.Compound ([
+    headband,
+    top_rim,
+    side_rim,
+    side_elastic_holder,
+    side_plate,
+  ]), "whole_frame", invisible=True)
   return finish()
+  
+  
+  
 
   forehead_exclusion = forehead_curve.toShape().to_wire().to_face().fancy_extrude (vector (0, 0, 1), bounds (-5, 50))
   
@@ -460,7 +501,7 @@ def make_full_face_mask():
   ])
   
   
-  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
+  
   lenient_box = box(centered (500), bounds (back_edge-50, 500), bounds(-180, 20))
   shield_box = box(centered (500), bounds (back_edge, 500), bounds (-180, shield_slot_depth))
   shield_top_curve = shield_top_full_wire.common(shield_box)
@@ -551,13 +592,7 @@ def make_full_face_mask():
     return shield_top_full_wire.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction)
   shield_extension_curves = [shield_extension_curve (z) for z in shield_extension_zs]
   
-  shield_cross_section = shield_top_full_wire.to_face().common(shield_box)
-  shield_cross_sections = []
-  for offset_distance in (20.0*x for x in range(10)):
-    offset_fraction = offset_distance / -shield_focal_point[2]
-    shield_cross_sections.append(shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction))
-    
-  show_transformed (Part.Compound (shield_cross_sections), "shield_cross_sections")
+  
   
   #show_transformed(shield_extension_curves[0], "shield_extension_curve_0")
   #show_transformed(shield_extension_curves[1], "shield_extension_curve_1")
