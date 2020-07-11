@@ -67,12 +67,16 @@ def make_full_face_mask():
   ########################################################################
   ########  Code bureaucracy  #######
   ########################################################################
-  displayed_objects = {}
-  def show_transformed(a,b, invisible = False):
-    displayed_objects[b] = (a, invisible)
   
   on_face = False
   #on_face = True
+  invisible_default = False
+  invisible_default = True
+  
+  displayed_objects = {}
+  def show_transformed(a,b, invisible = invisible_default):
+    displayed_objects[b] = (a, invisible)
+  
   def finish():
     for name, (object, invisible) in displayed_objects.items():
       if on_face:
@@ -92,15 +96,18 @@ def make_full_face_mask():
       a[2], b[2], c[2], d[2],
     )
   
+  def fuse(shapes):
+    return shapes[0].fuse(shapes[1:])
+  
   ########################################################################
   ########  Constants  #######
   ########################################################################
     
-  shield_slot_width = 1.3 # deprecated
-  shield_slot_depth = 5 # deprecated
-  elastic_slot_catch_length = 2 # deprecated
-  elastic_slot_width = 8 # deprecated
-  elastic_slot_depth = 5 # deprecated
+  #shield_slot_width = 1.3 # deprecated
+  #shield_slot_depth = 5 # deprecated
+  #elastic_slot_catch_length = 2 # deprecated
+  #elastic_slot_width = 8 # deprecated
+  #elastic_slot_depth = 5 # deprecated
   shield_glue_face_width = 5
   min_wall_thickness = 0.6
   CPAP_outer_radius = 21.5/2
@@ -669,7 +676,7 @@ def make_full_face_mask():
   ################################################
   ############### end of current code ############
   ################################################
-  show_transformed (Part.Compound ([
+  whole_frame = Part.Compound ([
     headband,
     top_rim,
     side_rim,
@@ -679,7 +686,33 @@ def make_full_face_mask():
     side_hooks,
     side_hooks.mirror(vector(), vector (1, 0, 0)),
     intake_solid,
-  ]), "whole_frame", invisible=True)
+  ])
+  
+  show_transformed (whole_frame, "whole_frame", invisible=True)
+  
+  top_splitter = box(centered (1500), centered (1500), bounds (-6.2, 500))
+  whole_frame_top = Part.Compound ([
+    headband,
+    top_rim,
+  ] + [a.common(top_splitter) for a in [
+    side_rim,
+    side_elastic_holder,
+    side_plate,
+    side_plate.mirror(vector(), vector (1, 0, 0)),
+    side_hooks,
+    side_hooks.mirror(vector(), vector (1, 0, 0)),
+  ]])
+  
+  show_transformed (whole_frame_top, "whole_frame_top", invisible=True)
+  
+  '''import MeshPart
+  whole_frame_top_mesh = MeshPart.meshFromShape (
+    whole_frame_top,
+    MaxLength = 2,
+    AngularDeflection = math.tau / 
+  )
+  document().addObject ("Mesh::Feature", "whole_frame_top_mesh").Mesh = whole_frame_top_mesh'''
+  
   return finish()
   
   
