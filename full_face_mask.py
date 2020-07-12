@@ -110,13 +110,10 @@ def make_full_face_mask():
   ########  Constants  #######
   ########################################################################
     
-  #shield_slot_width = 1.3 # deprecated
-  #shield_slot_depth = 5 # deprecated
-  #elastic_slot_catch_length = 2 # deprecated
-  #elastic_slot_width = 8 # deprecated
-  #elastic_slot_depth = 5 # deprecated
-  shield_glue_face_width = 5
   min_wall_thickness = 0.6
+  stiffer_wall_thickness = 1.1
+  shield_glue_face_width = 5
+  elastic_holder_depth = 10
   CPAP_outer_radius = 21.5/2
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
   CPAP_hose_helix_outer_radius = 22/2
@@ -125,9 +122,9 @@ def make_full_face_mask():
   headband_cut_radius = 25
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
-  shield_back = headphones_front + min_wall_thickness
+  side_plate_width = max(min_wall_thickness + shield_glue_face_width, elastic_holder_depth)
+  shield_back = headphones_front + side_plate_width - shield_glue_face_width
   back_edge = forehead_point[1] - 96
-  elastic_holder_depth = 5
   
   
   ########################################################################
@@ -331,7 +328,7 @@ def make_full_face_mask():
     ShieldSurfacePoint (z= -20, y= shield_back),
     ShieldSurfacePoint (z= -40, y= shield_back),
     ShieldSurfacePoint (z= -60, y= shield_back),
-    ShieldSurfacePoint (z= -80, y= shield_back+1),
+    ShieldSurfacePoint (z= -80, y= shield_back+3),
     ShieldSurfacePoint (z= -100, y= forehead_point[1] - 63),
     ShieldSurfacePoint (z= -135, x = 54),
     ShieldSurfacePoint (z= -155, x = 25),
@@ -404,11 +401,14 @@ def make_full_face_mask():
   ))[0])
   side_plate_bottom = ShieldSurfacePoint (z= side_plate_bottom_z, y= headphones_front).position
   side_plate_top_frontish = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, side_plate_top[1] + shield_glue_face_width+min_wall_thickness), vector(500, side_plate_top[1] + shield_glue_face_width+min_wall_thickness)
+    vector(0, side_plate_top[1] + side_plate_width), vector(500, side_plate_top[1] + side_plate_width)
   ))[0])
-  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + shield_glue_face_width+min_wall_thickness).position
+  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + side_plate_width).position
   side_plate_forwards = (side_plate_top_frontish - side_plate_top).normalized()
   side_plate_z_vector = side_plate_bottom_frontish - vector (min_wall_thickness, 0, 0) - side_plate_top_frontish
+  side_plate_normal = side_plate_z_vector.cross (side_plate_forwards).normalized()
+  def project_to_side_plate (input):
+    return input - side_plate_normal*side_plate_normal.dot(input - side_plate_top)
   
   side_rim_hoop_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
@@ -448,7 +448,7 @@ def make_full_face_mask():
         vertical_to (-min_wall_thickness - elastic_holder_depth),
         horizontal_to (0),
         vertical_to (-min_wall_thickness),
-        horizontal_to (elastic_holder_depth), #  * 0.5*(1.01+math.cos((point.parameter-math.tau/4) * 19)) --- can't do this as a smooth curve because the elastic would slip off
+        horizontal_to (elastic_holder_depth * 0.5*(1.01+math.cos((point.parameter-math.tau/4) * 25))),
         vertical_to (0),
         close()
       ]).to_wire()
@@ -459,16 +459,15 @@ def make_full_face_mask():
         side_splitter = box(centered(500), centered(500), 500).transformGeometry(shield_slot_matrix)
     
     if position [2] >= side_plate_bottom_z and position [0] > 0:
-      fraction = position [2]/side_plate_z_vector[2]
-      offset = side_plate_z_vector * fraction
-      reference = side_plate_top + offset
-      flat_away = vector(away[0], away[1], 0).normalized()
-      aligned_position = position - flat_away*(position[1] - headphones_front)/flat_away[1]
+      skew_away = -away/away [1]
+      excess_forwards = position[1] - headphones_front
+      back = position + skew_away * excess_forwards
+      front = back - skew_away * side_plate_width
       points = [
-        reference,
-        aligned_position,
-        aligned_position - flat_away*(shield_glue_face_width+min_wall_thickness),
-        reference + side_plate_forwards*(shield_glue_face_width+min_wall_thickness),
+        back,
+        front,
+        project_to_side_plate (front),
+        project_to_side_plate (back),
       ]
       wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
       side_plate_hoops.append(wire)
@@ -497,7 +496,7 @@ def make_full_face_mask():
     vector(elastic_hook_outwards,elastic_hook_forwards),
     vector(0,elastic_hook_base_length),
     vector(0,0),
-  ]).to_face().extrude(vector(0,0,min_wall_thickness))
+  ]).to_face().extrude(vector(0,0,stiffer_wall_thickness))
 
 
   def side_hook(distance):
@@ -505,12 +504,12 @@ def make_full_face_mask():
     top = side_curve.value (side_curve.parameterAtDistance (distance))
     bottom = side_curve.value (side_curve.parameterAtDistance (distance+elastic_hook_forwards))
     downwards = (bottom-top).normalized()
-    matrix = matrix_from_columns(downwards.cross (vector(0,1,0)), downwards, vector(0,-1,0), top)
+    matrix = matrix_from_columns(side_plate_normal, downwards, -side_plate_normal.cross(downwards), top)
     hook = elastic_hook.copy()
     hook.transformShape (matrix)
     return hook
 
-  rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= shield_back+shield_glue_face_width + 10)
+  rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= headphones_front+15)
   rim_hook_front = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y=rim_hook_back.position[1]+elastic_hook_forwards)
   rim_hook_forwards = (rim_hook_front.position - rim_hook_back.position).normalized()
   rim_hook = elastic_hook.copy()
@@ -531,14 +530,16 @@ def make_full_face_mask():
     middle = side_curve.value (middle_parameter)
     middle = ShieldSurfacePoint (z=middle[2], y=middle[1])
     along = (top-bottom).normalized()
+    slope = 4
+    inset = along*elastic_holder_depth/slope
     normal = middle.normal
     away = -along.cross(middle.normal).normalized()
     
     cut = Part.makePolygon([
       top + min_wall_thickness*away,
       bottom + min_wall_thickness*away,
-      bottom + (min_wall_thickness+20)*away,
-      top + (min_wall_thickness+20)*away,
+      bottom + (min_wall_thickness+elastic_holder_depth+0.1)*away + inset,
+      top + (min_wall_thickness+elastic_holder_depth+0.1)*away - inset,
       top + min_wall_thickness*away,
     ]).to_face().fancy_extrude(normal, centered (10))
 
@@ -588,7 +589,8 @@ def make_full_face_mask():
       if outside:
         self.num_points += (self.degree - 1)*2
       
-      self.hoops = [self.flat_hoop (shield_glue_face_width-index*2) for index in range (5)] + [self.CPAP_hoop (index*4) for index in range (5)]
+      flat_hoops_length = shield_glue_face_width + min_wall_thickness + elastic_holder_depth
+      self.hoops = [self.flat_hoop (shield_glue_face_width-flat_hoops_length*index/4) for index in range (5)] + [self.CPAP_hoop (index*4) for index in range (5)]
       self.ends = [
         self.wire (self.hoops[0]),
         self.wire (self.hoops[-1])
