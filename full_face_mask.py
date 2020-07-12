@@ -765,9 +765,13 @@ def make_full_face_mask():
   #forehead_cloth_forehead_end_parameter = forehead_curve.parameter (forehead_cloth_shield_back.position)
   elastic_tube_border_width = 16
   
+  source_forehead_length = 0
+  cloth_forehead_length = 0
   previous = None
   class ForeheadClothPiece:
     def __init__(self, index):
+      nonlocal source_forehead_length
+      nonlocal cloth_forehead_length
       self.fraction = index/(unrolled_top_subdivisions - 1)
       self.shield_parameter = math.tau/4 + forehead_cloth_shield_parameter_range*self.fraction
       self.shield = ShieldSurfacePoint(z=shield_glue_face_width+min_wall_thickness, parameter = self.shield_parameter)
@@ -778,36 +782,44 @@ def make_full_face_mask():
       if previous is None:
         self.shield_output = vector()
         self.forehead_output = vector(0, -self.source_diff.Length)
+        self.shield_angle = 0
+        self.forehead_angle = 0
+        self.output_shield_angle = 0
+        self.output_forehead_angle = 0
       else:
         shield_diff = self.shield.position - previous.shield.position
         forehead_diff = self.forehead - previous.forehead
+        source_forehead_length += forehead_diff.Length
         forehead_adjusted_distance = forehead_diff.Length+ min(0.2 * forehead_diff.Length, 0.01 * self.source_diff.Length)
-        shield_angle = shield_diff.angle() - previous.source_diff.angle()
-        forehead_angle = forehead_diff.angle() - previous.source_diff.angle()
+        self.shield_angle = shield_diff.angle()
+        shield_angle_diff = self.shield_angle - previous.shield_angle
+        self.forehead_angle = forehead_diff.angle()
+        forehead_angle_diff = self.forehead_angle - previous.forehead_angle
         
-        for index in range(10):
-          change_frac = (1 - index/9) if self.source_diff.Length > shield_diff.Length else 0
-          try:
-            new_shield_angle = min(math.tau/2, shield_angle + change_frac*shield_diff.Length/20)
-            self.shield_output = previous.shield_output + vector(angle=previous.output_diff.angle() + new_shield_angle, length = shield_diff.Length)
-            
-            hypotenuse = (self.shield_output - previous.forehead_output)
-            a = hypotenuse.Length
-            b = forehead_adjusted_distance
-            c = self.source_diff.Length
-            
-            new_forehead_angle = hypotenuse.angle()-math.acos((a**2+b**2-c**2)/(2*a*b))
-            self.forehead_output = previous.forehead_output + vector(angle=new_forehead_angle, length = forehead_adjusted_distance)
-          except ValueError as e:
-            assert(index != 9)
-            continue
-          
-          break
+        self.output_shield_angle = previous.output_shield_angle + shield_angle_diff*0.7 # + shield_diff.Length/100
+        self.shield_output = previous.shield_output + vector(angle=self.output_shield_angle, length = shield_diff.Length)
+        
+        perp = self.output_shield_angle - math.tau / 4
+        diagonal = (previous.forehead_output - self.shield_output)
+        new_output_angle = max(perp, diagonal.angle())
+        if diagonal[0] < 0 and diagonal[1] > 0:
+          new_output_angle = perp
+        for i in range(180):
+          new_output_angle += math.tau / 1906
+          self.forehead_output = self.shield_output + vector(angle=new_output_angle, length = self.source_diff.Length)
+          new_forehead_diff = self.forehead_output - previous.forehead_output
+          self.output_forehead_angle = new_forehead_diff.angle()
+          output_forehead_angle_diff = self.output_forehead_angle - previous.output_forehead_angle
+          if new_forehead_diff.Length >= forehead_diff.Length and output_forehead_angle_diff <= forehead_angle_diff + forehead_diff.Length/60:
+            break
+          #print(f"{index}, {i}, {self.source_diff}, {new_forehead_diff}")
+          assert(i < 175)
+        cloth_forehead_length += new_forehead_diff.Length
 
       self.output_diff = self.forehead_output - self.shield_output
       self.output_direction = self.output_diff.normalized()
       assert(abs(self.output_diff.Length-self.source_diff.Length) < 0.01)
-      #Part.show(Part.Compound([Part.LineSegment(self.forehead_output, self.shield_output).toShape(), Part.LineSegment(self.forehead, self.shield.position).toShape()]))
+      Part.show(Part.Compound([Part.LineSegment(self.forehead_output, self.shield_output).toShape(), Part.LineSegment(self.forehead, self.shield.position).toShape()]))
       self.endpoints = [
         self.forehead_output + self.output_direction*elastic_tube_border_width,
         self.shield_output - self.output_direction*elastic_tube_border_width,
@@ -820,15 +832,17 @@ def make_full_face_mask():
     current = ForeheadClothPiece(index)
     forehead_cloth_pieces.append(current)
     previous = current
+  print(f"source_forehead_length: {source_forehead_length}, cloth_forehead_length: {cloth_forehead_length}")
   
   def flipped(v):
     return vector(-v[0], v[1], v[2])
-  forehead_cloth = Part.makePolygon(
+  forehead_cloth_points = (
     [piece.endpoints [0] for piece in forehead_cloth_pieces]
     + [piece.endpoints [1] for piece in reversed (forehead_cloth_pieces)]
     + [flipped(piece.endpoints [1]) for piece in forehead_cloth_pieces[1:]]
     + [flipped(piece.endpoints [0]) for piece in reversed (forehead_cloth_pieces)]
   )
+  forehead_cloth = Part.makePolygon(forehead_cloth_points)
   show_transformed (forehead_cloth, "forehead_cloth")
 
   ################################################
