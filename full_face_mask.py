@@ -63,6 +63,11 @@ The current design assumes that the face does not get wider as you move down fro
 '''
 
 
+import os.path
+import os
+import Drawing
+
+
 def make_full_face_mask():
   ########################################################################
   ########  Code bureaucracy  #######
@@ -70,7 +75,9 @@ def make_full_face_mask():
   
   on_face = False
   #on_face = True
-  invisible_default = False
+  pieces_invisible = False
+  #pieces_invisible = True
+  invisible_default = not pieces_invisible
   #invisible_default = True
   
   displayed_objects = {}
@@ -249,7 +256,7 @@ def make_full_face_mask():
     periodic = True,
   )
   show_transformed (forehead_curve.toShape(), "forehead_curve", invisible=True)
-  
+  print(f"Forehead circumference: {forehead_curve.length()}")
   
   headband_cut_box = box(centered (50), bounds (-500, forehead_point[1]-100), centered(500))
   headband_interior_2D = forehead_curve.toShape().to_wire().to_face()
@@ -421,6 +428,7 @@ def make_full_face_mask():
   side_plate_hoops = []
   elastic_holder_hoops = []
   elastic_tension_hoops = []
+  side_splitter = None
   for index, point in enumerate (side_points):
     position = point.position
     parameter = side_curve.parameter (position)
@@ -446,6 +454,9 @@ def make_full_face_mask():
       ]).to_wire()
       elastic_holder_hoop_wire.transformShape (shield_slot_matrix)
       elastic_holder_hoops.append(elastic_holder_hoop_wire)
+      
+      if side_splitter is None:
+        side_splitter = box(centered(500), centered(500), 500).transformGeometry(shield_slot_matrix)
     
     if position [2] >= side_plate_bottom_z and position [0] > 0:
       fraction = position [2]/side_plate_z_vector[2]
@@ -674,6 +685,94 @@ def make_full_face_mask():
   
   
   ########################################################################
+  ########  SVG bureaucracy  #######
+  ########################################################################
+  
+  def to_svg_data(contents):
+    if type(contents) is list:
+      return "\n".join(to_svg_data(foo) for foo in contents)
+    elif type(contents) is str:
+      return contents
+    else:
+      return Drawing.projectToSVG(contents)
+  
+  def save_inkscape_svg(filename, contents):
+    contents = to_svg_data(contents)
+    file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="8.5in"
+   height="11in"
+   viewBox="0 0 215.9 279.4"
+   version="1.1"
+   id="svg8"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="'''+filename+'''">
+  <defs
+     id="defs2" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.35"
+     inkscape:cx="437.51443"
+     inkscape:cy="891.42856"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     inkscape:window-width="1328"
+     inkscape:window-height="1022"
+     inkscape:window-x="363"
+     inkscape:window-y="123"
+     inkscape:window-maximized="0"
+     units="in" />
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+      '''+contents+'''
+    </g>
+  </g>
+</svg>'''
+    with open(os.path.join(data_path, "full_face_mask_svgs/", filename), "w") as file:
+      file.write(file_data)
+
+  def center_vertices_on_letter_paper(vertices):
+    if type(vertices) is list:
+      vertices = lambda: vertices
+    offset = vector(
+      (215.9 - (max (vertex [0] for vertex in vertices()) + min (vertex [0] for vertex in vertices())))/2,
+      (-279.4 - (max (vertex [1] for vertex in vertices()) + min (vertex [1] for vertex in vertices())))/2,
+    )
+    for vertex in vertices():
+      vertex[0] += offset[0]
+      vertex[1] += offset[1]
+  
+  
+  ########################################################################
   ########  Unrolled shield shape  #######
   ########################################################################
     
@@ -740,13 +839,7 @@ def make_full_face_mask():
     ) for index in range (unrolled_top_subdivisions)]
     
   unrolled_combined = unrolled_top+unrolled_side
-  offset = vector(
-    (215.9 - (max (vertex [1][0] for vertex in unrolled_combined) + min (vertex [1][0] for vertex in unrolled_combined)))/2,
-    (-279.4 - (max (vertex [1][1] for vertex in unrolled_combined) + min (vertex [1][1] for vertex in unrolled_combined)))/2,
-  )
-  for l in [unrolled_top, unrolled_side]:
-    for i,(s,v) in enumerate(l):
-      l[i] = (s, v+offset)
+  center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
       
   
   unrolled = Part.Shape(
@@ -754,6 +847,7 @@ def make_full_face_mask():
   )
   
   show_transformed (unrolled, "unrolled")
+  save_inkscape_svg("unrolled_shield.svg", unrolled)
     
   
   ########################################################################
@@ -819,7 +913,7 @@ def make_full_face_mask():
       self.output_diff = self.forehead_output - self.shield_output
       self.output_direction = self.output_diff.normalized()
       assert(abs(self.output_diff.Length-self.source_diff.Length) < 0.01)
-      Part.show(Part.Compound([Part.LineSegment(self.forehead_output, self.shield_output).toShape(), Part.LineSegment(self.forehead, self.shield.position).toShape()]))
+      #Part.show(Part.Compound([Part.LineSegment(self.forehead_output, self.shield_output).toShape(), Part.LineSegment(self.forehead, self.shield.position).toShape()]))
       self.endpoints = [
         self.forehead_output + self.output_direction*elastic_tube_border_width,
         self.shield_output - self.output_direction*elastic_tube_border_width,
@@ -845,9 +939,10 @@ def make_full_face_mask():
   forehead_cloth = Part.makePolygon(forehead_cloth_points)
   show_transformed (forehead_cloth, "forehead_cloth")
 
-  ################################################
-  ############### end of current code ############
-  ################################################
+  
+  ########################################################################
+  ########  Split/assemble components into printable parts  #######
+  ########################################################################
   whole_frame = Part.Compound ([
     headband,
     top_rim,
@@ -863,6 +958,7 @@ def make_full_face_mask():
   show_transformed (whole_frame, "whole_frame", invisible=True)
   
   top_splitter = box(centered (1500), centered (1500), bounds (-6.2, 500))
+  right_half = box(bounds(25, 500), centered (1500), centered (1500))
   whole_frame_top = Part.Compound ([
     headband,
     top_rim,
@@ -875,7 +971,25 @@ def make_full_face_mask():
     side_hooks.mirror(vector(), vector (1, 0, 0)),
   ]])
   
-  show_transformed (whole_frame_top, "whole_frame_top", invisible=True)
+  show_transformed (whole_frame_top, "whole_frame_top", invisible=pieces_invisible)
+  
+  upper_side = Part.Compound ([side_hooks.cut(top_splitter)] + [a.cut([top_splitter, side_splitter]).common(right_half) for a in [
+    side_rim,
+    side_plate,
+  ]])
+  show_transformed (upper_side, "upper_side", invisible=pieces_invisible)
+  
+  lower_right_side = Part.Compound ([a.common(side_splitter).common(right_half) for a in [
+    side_rim,
+    side_elastic_holder,
+  ]])
+  show_transformed (lower_right_side, "lower_right_side", invisible=pieces_invisible)
+  
+  lower_left_side = Part.Compound ([intake_solid]+[a.common(side_splitter.mirror(vector(), vector(1,0,0))).cut(right_half) for a in [
+    side_rim,
+    side_elastic_holder,
+  ]])
+  show_transformed (lower_left_side, "lower_left_side", invisible=pieces_invisible)
   
   '''import MeshPart
   whole_frame_top_mesh = MeshPart.meshFromShape (
@@ -884,7 +998,9 @@ def make_full_face_mask():
     AngularDeflection = math.tau / 
   )
   document().addObject ("Mesh::Feature", "whole_frame_top_mesh").Mesh = whole_frame_top_mesh'''
-  
+  ################################################
+  ############### end of current code ############
+  ################################################
   return finish()
   
   
@@ -1049,6 +1165,7 @@ def make_full_face_mask():
 def run(g):
   for key, value in g.items():
     globals()[key] = value
+  globals()["data_path"] = os.path.join(os.path.dirname(os.path.dirname(eliduprees_3d_designs_path)), "data")
   return make_full_face_mask()
   
   
