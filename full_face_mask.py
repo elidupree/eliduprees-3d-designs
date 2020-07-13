@@ -785,7 +785,6 @@ def make_full_face_mask():
      inkscape:groupmode="layer"
      id="layer1">
       '''+contents+'''
-    </g>
   </g>
 </svg>'''
     with open(os.path.join(data_path, "full_face_mask_svgs/", filename), "w") as file:
@@ -793,7 +792,8 @@ def make_full_face_mask():
 
   def center_vertices_on_letter_paper(vertices):
     if type(vertices) is list:
-      vertices = lambda: vertices
+      v = vertices
+      vertices = lambda: v
     offset = vector(
       (215.9 - (max (vertex [0] for vertex in vertices()) + min (vertex [0] for vertex in vertices())))/2,
       (-279.4 - (max (vertex [1] for vertex in vertices()) + min (vertex [1] for vertex in vertices())))/2,
@@ -877,7 +877,7 @@ def make_full_face_mask():
     segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[0][1])]
   )
   
-  show_transformed (unrolled, "unrolled")
+  show_transformed (unrolled, "unrolled", invisible=pieces_invisible)
   save_inkscape_svg("unrolled_shield.svg", unrolled)
     
   
@@ -967,8 +967,11 @@ def make_full_face_mask():
     + [flipped(piece.endpoints [1]) for piece in forehead_cloth_pieces[1:]]
     + [flipped(piece.endpoints [0]) for piece in reversed (forehead_cloth_pieces)]
   )
+  forehead_cloth_points = [vector(v[1], v[0]) for v in forehead_cloth_points]
+  center_vertices_on_letter_paper(forehead_cloth_points)
   forehead_cloth = Part.makePolygon(forehead_cloth_points)
-  show_transformed (forehead_cloth, "forehead_cloth")
+  show_transformed (forehead_cloth, "forehead_cloth", invisible=pieces_invisible)
+  save_inkscape_svg("forehead_cloth.svg", forehead_cloth)
 
   
   ########################################################################
