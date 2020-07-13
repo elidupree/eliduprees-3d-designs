@@ -74,7 +74,7 @@ def make_full_face_mask():
   ########################################################################
   
   on_face = False
-  #on_face = True
+  on_face = True
   pieces_invisible = False
   #pieces_invisible = True
   invisible_default = not pieces_invisible
@@ -521,6 +521,7 @@ def make_full_face_mask():
   
   show_transformed (side_hooks, "side_hooks")
   
+  elastic_catch_slope = 8
   side_elastic_holder_cuts = []
   def make_side_elastic_holder_cut(top_z, bottom_z):
     top = side_curve_at_z(top_z)
@@ -530,16 +531,15 @@ def make_full_face_mask():
     middle = side_curve.value (middle_parameter)
     middle = ShieldSurfacePoint (z=middle[2], y=middle[1])
     along = (top-bottom).normalized()
-    slope = 4
-    inset = along*elastic_holder_depth/slope
+    inset = along*elastic_holder_depth/elastic_catch_slope
     normal = middle.normal
     away = -along.cross(middle.normal).normalized()
     
     cut = Part.makePolygon([
       top + min_wall_thickness*away,
       bottom + min_wall_thickness*away,
-      bottom + (min_wall_thickness+elastic_holder_depth+0.1)*away + inset,
-      top + (min_wall_thickness+elastic_holder_depth+0.1)*away - inset,
+      bottom + (min_wall_thickness+elastic_holder_depth+0.3)*away + inset,
+      top + (min_wall_thickness+elastic_holder_depth+0.3)*away - inset,
       top + min_wall_thickness*away,
     ]).to_face().fancy_extrude(normal, centered (10))
 
@@ -550,8 +550,8 @@ def make_full_face_mask():
     #cut.transformGeometry(matrix)
     side_elastic_holder_cuts.append(cut)
   
-  make_side_elastic_holder_cut(-90, -97)
-  make_side_elastic_holder_cut(-130, -136)
+  make_side_elastic_holder_cut(-95, -103)
+  make_side_elastic_holder_cut(-139, -144)
   
   side_elastic_holder_cuts = [cut.mirror(vector(), vector(1,0,0)) for cut in side_elastic_holder_cuts]
     
@@ -564,19 +564,19 @@ def make_full_face_mask():
   ########  Intake  #######
   ########################################################################
   
-  intake_flat_thickness_base = 7
-  intake_flat_width = 40
+  intake_flat_thickness_base = 9
+  intake_flat_width = 42
   intake_flat_subdivisions = 10
   
   
-  intake_center = side_curve_at_z(-115, 1)
+  intake_center = side_curve_at_z(-123, 1)
   intake_center_parameter = side_curve.parameter (intake_center)
   intake_center_distance = side_curve.length (0, intake_center_parameter)
   intake_center_on_shield = ShieldSurfacePoint (z = intake_center[2], y = intake_center[1])
   intake_center_on_shield = ShieldSurfacePoint (z = intake_center_on_shield.position[2], x = -intake_center_on_shield.position [0])
   intake_center_tangent = tangent = vector (*side_curve.tangent (intake_center_parameter)).normalized()
   intake_center_away = intake_center_tangent.cross (intake_center_on_shield.normal)
-  intake_skew_factor = 0.3
+  intake_skew_factor = 0.8
   intake_forwards = ((- intake_center_away) - intake_center_tangent*intake_skew_factor).normalized()
   
   
@@ -628,12 +628,13 @@ def make_full_face_mask():
       return rim_edge [len(rim_edge)//2:] + other_edge + rim_edge [:len(rim_edge)//2]
     def flat_edge(self, forwards_offset, rim_side):
       edge = []
-      height = intake_flat_width + self.expansion*2
+      backness = shield_glue_face_width - forwards_offset
+      height = intake_flat_width + 2*(self.expansion + backness/elastic_catch_slope)
       if self.outside and rim_side:
         height += 8
       for index in range (intake_flat_subdivisions):
         fraction = index/(intake_flat_subdivisions -1)
-        offset = (fraction - 0.5)*height - forwards_offset*intake_skew_factor
+        offset = (fraction - 0.5)*height# - forwards_offset*intake_skew_factor
         parameter = side_curve.parameterAtDistance (intake_center_distance + offset)
       
         source = side_curve.value(parameter)
