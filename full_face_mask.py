@@ -74,7 +74,7 @@ def make_full_face_mask():
   ########################################################################
   
   on_face = False
-  on_face = True
+  #on_face = True
   pieces_invisible = False
   #pieces_invisible = True
   invisible_default = not pieces_invisible
@@ -174,30 +174,27 @@ def make_full_face_mask():
       self.z = z
       if parameter is not None:
         u = parameter
-        self.u = u
-        self.parameter = u
-        self.x = self.minor_radius*math.cos (self.parameter)
-        self.y = self.major_radius*(math.sin (self.parameter)-1.0) + z/shield_focal_ratio
+        self.ellipse_parameter = u
+        self.x = self.minor_radius*math.cos (u)
+        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
       elif x is not None:
         self.x = x
         u = math.acos(x / self.minor_radius)
-        self.u = u
-        self.parameter = u
-        self.y = self.major_radius*(math.sin (self.parameter)-1.0) + z/shield_focal_ratio
-        recalculated_x = self.minor_radius*math.cos (self.parameter)
+        self.ellipse_parameter = u
+        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
+        recalculated_x = self.minor_radius*math.cos (u)
         assert (abs (recalculated_x - self.x) <0.01)
       else:
         self.y = y
         u = math.asin((y - z/shield_focal_ratio)/self.major_radius + 1.0)
-        self.u = u
-        self.parameter = u
-        self.x = self.minor_radius*math.cos (self.parameter)
-        recalculated_y = self.major_radius*(math.sin (self.parameter)-1.0) + z/shield_focal_ratio
+        self.ellipse_parameter = u
+        self.x = self.minor_radius*math.cos (u)
+        recalculated_y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
         assert (abs (recalculated_y - self.y) <0.01)
       self.position = vector (self.x, self.y, self.z)
       self.ddz = vector (
         top_minor_radius*math.cos(u)*(-1.0 / shield_focal_z),
-        top_major_radius*(math.sin (self.parameter)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio,
+        top_major_radius*(math.sin (u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio,
         1
       )
       self.ddu = vector (
@@ -290,8 +287,8 @@ def make_full_face_mask():
   
   
   top_rim_subdivisions = 10
-  min_parameter = ShieldSurfacePoint(z=0, x=0).parameter
-  max_parameter = ShieldSurfacePoint(z=0, y=shield_back).parameter
+  min_parameter = ShieldSurfacePoint(z=0, x=0).ellipse_parameter
+  max_parameter = ShieldSurfacePoint(z=0, y=shield_back).ellipse_parameter
   top_rim_hoops = []
   for index in range (top_rim_subdivisions):
     parameter = min_parameter + (max_parameter-min_parameter)*index/(top_rim_subdivisions-1)
@@ -381,15 +378,49 @@ def make_full_face_mask():
     mults = [degree+1] + [1]*(len(side_poles) - degree - 1) + [degree+1],
     degree = degree,
   )
+  side_curve_length = side_curve.length()
   
   show_transformed (side_curve.toShape(), "side_curve")
   
+  class SideCurvePoint(ShieldSurfacePoint):
+    def __init__(self, z = None, x = None, y = None, which = 0, parameter = None, distance = None):
+      if distance is not None:
+        self.side_curve_distance = distance
+        self.side_curve_parameter = side_curve.parameterAtDistance (distance)
+        source_position = side_curve.value (self.side_curve_parameter)
+      elif parameter is not None:
+        self.side_curve_parameter = parameter
+        self.side_curve_distance = side_curve.length(0, self.side_curve_parameter)
+        source_position = side_curve.value (self.side_curve_parameter)
+      elif z is not None:
+        source_position = vector(side_curve.intersect(
+          Part.Plane (vector(0,0,z), vector(0,0,1))
+        )[0][which])
+        self.side_curve_parameter = side_curve.parameter (source_position)
+        self.side_curve_distance = side_curve.length(0, self.side_curve_parameter)
+      else:
+        assert(false)
+        
+      self.side_curve_tangent = vector (*side_curve.tangent (self.side_curve_parameter))
+      
+      super().__init__(z=source_position [2], x=source_position [0])
+      
+      self.away = self.side_curve_tangent.cross (self.normal)
+          
+      self.moving_frame = matrix_from_columns(self.normal, -self.away, self.side_curve_tangent, self.position)
   
   def side_curve_at_z(z, which = 0):
+    print("side_curve_at_z is deprecated")
     return vector(side_curve.intersect(
       Part.Plane (vector(0,0,z), vector(0,0,1))
     )[0][which])
   
+  def side_curve_points(num, start_distance = 0, end_distance = side_curve_length):
+    def point(index):
+      fraction = index / (num-1)
+      distance = start_distance*(1-fraction) + end_distance*fraction
+      return SideCurvePoint(distance = distance)
+    return (point(index) for index in range (num))
   
   ########################################################################
   ########  Side rim and stuff #######
@@ -429,16 +460,11 @@ def make_full_face_mask():
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   side_splitter = None
-  for index, point in enumerate (side_points):
+  for point in side_curve_points(79):
     position = point.position
-    parameter = side_curve.parameter (position)
-    tangent = vector (*side_curve.tangent (parameter)).normalized()
-    normal = point.normal
-    away = tangent.cross (normal)
     
-    shield_slot_matrix = matrix_from_columns(normal, -away, tangent, position)
     shield_shape = side_rim_hoop_wire.copy()
-    shield_shape.transformShape (shield_slot_matrix)
+    shield_shape.transformShape (point.moving_frame)
     side_rim_hoops.append(shield_shape)
     #show_transformed (shape,f"side_strut_shape_{index}")
     
@@ -448,18 +474,18 @@ def make_full_face_mask():
         vertical_to (-min_wall_thickness - elastic_holder_depth),
         horizontal_to (0),
         vertical_to (-min_wall_thickness),
-        horizontal_to (elastic_holder_depth * 0.5*(1.01+math.cos((point.parameter-math.tau/4) * 25))),
+        horizontal_to (elastic_holder_depth * 0.5*(1.01+math.cos((point.ellipse_parameter-math.tau/4) * 25))),
         vertical_to (0),
         close()
       ]).to_wire()
-      elastic_holder_hoop_wire.transformShape (shield_slot_matrix)
+      elastic_holder_hoop_wire.transformShape (point.moving_frame)
       elastic_holder_hoops.append(elastic_holder_hoop_wire)
       
       if side_splitter is None:
-        side_splitter = box(centered(500), centered(500), 500).transformGeometry(shield_slot_matrix)
+        side_splitter = box(centered(500), centered(500), 500).transformGeometry(point.moving_frame)
     
     if position [2] >= side_plate_bottom_z and position [0] > 0:
-      skew_away = -away/away [1]
+      skew_away = -point.away/point.away[1]
       excess_forwards = position[1] - headphones_front
       back = position + skew_away * excess_forwards
       front = back - skew_away * side_plate_width
@@ -472,8 +498,8 @@ def make_full_face_mask():
       wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
       side_plate_hoops.append(wire)
       
-    curve_normal = vector (*side_curve.normal(parameter))
-    elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(tangent), tangent, position)
+    curve_normal = vector (*side_curve.normal(point.side_curve_parameter))
+    elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(point.side_curve_tangent), point.side_curve_tangent, position)
     elastic_tension_shape = elastic_tension_wire.copy()
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
@@ -796,14 +822,14 @@ def make_full_face_mask():
     previous_surface = surface
   #should print (f"{flat_approximations}")
   def flat_approximate_angle (surface):
-    adjusted = surface.parameter/flat_approximation_factor
+    adjusted = surface.ellipse_parameter/flat_approximation_factor
     #linearly interpolate
     floor = math.floor (adjusted)
     fraction = adjusted - floor
     previous = flat_approximations [floor]
     next = flat_approximations [floor + 1]
     result = next*fraction + previous*(1-fraction)
-    #print (f" angles: {surface.parameter}, {adjusted}, floor: {floor}, {fraction}, {previous}, {next}, {result}, ")
+    #print (f" angles: {surface.ellipse_parameter}, {adjusted}, floor: {floor}, {fraction}, {previous}, {next}, {result}, ")
     # put 0 in the middle
     return result - flat_approximations [(flat_approximation_increments -1)//2]
     
@@ -835,7 +861,7 @@ def make_full_face_mask():
     ]
   unrolled_top_subdivisions = 40
   unrolled_top_back = ShieldSurfacePoint(z=shield_glue_face_width, y= shield_back)
-  unrolled_top_parameter_range = unrolled_top_back.parameter - math.tau/4
+  unrolled_top_parameter_range = unrolled_top_back.ellipse_parameter - math.tau/4
   unrolled_top = [
     unrolled (
       ShieldSurfacePoint(z=shield_glue_face_width, parameter = math.tau/4 + index*unrolled_top_parameter_range/(unrolled_top_subdivisions - 1))
@@ -857,7 +883,7 @@ def make_full_face_mask():
   ########  Cloth shapes  #######
   ########################################################################
   forehead_cloth_shield_back = rim_hook_front
-  forehead_cloth_shield_parameter_range = forehead_cloth_shield_back.parameter - math.tau/4
+  forehead_cloth_shield_parameter_range = forehead_cloth_shield_back.ellipse_parameter - math.tau/4
   #forehead_cloth_forehead_start_parameter = forehead_curve.parameter (vector(0, 500, 0))
   #forehead_cloth_forehead_end_parameter = forehead_curve.parameter (forehead_cloth_shield_back.position)
   elastic_tube_border_width = 16
