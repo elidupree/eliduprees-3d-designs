@@ -474,17 +474,8 @@ def make_full_face_mask():
     side_rim_hoops.append(shield_shape)
     #show_transformed (shape,f"side_strut_shape_{index}")
     
+    # for historical reasons, defined as "first point that meets the condition" rather than a specific z; we're leaving it that way for now for backwards compatibility with already-printed parts, but it can be fixed in a future version. When fixing it, consider the issue about the splitter shape no longer lining up with the edge of the elastic holder plate
     if position [2] < side_plate_bottom_z - 4:
-      elastic_holder_hoop_wire = FreeCAD_shape_builder().build ([
-        start_at(-min_wall_thickness, 0),
-        vertical_to (-min_wall_thickness),
-        horizontal_to (elastic_holder_depth * 0.5*(1.01+math.cos((point.ellipse_parameter-math.tau/4) * 25))),
-        vertical_to (0),
-        close()
-      ]).to_wire()
-      elastic_holder_hoop_wire.transformShape (point.moving_frame)
-      elastic_holder_hoops.append(elastic_holder_hoop_wire)
-      
       if side_splitter is None:
         side_splitter = box(centered(500), centered(500), 500).transformGeometry(point.moving_frame)
     
@@ -507,6 +498,21 @@ def make_full_face_mask():
     elastic_tension_shape = elastic_tension_wire.copy()
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
+    
+  middle_distance = side_curve.length(0, 0.5)
+  distances = (SideCurvePoint(z=-87, which=0).side_curve_distance, SideCurvePoint(z=-87, which=1).side_curve_distance)
+  for point in side_curve_points(79, distances[0], distances[1]):
+    position = point.position
+    sine_curve = math.cos((point.side_curve_distance-middle_distance) / (distances[1]-distances[0]) * math.tau * 7.8)
+    elastic_holder_hoop_wire = FreeCAD_shape_builder().build ([
+        start_at(-min_wall_thickness, 0),
+        vertical_to (-min_wall_thickness),
+        horizontal_to (elastic_holder_depth * 0.5*(1.01+sine_curve)),
+        vertical_to (0),
+        close()
+    ]).to_wire()
+    elastic_holder_hoop_wire.transformShape (point.moving_frame)
+    elastic_holder_hoops.append(elastic_holder_hoop_wire)
   
   side_rim = Part.makeLoft (side_rim_hoops, True)
   show_transformed (side_rim, "side_rim")
