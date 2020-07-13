@@ -106,6 +106,10 @@ def make_full_face_mask():
   def fuse(shapes):
     return shapes[0].fuse(shapes[1:])
   
+  def polygon(points):
+    return Part.makePolygon(points + [points[0]])
+  
+  
   ########################################################################
   ########  Constants  #######
   ########################################################################
@@ -427,6 +431,8 @@ def make_full_face_mask():
   ########################################################################
   
   side_plate_bottom_z = -82
+  elastic_catch_slope = 8
+  
   side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
     vector(0, headphones_front), vector(500, headphones_front)
   ))[0])
@@ -471,8 +477,6 @@ def make_full_face_mask():
     if position [2] < side_plate_bottom_z - 4:
       elastic_holder_hoop_wire = FreeCAD_shape_builder().build ([
         start_at(-min_wall_thickness, 0),
-        vertical_to (-min_wall_thickness - elastic_holder_depth),
-        horizontal_to (0),
         vertical_to (-min_wall_thickness),
         horizontal_to (elastic_holder_depth * 0.5*(1.01+math.cos((point.ellipse_parameter-math.tau/4) * 25))),
         vertical_to (0),
@@ -512,6 +516,36 @@ def make_full_face_mask():
   
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
   
+  def elastic_plate_segment (num, start_distance, end_distance, thickness = min_wall_thickness):
+    hoops = []
+    for point in side_curve_points(num, start_distance, end_distance):
+      fraction = (point.side_curve_distance - start_distance)/(end_distance - start_distance)
+      offset = point.away*(min_wall_thickness + elastic_holder_depth) + point.side_curve_tangent*((fraction*2 - 1)*elastic_holder_depth/elastic_catch_slope)
+      inside = point.position - point.normal*min_wall_thickness
+      hoops.append(polygon ([
+        inside,
+        inside+ point.normal*thickness,
+        inside+ point.normal*thickness + offset,
+        inside+ offset,
+      ]))
+    return Part.makeLoft (hoops, True)
+  
+  side_elastic_holders = [
+    side_elastic_holder,
+    elastic_plate_segment (
+      30,
+      SideCurvePoint(z=-88, which=0).side_curve_distance,
+      SideCurvePoint(z=-144, which=1).side_curve_distance,
+    ),
+    elastic_plate_segment (
+      5,
+      SideCurvePoint(z=-95, which=1).side_curve_distance,
+      SideCurvePoint(z=-88, which=1).side_curve_distance,
+      min_wall_thickness*2
+    ),
+  ]
+  show_transformed (Part.Compound(side_elastic_holders), "side_elastic_holder")
+  
   elastic_hook_base_length = 6
   elastic_hook_outwards = 10
   elastic_hook_forwards = 10
@@ -546,45 +580,7 @@ def make_full_face_mask():
   ])
   
   show_transformed (side_hooks, "side_hooks")
-  
-  elastic_catch_slope = 8
-  side_elastic_holder_cuts = []
-  def make_side_elastic_holder_cut(top_z, bottom_z):
-    top = side_curve_at_z(top_z)
-    bottom = side_curve_at_z(bottom_z)
     
-    middle_parameter = side_curve.parameter ((top+bottom)/2)
-    middle = side_curve.value (middle_parameter)
-    middle = ShieldSurfacePoint (z=middle[2], y=middle[1])
-    along = (top-bottom).normalized()
-    inset = along*elastic_holder_depth/elastic_catch_slope
-    normal = middle.normal
-    away = -along.cross(middle.normal).normalized()
-    
-    cut = Part.makePolygon([
-      top + min_wall_thickness*away,
-      bottom + min_wall_thickness*away,
-      bottom + (min_wall_thickness+elastic_holder_depth+0.3)*away + inset,
-      top + (min_wall_thickness+elastic_holder_depth+0.3)*away - inset,
-      top + min_wall_thickness*away,
-    ]).to_face().fancy_extrude(normal, centered (10))
-
-
-    
-    #matrix = matrix_from_columns(along, middle.normal, along.cross(middle.normal), top)
-    #cut = box((top-bottom).Length, bounds(min_wall_thickness, 20), centered (10))
-    #cut.transformGeometry(matrix)
-    side_elastic_holder_cuts.append(cut)
-  
-  make_side_elastic_holder_cut(-95, -103)
-  make_side_elastic_holder_cut(-139, -144)
-  
-  side_elastic_holder_cuts = [cut.mirror(vector(), vector(1,0,0)) for cut in side_elastic_holder_cuts]
-    
-  side_elastic_holder = side_elastic_holder.cut(side_elastic_holder_cuts)
-  show_transformed (side_elastic_holder, "side_elastic_holder")
-  show_transformed (Part.Compound (side_elastic_holder_cuts), "side_elastic_holder_cuts", invisible = True)
-  
   
   ########################################################################
   ########  Intake  #######
@@ -976,13 +972,12 @@ def make_full_face_mask():
     headband,
     top_rim,
     side_rim,
-    side_elastic_holder,
     side_plate,
     side_plate.mirror(vector(), vector (1, 0, 0)),
     side_hooks,
     side_hooks.mirror(vector(), vector (1, 0, 0)),
     intake_solid,
-  ])
+  ]+side_elastic_holders)
   
   show_transformed (whole_frame, "whole_frame", invisible=True)
   
@@ -993,7 +988,6 @@ def make_full_face_mask():
     top_rim,
   ] + [a.common(top_splitter) for a in [
     side_rim,
-    side_elastic_holder,
     side_plate,
     side_plate.mirror(vector(), vector (1, 0, 0)),
     side_hooks,
@@ -1010,14 +1004,12 @@ def make_full_face_mask():
   
   lower_right_side = Part.Compound ([a.common(side_splitter).common(right_half) for a in [
     side_rim,
-    side_elastic_holder,
-  ]])
+  ]+side_elastic_holders])
   show_transformed (lower_right_side, "lower_right_side", invisible=pieces_invisible)
   
   lower_left_side = Part.Compound ([intake_solid]+[a.common(side_splitter.mirror(vector(), vector(1,0,0))).cut(right_half) for a in [
     side_rim,
-    side_elastic_holder,
-  ]])
+  ]+side_elastic_holders])
   show_transformed (lower_left_side, "lower_left_side", invisible=pieces_invisible)
   
   '''import MeshPart
