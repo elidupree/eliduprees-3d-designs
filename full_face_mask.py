@@ -1008,9 +1008,15 @@ def make_full_face_mask():
   )
   #Part.show(neck_curve.toShape())
   
-  source_points = [a.position + a.away*elastic_holder_depth for a in side_curve_points(chin_cloth_subdivisions+2, 0, side_curve_length/2)]
-  shield_source_points = list(reversed(source_points[1::2]))
-  chin_source_points = [neck_curve.value(neck_curve.parameter(point)) for point in reversed(source_points[::2] + [source_points[-1]])]
+  shield_source_points = [a.position + a.away*(min_wall_thickness + elastic_holder_depth) for a in side_curve_points(chin_cloth_subdivisions+2, side_curve_length/2, 0)]
+  chin_source_points = [neck_curve.value(neck_curve.parameter(point)) for point in  shield_source_points]
+  
+  # a moderately questionable way to expand the flattened shape
+  for index in range(len(shield_source_points)):
+    sideways = (shield_source_points[index] - chin_source_points[index]).normalized()
+    shield_source_points[index] += sideways * elastic_tube_border_width
+    chin_source_points[index] -= sideways * elastic_tube_border_width
+  
   shield_flat_points = [vector(0,0)]
   chin_flat_points = [vector((shield_source_points[0] - chin_source_points[0]).Length, 0)]
   for index in range(chin_cloth_subdivisions):
@@ -1019,14 +1025,14 @@ def make_full_face_mask():
     flat_sideways = (shield_flat - chin_flat).normalized()
     flat_forwards = vector(-flat_sideways[1], flat_sideways[0])
     if index % 2 == 0:
-      shield_source = shield_source_points[index//2]
-      chin_source = chin_source_points[index//2]
-      new_source = chin_source_points[index//2 + 1]
+      shield_source = shield_source_points[index]
+      chin_source = chin_source_points[max(0, index - 1)]
+      new_source = chin_source_points[index + 1]
       add_to = chin_flat_points
     else:
-      shield_source = shield_source_points[index//2]
-      chin_source = chin_source_points[index//2 + 1]
-      new_source = shield_source_points[index//2 + 1]
+      shield_source = shield_source_points[index - 1]
+      chin_source = chin_source_points[index]
+      new_source = shield_source_points[index + 1]
       add_to = shield_flat_points
     
     source_sideways = (shield_source - chin_source).normalized()
@@ -1044,11 +1050,18 @@ def make_full_face_mask():
     + list(reversed(shield_flat_points))
     + [vector(a[0], -a[1]) for a in shield_flat_points[1:]]
     + [vector(a[0], -a[1]) for a in reversed(chin_flat_points[1:])]
-    
+  )
+  chin_cloth_source_points = (
+    chin_source_points
+    + list(reversed(shield_source_points))
+    + [vector(-a[0], a[1], a[2]) for a in shield_source_points[1:]]
+    + [vector(-a[0], a[1], a[2]) for a in reversed(chin_source_points[1:])]
   )
   center_vertices_on_letter_paper(chin_cloth_points)
   chin_cloth = polygon(chin_cloth_points)
+  chin_cloth_source = polygon(chin_cloth_source_points)
   show_transformed (chin_cloth, "chin_cloth", invisible=pieces_invisible)
+  show_transformed (chin_cloth_source, "chin_cloth_source", invisible=True)
   save_inkscape_svg("chin_cloth.svg", chin_cloth)
   
   ########################################################################
