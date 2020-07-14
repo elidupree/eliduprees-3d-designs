@@ -1042,7 +1042,7 @@ def make_full_face_mask():
     assert(abs(forwards_amount - forwards_amount2) < 0.001)
     
       
-    new_flat = shield_flat + flat_forwards*forwards_amount + flat_sideways*sideways_amount
+    new_flat = shield_flat + flat_forwards*forwards_amount*1.05 + flat_sideways*sideways_amount
     add_to.append(new_flat)
   
   chin_cloth_points = (
