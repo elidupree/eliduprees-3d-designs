@@ -62,11 +62,29 @@ The current design assumes that the face does not get wider as you move down fro
 
 
 
-Additional notes after mostly completing second prototype:
+Additional notes after completing second prototype:
 – the intake applies significant torque to the face shield, twisting the clear plastic. Right now, the frame around the intake is very bendable; below the intake, this is a good thing to help the mask's "one-size-fits-all"-ness, but above the intake, it's flexing in the wrong direction. This doesn't seem to be a huge problem, but should still be avoided if possible.
 – Despite being much more "one-size-fits-all", it didn't fit someone with glasses. I'll probably have to change the generalized cone shape.
 – Right where the top rim meets the headband, it's very easy for the headband to bend the top rim inwards, making it slightly concave. I'm not sure if this is a problem in practice, but theoretically it bends the face shield in an undesired direction and worsens the seal with the forehead cloth.
 – The back part of the headband is pretty flexible, such that if you grab just one side of the back, the mask will flop around. It would be preferable if it was more rigid (e.g. if we made the headband wider in the back, which may be desirable anyway).
+– The chin cloth had several problems:
+– – When using the brown elastic, it was much too tight (which makes the cloth harder to install; causes direct discomfort on the chin; pulls down the headband, causing more discomfort at the forehead; makes the mask harder to put on; and puts too much force on some of the weak glued-together joints of the frame).
+– – I switched to using a much thinner white elastic, and then it was mostly fine on the chin, but didn't grip the frame quite well enough. The main problem point is around the intake; proposal: don't make gaps in the elastic plate, just fully route it in a curve around the intake. Similarly, we can route the elastic plates a short distance behind the bottom edges of the side plates, providing better grip and frame strength. (Note that, at that point, we can also make the elastic plate have an angled/FDM-printable edge, because there is no longer tension against that edge)
+– – The bottom edge of the side plates isn't wide enough; probably we can just make the side plates a bit longer to fix this.
+– – Even with the brown elastic, the cloth doesn't actually seal to the side plates. (This may be an acceptable sacrifice though, and in practice, people's faces will often press on it and improve the seal.)
+– – The other point where frame strength is a problem is the joint between the sides and the headband. This MIGHT be resolved by printing them as one piece using SLS, but even with SLS, it might be advantageous to print as 2 separate pieces for "arranging more copies into the print volume" reasons. Fortunately, there is no downside to making the frame thicker at the temples (doesn't get in the way of vision, bicycle helmet, OR headphones). So maybe I can design something like a mortise-and-tenon joint there. Another joint in the same place could attach the top rim to the headband as a separate piece, if that would be desirable for any reason.
+
+
+
+Let's think about the ideal shape for the face shield to accommodate glasses. What are the technical requirements on the face shield shape?
+– Must be a generalized cone
+– The point of the generalized cone – which I will call the "focus" – must be either above or below the whole face, otherwise it's weird
+– For vision reasons, a few other points are required to be on the cone: a point under the chin, and points very close to the temple and the cheek under it. Also, the lines between these points and the focus cannot intersect the face.
+– The entire surface must be convex.
+– Let's assume that the focus is horizontally centered on the face. That's not technically required, but not doing it would be ridiculous.
+– I measured some moderately bulky glasses as 132 mm across. There must be a point on the cone that is slightly outside of this; further, the line between the glasses-point and the focus must have a third point on it for the frame, which must be outside your vision.
+
+Convexity imposes some interesting restrictions. We can think of it in terms of a view from the focus: with the camera at the focus, all points on the surface can be projected as a 2D curve, and that curve must be convex. So, when we are given any set of required points in 3D, we must find a position of the focus such that those points can be convex. In particular, the glasses point cannot appear outside the line-segment-ish from the temple. (And it's presumably below that line segment.) Therefore, the Y position of the focus must be ... [quick approximations]... either > 490, or < headphones_front (i.e. behind her and and below the face). (Note that in some sense, it wraps around, and values behind the face are greater than any value in front of the face, so this is basically one inequality, not two separate cases.)
 
 '''
 
@@ -82,7 +100,7 @@ def make_full_face_mask():
   ########################################################################
   
   on_face = False
-  #on_face = True
+  on_face = True
   pieces_invisible = False
   #pieces_invisible = True
   invisible_default = not pieces_invisible
@@ -176,7 +194,10 @@ def make_full_face_mask():
   top_major_radius = -back_edge*2
   shield_focal_z = 280
   shield_focal_ratio = 2
-  shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)
+  shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)  
+  glasses_point = forehead_point + vector (66, 0, -10)
+  show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
+  show_transformed(Part.LineSegment(shield_focal_point, glasses_point*2 - shield_focal_point).toShape(), "glasses_line", invisible = False)
 
   class ShieldSurfacePoint:
     def __init__(self, z = None, x = None, y = None, parameter = None):
