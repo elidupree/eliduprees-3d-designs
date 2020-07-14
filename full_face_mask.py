@@ -66,6 +66,7 @@ Additional notes after mostly completing second prototype:
 – the intake applies significant torque to the face shield, twisting the clear plastic. Right now, the frame around the intake is very bendable; below the intake, this is a good thing to help the mask's "one-size-fits-all"-ness, but above the intake, it's flexing in the wrong direction. This doesn't seem to be a huge problem, but should still be avoided if possible.
 – Despite being much more "one-size-fits-all", it didn't fit someone with glasses. I'll probably have to change the generalized cone shape.
 – Right where the top rim meets the headband, it's very easy for the headband to bend the top rim inwards, making it slightly concave. I'm not sure if this is a problem in practice, but theoretically it bends the face shield in an undesired direction and worsens the seal with the forehead cloth.
+– The back part of the headband is pretty flexible, such that if you grab just one side of the back, the mask will flop around. It would be preferable if it was more rigid (e.g. if we made the headband wider in the back, which may be desirable anyway).
 
 '''
 
@@ -889,7 +890,7 @@ def make_full_face_mask():
     
   
   ########################################################################
-  ########  Cloth shapes  #######
+  ########  Forehead cloth  #######
   ########################################################################
   forehead_cloth_shield_back = rim_hook_front
   forehead_cloth_shield_parameter_range = forehead_cloth_shield_back.ellipse_parameter - math.tau/4
@@ -979,7 +980,76 @@ def make_full_face_mask():
   forehead_cloth = Part.makePolygon(forehead_cloth_points)
   show_transformed (forehead_cloth, "forehead_cloth", invisible=pieces_invisible)
   save_inkscape_svg("forehead_cloth.svg", forehead_cloth)
-
+  
+  ########################################################################
+  ########  Chin cloth  #######
+  ########################################################################
+  
+  chin_cloth_subdivisions = 80
+  neck_points = [
+    vector(75, shield_back, 20),
+    vector(75, shield_back, 0),
+    vector(75, shield_back, -20),
+    vector(74, shield_back, -40),
+    vector(70, shield_back, -60),
+    vector(66, shield_back, -80),
+    vector(57, shield_back, -100),
+    vector(38, shield_back, -120),
+    vector(8, shield_back, -140),
+  ]
+  neck_points = neck_points + [vector(-a[0], a[1], a[2]) for a in reversed(neck_points)]
+  
+  degree = 3
+  neck_curve = Part.BSplineCurve()
+  neck_curve.buildFromPolesMultsKnots(
+    neck_points,
+    mults = [degree+1] + [1]*(len(neck_points) - degree - 1) + [degree+1],
+    degree = degree,
+  )
+  #Part.show(neck_curve.toShape())
+  
+  source_points = [a.position + a.away*elastic_holder_depth for a in side_curve_points(chin_cloth_subdivisions+2, 0, side_curve_length/2)]
+  shield_source_points = list(reversed(source_points[1::2]))
+  chin_source_points = [neck_curve.value(neck_curve.parameter(point)) for point in reversed(source_points[::2] + [source_points[-1]])]
+  shield_flat_points = [vector(0,0)]
+  chin_flat_points = [vector((shield_source_points[0] - chin_source_points[0]).Length, 0)]
+  for index in range(chin_cloth_subdivisions):
+    shield_flat = shield_flat_points [-1]
+    chin_flat = chin_flat_points [-1]
+    flat_sideways = (shield_flat - chin_flat).normalized()
+    flat_forwards = vector(-flat_sideways[1], flat_sideways[0])
+    if index % 2 == 0:
+      shield_source = shield_source_points[index//2]
+      chin_source = chin_source_points[index//2]
+      new_source = chin_source_points[index//2 + 1]
+      add_to = chin_flat_points
+    else:
+      shield_source = shield_source_points[index//2]
+      chin_source = chin_source_points[index//2 + 1]
+      new_source = shield_source_points[index//2 + 1]
+      add_to = shield_flat_points
+    
+    source_sideways = (shield_source - chin_source).normalized()
+    sideways_amount = (new_source - shield_source).dot(source_sideways)
+    forwards_amount = (new_source - chin_source).cross(source_sideways).Length
+    forwards_amount2 = (new_source - shield_source).cross(source_sideways).Length
+    assert(abs(forwards_amount - forwards_amount2) < 0.001)
+    
+      
+    new_flat = shield_flat + flat_forwards*forwards_amount + flat_sideways*sideways_amount
+    add_to.append(new_flat)
+  
+  chin_cloth_points = (
+    chin_flat_points
+    + list(reversed(shield_flat_points))
+    + [vector(a[0], -a[1]) for a in shield_flat_points[1:]]
+    + [vector(a[0], -a[1]) for a in reversed(chin_flat_points[1:])]
+    
+  )
+  center_vertices_on_letter_paper(chin_cloth_points)
+  chin_cloth = polygon(chin_cloth_points)
+  show_transformed (chin_cloth, "chin_cloth", invisible=pieces_invisible)
+  save_inkscape_svg("chin_cloth.svg", chin_cloth)
   
   ########################################################################
   ########  Split/assemble components into printable parts  #######
