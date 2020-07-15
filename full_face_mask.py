@@ -103,9 +103,9 @@ def make_full_face_mask():
   ########################################################################
   
   on_face = False
-  on_face = True
+  #on_face = True
   pieces_invisible = False
-  #pieces_invisible = True
+  pieces_invisible = True
   invisible_default = not pieces_invisible
   #invisible_default = True
   
@@ -204,17 +204,18 @@ def make_full_face_mask():
   
   side_curve_points = [
     temple + vector(0,0,shield_glue_face_width),
-    temple + vector(1.5,0,-20),
-    temple + vector(2,0,-40),
-    temple + vector(1.5,0,-60),
-    temple + vector(0.5,3,-80),
-    temple + vector(-1.5,7,-100),
+    temple + vector(1,0,-20),
+    temple + vector(1.5,0,-40),
+    temple + vector(1,0,-60),
+    temple + vector(1,3,-80),
+    temple + vector(-0.5,7,-100),
     temple + vector(-6,21,-123), # just outside the glasses point
     temple + vector(-22,35,-140),
     temple + vector(-50,46,-155),
     temple + vector(-75,52,-155),
   ]
   side_curve_points = side_curve_points + [vector(-v[0], v[1], v[2]) for v in reversed (side_curve_points[:-1])]
+  side_curve_points.reverse()
   degree = 3
   side_curve = Part.BSplineCurve()
   side_curve.buildFromPolesMultsKnots(
@@ -244,60 +245,61 @@ def make_full_face_mask():
   show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in side_curve_points]), "side_curve_points", invisible = False)
   show_transformed(side_curve.toShape(), "side_curve2", invisible = False)
   show_transformed(shield_surface.toShape(), "shield_surface", invisible = False)
-    
-  top_minor_radius = 93
-  top_major_radius = -back_edge*2
-  shield_focal_z = 280
-  
-  shield_focal_point = vector (0, shield_focal_z / shield_focal_slope, shield_focal_z)  
+  top_curve = shield_surface.intersect(
+            Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1))
+          )[0]
+  top_curve_length = top_curve.length()
+  show_transformed(top_curve.toShape(), "top_curve", invisible = False)
+  print(top_curve.NbPoles)
+  for index in range(100):
+    foo = index / 100
+    a = top_curve.value(foo)
+    p = shield_surface.parameter(a)
+    b = shield_surface.value(*p)
+    #print((a-b).Length)
+
+
   glasses_point = forehead_point + vector (66, 0, -10)
   show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
   show_transformed(Part.LineSegment(shield_focal_point, glasses_point*2 - shield_focal_point).toShape(), "glasses_line", invisible = False)
-
-  class ShieldSurfacePoint:
-    def __init__(self, z = None, x = None, y = None, parameter = None):
-      self.oval_size_factor = 1.0 - z / shield_focal_z
-      self.minor_radius = top_minor_radius*self.oval_size_factor
-      self.major_radius = top_major_radius*self.oval_size_factor
-      self.z = z
-      if parameter is not None:
-        u = parameter
-        self.ellipse_parameter = u
-        self.x = self.minor_radius*math.cos (u)
-        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
-      elif x is not None:
-        self.x = x
-        u = math.acos(x / self.minor_radius)
-        self.ellipse_parameter = u
-        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
-        recalculated_x = self.minor_radius*math.cos (u)
-        assert (abs (recalculated_x - self.x) <0.01)
+  
+  class ShieldSample:
+    def __init__(self, parameter = None, closest = None):
+      if closest is not None:
+        self.shield_parameter = shield_surface.parameter(closest)
+      elif parameter is not None:
+        self.shield_parameter = parameter
       else:
-        self.y = y
-        u = math.asin((y - z/shield_focal_slope)/self.major_radius + 1.0)
-        self.ellipse_parameter = u
-        self.x = self.minor_radius*math.cos (u)
-        recalculated_y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
-        assert (abs (recalculated_y - self.y) <0.01)
-      self.position = vector (self.x, self.y, self.z)
-      self.ddz = vector (
-        top_minor_radius*math.cos(u)*(-1.0 / shield_focal_z),
-        top_major_radius*(math.sin (u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_slope,
-        1
-      )
-      self.ddu = vector (
-        self.minor_radius*-math.sin(u),
-        self.major_radius*math.cos(u),
-        0,
-      )
-      #self.horizontal_tangent = self.ddu.normalized()
-      #self.vertical_tangent = self.ddz.normalized()
-      self.normal = self.ddu.cross(self.ddz).normalized()
+        assert(false)
+      
+      self.position = shield_surface.value(*self.shield_parameter)
+      self.normal = shield_surface.normal(*self.shield_parameter)
   
   
+  class CurveSample (ShieldSample):
+    def __init__(self, curve, distance):
+      self.curve = curve
+      self.curve_distance = distance
+      self.curve_parameter = curve.parameterAtDistance (distance)
+      
+      super().__init__(closest = curve.value (self.curve_parameter))
+      
+      self.curve_tangent = vector (*curve.tangent (self.curve_parameter))
+      self.curve_in_surface_normal = self.curve_tangent.cross (self.normal)
+      
+      # selected to approximately match XYZ when looking at the +x end of the side curve
+      self.moving_frame = matrix_from_columns(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
+
+
+  def curve_samples(curve, num, start_distance = 0, end_distance = side_curve_length):
+    def point(index):
+      fraction = index / (num-1)
+      distance = start_distance*(1-fraction) + end_distance*fraction
+      return CurveSample(curve, distance)
+    return (point(index) for index in range (num))
   
   
-  shield_top_full_wire = Part.Ellipse(vector(0,0), vector (top_minor_radius, -top_major_radius), vector(0, -top_major_radius)).toShape().to_wire()
+  shield_top_full_wire = Part.Shape([top_curve, Part.LineSegment(top_curve.EndPoint, top_curve.StartPoint)]).to_wire()
   shield_box = box(centered (500), bounds (shield_back, 500), bounds (-180, 0))
   shield_cross_section = shield_top_full_wire.to_face()
   shield_cross_sections = []
@@ -375,33 +377,26 @@ def make_full_face_mask():
   
   
   top_rim_subdivisions = 10
-  min_parameter = ShieldSurfacePoint(z=0, x=0).ellipse_parameter
-  max_parameter = ShieldSurfacePoint(z=0, y=shield_back).ellipse_parameter
   top_rim_hoops = []
-  for index in range (top_rim_subdivisions):
-    parameter = min_parameter + (max_parameter-min_parameter)*index/(top_rim_subdivisions-1)
-    bottom_point = ShieldSurfacePoint(z=0, parameter=parameter)
-    #top_point = ShieldSurfacePoint(z=shield_glue_face_width + min_wall_thickness, parameter=parameter)
-    towards_focus = (shield_focal_point - bottom_point.position).normalized()
-    towards_focus_skewed = towards_focus/towards_focus[2]
-    wall_thickness_skewed = min_wall_thickness/towards_focus.cross(bottom_point.normal).Length
-    flat_outwards = (bottom_point.normal - vector(0,0,bottom_point.normal[2])).normalized()
+  for sample in curve_samples(top_curve, top_rim_subdivisions, top_curve_length/2, top_curve_length):
+    curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
+    wall_thickness_skewed = min_wall_thickness/sample.curve_in_surface_normal.cross(sample.normal).Length
+    flat_outwards = (sample.normal - vector(0,0,sample.normal[2])).normalized()
     coords = [
+      (0, -shield_glue_face_width),
       (0, 0),
-      (0, shield_glue_face_width),
-      (wall_thickness_skewed, shield_glue_face_width),
-      (wall_thickness_skewed, shield_glue_face_width + min_wall_thickness),
-      (-wall_thickness_skewed, shield_glue_face_width + min_wall_thickness),
-      (-wall_thickness_skewed, 0),
+      (wall_thickness_skewed, 0),
+      (wall_thickness_skewed, min_wall_thickness),
+      (-wall_thickness_skewed, min_wall_thickness),
+      (-wall_thickness_skewed, -shield_glue_face_width),
     ]
-    points = [bottom_point.position + towards_focus_skewed*b + flat_outwards*a for a,b in coords]
-    wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
+    wire = polygon([sample.position + curve_in_surface_normal_skewed*b + flat_outwards*a for a,b in coords]).to_wire()
     top_rim_hoops.append (wire)
     
   
   top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
   show_transformed (top_rim, "top_rim")
-  
+  return finish()
   
   ########################################################################
   ########  Side curve definition  #######
