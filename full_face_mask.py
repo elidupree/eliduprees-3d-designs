@@ -211,8 +211,8 @@ def make_full_face_mask():
     temple + vector(-0.5,7,-100),
     temple + vector(-6,21,-123), # just outside the glasses point
     temple + vector(-22,35,-140),
-    temple + vector(-50,46,-155),
-    temple + vector(-75,52,-155),
+    temple + vector(-50,46,-153),
+    temple + vector(-75,52,-156),
   ]
   side_curve_points = side_curve_points + [vector(-v[0], v[1], v[2]) for v in reversed (side_curve_points[:-1])]
   side_curve_points.reverse()
@@ -396,115 +396,7 @@ def make_full_face_mask():
   
   top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
   show_transformed (top_rim, "top_rim")
-  return finish()
-  
-  ########################################################################
-  ########  Side curve definition  #######
-  ########################################################################
-  
-  source_side_points = [
-    ShieldSurfacePoint (z=shield_glue_face_width, y= shield_back),
-    ShieldSurfacePoint (z=0, y= shield_back),
-    ShieldSurfacePoint (z= -20, y= shield_back),
-    ShieldSurfacePoint (z= -40, y= shield_back),
-    ShieldSurfacePoint (z= -60, y= shield_back),
-    ShieldSurfacePoint (z= -80, y= shield_back+3),
-    ShieldSurfacePoint (z= -100, y= forehead_point[1] - 63),
-    ShieldSurfacePoint (z= -135, x = 54),
-    ShieldSurfacePoint (z= -155, x = 25),
-    ShieldSurfacePoint (z= -155, x = 0),
-  ]
-  
-  degree = 3
-  source_side_poles = [a.position for a in source_side_points]
-  source_side_curve = Part.BSplineCurve()
-  source_side_curve.buildFromPolesMultsKnots(
-    source_side_poles,
-    mults = [degree+1] + [1]*(len(source_side_poles) - degree - 1) + [degree+1],
-    degree = degree,
-  )
 
-
-  show_transformed (source_side_curve.toShape(), "source_side_curve", invisible=True)
-  
-  subdivisions = 40
-  source_side_curve_length = source_side_curve.length()
-  def refined_side_point (distance):
-    parameter = source_side_curve.parameterAtDistance (distance)
-    
-    intermediate = source_side_curve.value (parameter)
-    #print (f" parameter: {parameter}, distance: {distance}, intermediate: {intermediate}")
-    y_based = ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
-   
-    x_frac = (intermediate[1] - -140)/60
-    if x_frac < 0:
-      return ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
-    elif x_frac > 1:
-      return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
-    else:
-      x_based = ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
-      y_based = ShieldSurfacePoint (z= intermediate [2], y= intermediate [1])
-      intermediate = x_based.position*x_frac + y_based.position*(1-x_frac)
-      return ShieldSurfacePoint (z= intermediate [2], x= intermediate [0])
-  
-  side_points = [
-    refined_side_point (source_side_curve_length * index / (subdivisions -1))
-    for index in range (subdivisions)
-  ]
-  side_points = side_points + [ShieldSurfacePoint (z= point.z, x= -point.x) for point in reversed(side_points[:-1])]
-  
-  degree = 3
-  side_poles = [a.position for a in side_points]
-  side_curve = Part.BSplineCurve()
-  side_curve.buildFromPolesMultsKnots(
-    side_poles,
-    mults = [degree+1] + [1]*(len(side_poles) - degree - 1) + [degree+1],
-    degree = degree,
-  )
-  side_curve_length = side_curve.length()
-  
-  show_transformed (side_curve.toShape(), "side_curve")
-  
-  class SideCurvePoint(ShieldSurfacePoint):
-    def __init__(self, z = None, x = None, y = None, which = 0, parameter = None, distance = None):
-      if distance is not None:
-        self.side_curve_distance = distance
-        self.side_curve_parameter = side_curve.parameterAtDistance (distance)
-        source_position = side_curve.value (self.side_curve_parameter)
-      elif parameter is not None:
-        self.side_curve_parameter = parameter
-        self.side_curve_distance = side_curve.length(0, self.side_curve_parameter)
-        source_position = side_curve.value (self.side_curve_parameter)
-      elif z is not None:
-        source_position = vector(side_curve.intersect(
-          Part.Plane (vector(0,0,z), vector(0,0,1))
-        )[0][which])
-        self.side_curve_parameter = side_curve.parameter (source_position)
-        self.side_curve_distance = side_curve.length(0, self.side_curve_parameter)
-      else:
-        assert(false)
-        
-      self.side_curve_tangent = vector (*side_curve.tangent (self.side_curve_parameter))
-      
-      super().__init__(z=source_position [2], x=source_position [0])
-      
-      self.away = self.side_curve_tangent.cross (self.normal)
-          
-      self.moving_frame = matrix_from_columns(self.normal, -self.away, self.side_curve_tangent, self.position)
-  
-  def side_curve_at_z(z, which = 0):
-    print("side_curve_at_z is deprecated")
-    return vector(side_curve.intersect(
-      Part.Plane (vector(0,0,z), vector(0,0,1))
-    )[0][which])
-  
-  def side_curve_points(num, start_distance = 0, end_distance = side_curve_length):
-    def point(index):
-      fraction = index / (num-1)
-      distance = start_distance*(1-fraction) + end_distance*fraction
-      return SideCurvePoint(distance = distance)
-    return (point(index) for index in range (num))
-  
   ########################################################################
   ########  Side rim and stuff #######
   ########################################################################
@@ -513,16 +405,15 @@ def make_full_face_mask():
   elastic_catch_slope = 8
   
   side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, headphones_front), vector(500, headphones_front)
+    vector(0, headphones_front + side_plate_width/2), vector(500, headphones_front + side_plate_width/2)
   ))[0])
-  side_plate_bottom = ShieldSurfacePoint (z= side_plate_bottom_z, y= headphones_front).position
-  side_plate_top_frontish = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, side_plate_top[1] + side_plate_width), vector(500, side_plate_top[1] + side_plate_width)
-  ))[0])
-  side_plate_bottom_frontish = ShieldSurfacePoint (z=side_plate_bottom.z, y= side_plate_bottom.y + side_plate_width).position
-  side_plate_forwards = (side_plate_top_frontish - side_plate_top).normalized()
-  side_plate_z_vector = side_plate_bottom_frontish - vector (min_wall_thickness, 0, 0) - side_plate_top_frontish
-  side_plate_normal = side_plate_z_vector.cross (side_plate_forwards).normalized()
+  side_plate_top_parameter = forehead_curve.parameter(side_plate_top)
+  side_plate_bottom = vector(shield_surface.intersect(Part.LineSegment(
+    side_plate_top + vector(-10, 0, side_plate_bottom_z),
+    side_plate_top + vector(10, 0, side_plate_bottom_z), 
+  ))[0][0])
+  side_plate_downwards = (side_plate_bottom - side_plate_top).normalized()
+  side_plate_normal = forehead_curve.normal(side_plate_top_parameter).cross(side_plate_downwards).cross(side_plate_downwards).normalized()
   def project_to_side_plate (input):
     return input - side_plate_normal*side_plate_normal.dot(input - side_plate_top)
   
@@ -545,21 +436,21 @@ def make_full_face_mask():
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   side_splitter = None
-  for point in side_curve_points(79):
-    position = point.position
+  for sample in curve_samples(side_curve, 79):
+    position = sample.position
     
     shield_shape = side_rim_hoop_wire.copy()
-    shield_shape.transformShape (point.moving_frame)
+    shield_shape.transformShape (sample.moving_frame)
     side_rim_hoops.append(shield_shape)
     #show_transformed (shape,f"side_strut_shape_{index}")
     
     # for historical reasons, defined as "first point that meets the condition" rather than a specific z; we're leaving it that way for now for backwards compatibility with already-printed parts, but it can be fixed in a future version. When fixing it, consider the issue about the splitter shape no longer lining up with the edge of the elastic holder plate
     if position [2] < side_plate_bottom_z - 4:
       if side_splitter is None:
-        side_splitter = box(centered(500), centered(500), 500).transformGeometry(point.moving_frame)
+        side_splitter = box(centered(500), centered(500), 500).transformGeometry(sample.moving_frame)
     
     if position [2] >= side_plate_bottom_z and position [0] > 0:
-      skew_away = -point.away/point.away[1]
+      skew_away = -sample.curve_in_surface_normal/sample.curve_in_surface_normal[1]
       excess_forwards = position[1] - headphones_front
       back = position + skew_away * excess_forwards
       front = back - skew_away * side_plate_width
@@ -569,15 +460,16 @@ def make_full_face_mask():
         project_to_side_plate (front),
         project_to_side_plate (back),
       ]
-      wire = Part.Shape ([Part.LineSegment (*pair) for pair in zip (points, points [1:] + [points [0]])]).to_wire()
+      wire = polygon(points).to_wire()
       side_plate_hoops.append(wire)
       
-    curve_normal = vector (*side_curve.normal(point.side_curve_parameter))
-    elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(point.side_curve_tangent), point.side_curve_tangent, position)
+    curve_normal = vector (*side_curve.normal(sample.curve_parameter))
+    elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(sample.curve_tangent), sample.curve_tangent, position)
     elastic_tension_shape = elastic_tension_wire.copy()
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
-    
+  
+  '''
   middle_distance = side_curve.length(0, 0.5)
   distances = (SideCurvePoint(z=-87, which=0).side_curve_distance, SideCurvePoint(z=-87, which=1).side_curve_distance)
   for point in side_curve_points(79, distances[0], distances[1]):
@@ -592,10 +484,10 @@ def make_full_face_mask():
     ]).to_wire()
     elastic_holder_hoop_wire.transformShape (point.moving_frame)
     elastic_holder_hoops.append(elastic_holder_hoop_wire)
-  
+  '''
   side_rim = Part.makeLoft (side_rim_hoops, True)
   show_transformed (side_rim, "side_rim")
-  side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
+  #side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
   side_plate = Part.makeLoft (side_plate_hoops, True)
   show_transformed (side_plate, "side_plate")
   
@@ -615,6 +507,7 @@ def make_full_face_mask():
       ]))
     return Part.makeLoft (hoops, True)
   
+  '''
   side_elastic_holders = [
     side_elastic_holder,
     elastic_plate_segment (
@@ -630,6 +523,7 @@ def make_full_face_mask():
     ),
   ]
   show_transformed (Part.Compound(side_elastic_holders), "side_elastic_holder")
+  '''
   
   elastic_hook_base_length = 6
   elastic_hook_outwards = 10
@@ -654,7 +548,7 @@ def make_full_face_mask():
     hook.transformShape (matrix)
     return hook
 
-  rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= headphones_front+15)
+  '''rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= headphones_front+15)
   rim_hook_front = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y=rim_hook_back.position[1]+elastic_hook_forwards)
   rim_hook_forwards = (rim_hook_front.position - rim_hook_back.position).normalized()
   rim_hook = elastic_hook.copy()
@@ -664,9 +558,9 @@ def make_full_face_mask():
     side_hook(elastic_hook_base_length*index) for index in range(8)
   ])
   
-  show_transformed (side_hooks, "side_hooks")
+  show_transformed (side_hooks, "side_hooks")'''
     
-  
+  return finish()
   ########################################################################
   ########  Intake  #######
   ########################################################################
