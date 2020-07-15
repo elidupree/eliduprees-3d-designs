@@ -207,8 +207,8 @@ def make_full_face_mask():
     temple + vector(1.5,0,-20),
     temple + vector(2,0,-40),
     temple + vector(1.5,0,-60),
-    temple + vector(0,3,-80),
-    temple + vector(-2,7,-100),
+    temple + vector(0.5,3,-80),
+    temple + vector(-1.5,7,-100),
     temple + vector(-6,21,-123), # just outside the glasses point
     temple + vector(-22,35,-140),
     temple + vector(-50,46,-155),
