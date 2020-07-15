@@ -1,4 +1,3 @@
-
 CPAP_outer_radius = 21.5/2
 elidupree_4in_threshold = 51.616
 elidupree_4in_leeway_one_sided = 0.12
@@ -16,10 +15,27 @@ def elidupree_4in_to_CPAP_solid():
   
   show (adapter, "adapter")
 
+def CPAP_to_CPAP():
+  wall_thickness = single_wall_thickness*2 # make 'em tough because you put a bunch of force on these things
+  end_length = 16
+  diagonal_size = 3
+  part = FreeCAD_shape_builder().build([
+    start_at (CPAP_outer_radius - wall_thickness, 0),
+    horizontal_to (CPAP_outer_radius),
+    vertical_to (end_length),
+    diagonal_to (CPAP_outer_radius + diagonal_size, end_length+diagonal_size),
+    diagonal_to (CPAP_outer_radius, end_length+diagonal_size+diagonal_size),
+    vertical_to (end_length+diagonal_size+diagonal_size+end_length),
+    horizontal_to(CPAP_outer_radius - wall_thickness),
+    close()
+  ]).as_xz().revolve (vector(), vector (0, 0, 1), 360)
+  
+  show (part, "part")
+
 def run(g):
   for key, value in g.items():
     globals()[key] = value
-  elidupree_4in_to_CPAP_solid()
+  CPAP_to_CPAP()
   
   
   
