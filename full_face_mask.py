@@ -67,6 +67,7 @@ Additional notes after completing second prototype:
 – Despite being much more "one-size-fits-all", it didn't fit someone with glasses. I'll probably have to change the generalized cone shape.
 – Right where the top rim meets the headband, it's very easy for the headband to bend the top rim inwards, making it slightly concave. I'm not sure if this is a problem in practice, but theoretically it bends the face shield in an undesired direction and worsens the seal with the forehead cloth.
 – The back part of the headband is pretty flexible, such that if you grab just one side of the back, the mask will flop around. It would be preferable if it was more rigid (e.g. if we made the headband wider in the back, which may be desirable anyway).
+– The nose-air-replacement is pretty good, but consider whether a grille to direct the air towards my nose could improve it more.
 – The chin cloth had several problems:
 – – When using the brown elastic, it was much too tight (which makes the cloth harder to install; causes direct discomfort on the chin; pulls down the headband, causing more discomfort at the forehead; makes the mask harder to put on; and puts too much force on some of the weak glued-together joints of the frame).
 – – I switched to using a much thinner white elastic, and then it was mostly fine on the chin, but didn't grip the frame quite well enough. The main problem point is around the intake; proposal: don't make gaps in the elastic plate, just fully route it in a curve around the intake. Similarly, we can route the elastic plates a short distance behind the bottom edges of the side plates, providing better grip and frame strength. (Note that, at that point, we can also make the elastic plate have an angled/FDM-printable edge, because there is no longer tension against that edge)
@@ -169,11 +170,11 @@ def make_full_face_mask():
   
   then
   oval_size_factor = (shield_focal_z - z) / shield_focal_z = 1.0 - z / shield_focal_z
-  y = top_major_radius*oval_size_factor*(sin(u)-1.0) + z/shield_focal_ratio
+  y = top_major_radius*oval_size_factor*(sin(u)-1.0) + z/shield_focal_slope
   x = top_minor_radius*oval_size_factor*cos(u)
   
   dy/du = top_major_radius*oval_size_factor*cos(u)
-  dy/dz = top_major_radius*(sin(u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio
+  dy/dz = top_major_radius*(sin(u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_slope
   dx/du = top_minor_radius*oval_size_factor*-sin(u)
   dx/dz = top_minor_radius*cos(u)*(-1.0 / shield_focal_z)
   dz/du = 0
@@ -185,18 +186,70 @@ def make_full_face_mask():
   u = acos(x / (top_minor_radius*oval_size_factor))
   
   solve for u given y:
-  y = top_major_radius*oval_size_factor*(sin(u)-1.0) + z/shield_focal_ratio
-  (y - z/shield_focal_ratio + top_major_radius*oval_size_factor) = top_major_radius*oval_size_factor*sin(u)
-  (y - z/shield_focal_ratio + top_major_radius*oval_size_factor)/top_major_radius*oval_size_factor = sin(u)
-  (y - z/shield_focal_ratio)/top_major_radius*oval_size_factor + 1.0 = sin(u)
-  u = asin((y - z/shield_focal_ratio)/top_major_radius*oval_size_factor + 1.0)
+  y = top_major_radius*oval_size_factor*(sin(u)-1.0) + z/shield_focal_slope
+  (y - z/shield_focal_slope + top_major_radius*oval_size_factor) = top_major_radius*oval_size_factor*sin(u)
+  (y - z/shield_focal_slope + top_major_radius*oval_size_factor)/top_major_radius*oval_size_factor = sin(u)
+  (y - z/shield_focal_slope)/top_major_radius*oval_size_factor + 1.0 = sin(u)
+  u = asin((y - z/shield_focal_slope)/top_major_radius*oval_size_factor + 1.0)
   '''
   
+  shield_focal_slope = 2
+  temple_angle = (math.tau/4) * 0.95
+  temple_direction = vector(angle = temple_angle, length = 1)
+  temple = vector(75, shield_back, 0)
+  
+  shield_focal_y = temple[1] - (temple[0] * temple_direction[1] / temple_direction[0])
+  shield_focal_point = vector (0, shield_focal_y, shield_focal_y * shield_focal_slope)
+  
+  
+  side_curve_points = [
+    temple + vector(0,0,shield_glue_face_width),
+    temple + vector(1.5,0,-20),
+    temple + vector(2,0,-40),
+    temple + vector(1.5,0,-60),
+    temple + vector(0,3,-80),
+    temple + vector(-2,7,-100),
+    temple + vector(-6,21,-123), # just outside the glasses point
+    temple + vector(-22,35,-140),
+    temple + vector(-50,46,-155),
+    temple + vector(-75,52,-155),
+  ]
+  side_curve_points = side_curve_points + [vector(-v[0], v[1], v[2]) for v in reversed (side_curve_points[:-1])]
+  degree = 3
+  side_curve = Part.BSplineCurve()
+  side_curve.buildFromPolesMultsKnots(
+    side_curve_points,
+    mults = [degree+1] + [1]*(len(side_curve_points) - degree - 1) + [degree+1],
+    degree = degree,
+  )
+  side_curve_length = side_curve.length()
+  
+  def scaled_side_curve_points (zmin=None, zmax=None):
+    if zmin is not None:
+      factor = (zmin - shield_focal_point[2]) / (min(vertex[2] for vertex in side_curve_points) - shield_focal_point[2])
+    if zmax is not None:
+      factor = (zmax - shield_focal_point[2]) / (max(vertex[2] for vertex in side_curve_points) - shield_focal_point[2])
+    return [shield_focal_point + (vertex - shield_focal_point)*factor for vertex in side_curve_points]
+  
+  shield_surface = Part.BSplineSurface()
+  shield_surface.buildFromPolesMultsKnots([
+    scaled_side_curve_points (zmax = -160),
+    scaled_side_curve_points (zmin = 20),
+  ],
+        [2,2],
+        [degree+1] + [1]*(len(side_curve_points) - degree - 1) + [degree+1],
+        udegree = 1,
+        vdegree = degree,
+      )
+  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in side_curve_points]), "side_curve_points", invisible = False)
+  show_transformed(side_curve.toShape(), "side_curve2", invisible = False)
+  show_transformed(shield_surface.toShape(), "shield_surface", invisible = False)
+    
   top_minor_radius = 93
   top_major_radius = -back_edge*2
   shield_focal_z = 280
-  shield_focal_ratio = 2
-  shield_focal_point = vector (0, shield_focal_z / shield_focal_ratio, shield_focal_z)  
+  
+  shield_focal_point = vector (0, shield_focal_z / shield_focal_slope, shield_focal_z)  
   glasses_point = forehead_point + vector (66, 0, -10)
   show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
   show_transformed(Part.LineSegment(shield_focal_point, glasses_point*2 - shield_focal_point).toShape(), "glasses_line", invisible = False)
@@ -211,25 +264,25 @@ def make_full_face_mask():
         u = parameter
         self.ellipse_parameter = u
         self.x = self.minor_radius*math.cos (u)
-        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
+        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
       elif x is not None:
         self.x = x
         u = math.acos(x / self.minor_radius)
         self.ellipse_parameter = u
-        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
+        self.y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
         recalculated_x = self.minor_radius*math.cos (u)
         assert (abs (recalculated_x - self.x) <0.01)
       else:
         self.y = y
-        u = math.asin((y - z/shield_focal_ratio)/self.major_radius + 1.0)
+        u = math.asin((y - z/shield_focal_slope)/self.major_radius + 1.0)
         self.ellipse_parameter = u
         self.x = self.minor_radius*math.cos (u)
-        recalculated_y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_ratio
+        recalculated_y = self.major_radius*(math.sin (u)-1.0) + z/shield_focal_slope
         assert (abs (recalculated_y - self.y) <0.01)
       self.position = vector (self.x, self.y, self.z)
       self.ddz = vector (
         top_minor_radius*math.cos(u)*(-1.0 / shield_focal_z),
-        top_major_radius*(math.sin (u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_ratio,
+        top_major_radius*(math.sin (u)-1.0)*(-1.0 / shield_focal_z) + 1.0/shield_focal_slope,
         1
       )
       self.ddu = vector (
