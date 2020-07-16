@@ -143,7 +143,7 @@ def make_full_face_mask():
   ########  Constants  #######
   ########################################################################
     
-  min_wall_thickness = 0.6
+  min_wall_thickness = 0.8
   stiffer_wall_thickness = 1.1
   shield_glue_face_width = 6
   elastic_holder_depth = 10
@@ -202,7 +202,7 @@ def make_full_face_mask():
   shield_focal_slope = 2
   
   temple_direction = vector(angle = temple_angle, length = 1)
-  temple = vector(75, shield_back, 0)
+  temple = vector(77, shield_back, 0)
   
   shield_focal_y = temple[1] - (temple[0] * temple_direction[1] / temple_direction[0])
   shield_focal_point = vector (0, shield_focal_y, shield_focal_y * shield_focal_slope)
@@ -293,11 +293,14 @@ def make_full_face_mask():
   
   
   class CurveSample (ShieldSample):
-    def __init__(self, curve, distance = None, z = None, which = None):
+    def __init__(self, curve, distance = None, closest = None, z = None, which = None):
       self.curve = curve
       if distance is not None:
         self.curve_distance = distance
         self.curve_parameter = curve.parameterAtDistance (distance)
+      elif closest is not None:
+        self.curve_parameter = curve.parameter(closest)
+        self.curve_distance = curve.length(0, self.curve_parameter)
       elif z is not None:
         position = vector(curve.intersect(
               Part.Plane (vector(0,0,z), vector(0,0,1))
@@ -316,7 +319,7 @@ def make_full_face_mask():
       self.moving_frame = matrix_from_columns(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
 
 
-  def curve_samples(curve, num, start_distance = 0, end_distance = side_curve_length):
+  def curve_samples(curve, num, start_distance, end_distance):
     def point(index):
       fraction = index / (num-1)
       distance = start_distance*(1-fraction) + end_distance*fraction
@@ -463,7 +466,7 @@ def make_full_face_mask():
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   side_splitter = None
-  for sample in curve_samples(side_curve, 79):
+  for sample in curve_samples(side_curve, 79, 0, side_curve_length):
     position = sample.position
     
     shield_shape = side_rim_hoop_wire.copy()
@@ -700,7 +703,7 @@ def make_full_face_mask():
   
   show_transformed (intake_solid, "intake_solid")
   
-  return finish()
+
   ########################################################################
   ########  SVG bureaucracy  #######
   ########################################################################
@@ -794,23 +797,22 @@ def make_full_face_mask():
   ########################################################################
     
   flat_approximation_increments = 201
-  flat_approximation_factor = math.tau/2/(flat_approximation_increments -1)
-  previous_surface = None
+  previous_sample = None
   flat_approximations = [0]
-  for index in range (flat_approximation_increments):
-    parameter = index*flat_approximation_factor
-    surface = ShieldSurfacePoint(z=0, parameter = parameter)
-    if previous_surface is not None:
-      difference = surface.position - previous_surface.position
-      average = (surface.position + previous_surface.position)/2
+  for sample in curve_samples(top_curve, flat_approximation_increments, 0, top_curve_length):
+    if previous_sample is not None:
+      difference = sample.position - previous_sample.position
+      average = (sample.position + previous_sample.position)/2
       from_focus = (average - shield_focal_point)
       relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
       angle = math.atan2(relevant_difference.Length, from_focus.Length)
       flat_approximations.append (flat_approximations [-1] + angle)
-    previous_surface = surface
-  #should print (f"{flat_approximations}")
-  def flat_approximate_angle (surface):
-    adjusted = surface.ellipse_parameter/flat_approximation_factor
+    previous_sample = sample
+  #print (f"{flat_approximations}")
+  def flat_approximate_angle (sample):
+    difference = (sample.position - shield_focal_point)
+    projected = CurveSample (top_curve, closest = shield_focal_point + difference*(top_curve.StartPoint[2] - shield_focal_point[2])/difference [2])
+    adjusted = projected.curve_distance*(flat_approximation_increments -1)/top_curve_length
     #linearly interpolate
     floor = math.floor (adjusted)
     fraction = adjusted - floor
@@ -844,28 +846,22 @@ def make_full_face_mask():
     print (f"total length: {sum( segment.length() for segment in result)}")
     return result
   
-  unrolled_side = [unrolled (surface) for surface in side_points
-    if surface.position [0] >= 0
+  unrolled_side = [unrolled (surface) for surface in curve_samples (side_curve, 40, 0, side_curve_length/2)
     ]
-  unrolled_top_subdivisions = 40
-  unrolled_top_back = ShieldSurfacePoint(z=shield_glue_face_width, y= shield_back)
-  unrolled_top_parameter_range = unrolled_top_back.ellipse_parameter - math.tau/4
-  unrolled_top = [
-    unrolled (
-      ShieldSurfacePoint(z=shield_glue_face_width, parameter = math.tau/4 + index*unrolled_top_parameter_range/(unrolled_top_subdivisions - 1))
-    ) for index in range (unrolled_top_subdivisions)]
+  unrolled_top = [unrolled (surface) for surface in curve_samples (top_curve, 40, 0, top_curve_length/2)
+      ]
     
   unrolled_combined = unrolled_top+unrolled_side
   center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
       
   
   unrolled = Part.Shape(
-    segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[0][1])]
+    segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[-1][1])]
   )
   
   show_transformed (unrolled, "unrolled", invisible=pieces_invisible)
   save_inkscape_svg("unrolled_shield.svg", unrolled)
-    
+  return finish()
   
   ########################################################################
   ########  Forehead cloth  #######
