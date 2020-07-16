@@ -861,28 +861,22 @@ def make_full_face_mask():
   
   show_transformed (unrolled, "unrolled", invisible=pieces_invisible)
   save_inkscape_svg("unrolled_shield.svg", unrolled)
-  return finish()
+  
   
   ########################################################################
   ########  Forehead cloth  #######
   ########################################################################
-  forehead_cloth_shield_back = rim_hook_front
-  forehead_cloth_shield_parameter_range = forehead_cloth_shield_back.ellipse_parameter - math.tau/4
-  #forehead_cloth_forehead_start_parameter = forehead_curve.parameter (vector(0, 500, 0))
-  #forehead_cloth_forehead_end_parameter = forehead_curve.parameter (forehead_cloth_shield_back.position)
   elastic_tube_border_width = 16
   
   source_forehead_length = 0
   cloth_forehead_length = 0
   previous = None
   class ForeheadClothPiece:
-    def __init__(self, index):
+    def __init__(self, sample):
       nonlocal source_forehead_length
       nonlocal cloth_forehead_length
-      self.fraction = index/(unrolled_top_subdivisions - 1)
-      self.shield_parameter = math.tau/4 + forehead_cloth_shield_parameter_range*self.fraction
-      self.shield = ShieldSurfacePoint(z=shield_glue_face_width+min_wall_thickness, parameter = self.shield_parameter)
-      self.forehead_parameter = forehead_curve.parameter(self.shield.position) #forehead_cloth_forehead_start_parameter*(1-self.fraction) + forehead_cloth_forehead_end_parameter*self.fraction
+      self.shield = sample
+      self.forehead_parameter = forehead_curve.parameter(self.shield.position)
       self.forehead = forehead_curve.value (self.forehead_parameter)
       self.forehead[2] = self.shield.position[2]
       self.source_diff = (self.forehead - self.shield.position)
@@ -935,8 +929,8 @@ def make_full_face_mask():
   forehead_cloth_pieces = []
   print(f"start forehead_cloth")
   
-  for index in range (unrolled_top_subdivisions):
-    current = ForeheadClothPiece(index)
+  for sample in curve_samples (top_curve, math.floor(top_curve_length), top_curve_length/2, top_curve_length - 10):
+    current = ForeheadClothPiece(sample)
     forehead_cloth_pieces.append(current)
     previous = current
   print(f"source_forehead_length: {source_forehead_length}, cloth_forehead_length: {cloth_forehead_length}")
@@ -954,6 +948,8 @@ def make_full_face_mask():
   forehead_cloth = Part.makePolygon(forehead_cloth_points)
   show_transformed (forehead_cloth, "forehead_cloth", invisible=pieces_invisible)
   save_inkscape_svg("forehead_cloth.svg", forehead_cloth)
+  
+  return finish()
   
   ########################################################################
   ########  Chin cloth  #######
