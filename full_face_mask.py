@@ -145,7 +145,7 @@ def make_full_face_mask():
     
   min_wall_thickness = 0.6
   stiffer_wall_thickness = 1.1
-  shield_glue_face_width = 5
+  shield_glue_face_width = 6
   elastic_holder_depth = 10
   CPAP_outer_radius = 21.5/2
   CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
@@ -159,6 +159,11 @@ def make_full_face_mask():
   #shield_back = headphones_front + side_plate_width - shield_glue_face_width
   shield_back = headphones_front + min_wall_thickness
   back_edge = forehead_point[1] - 96
+  wide_face = True
+  if wide_face:
+    temple_angle = (math.tau/4) * 0.6
+  else:
+    temple_angle = (math.tau/4) * 0.95
   
   
   ########################################################################
@@ -195,7 +200,7 @@ def make_full_face_mask():
   '''
   
   shield_focal_slope = 2
-  temple_angle = (math.tau/4) * 0.95
+  
   temple_direction = vector(angle = temple_angle, length = 1)
   temple = vector(75, shield_back, 0)
   
@@ -206,12 +211,21 @@ def make_full_face_mask():
   side_curve_points = [
     temple + vector(0,0,shield_glue_face_width),
     temple + vector(1,0,-20),
+  ] + ([
+    #temple + vector(0,0,-40),
+    temple + vector(-1,0,-60),
+    #temple + vector(-3,3,-80),
+    temple + vector(-4,7,-100),
+    temple + vector(-11,21,-123), # just outside the glasses point
+    temple + vector(-27,35,-140),
+  ] if wide_face else [
     temple + vector(1.5,0,-40),
     temple + vector(1,0,-60),
     temple + vector(1,3,-80),
     temple + vector(-0.5,7,-100),
     temple + vector(-6,21,-123), # just outside the glasses point
     temple + vector(-22,35,-140),
+  ]) + [
     temple + vector(-50,46,-153),
     temple + vector(-75,52,-156),
   ]
@@ -387,7 +401,7 @@ def make_full_face_mask():
   
   
   
-  top_rim_subdivisions = 10
+  top_rim_subdivisions = 20
   top_rim_hoops = []
   for sample in curve_samples(top_curve, top_rim_subdivisions, top_curve_length/2, top_curve_length):
     curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
@@ -685,8 +699,8 @@ def make_full_face_mask():
   print (intake_solid)'''
   
   show_transformed (intake_solid, "intake_solid")
-  return finish()
   
+  return finish()
   ########################################################################
   ########  SVG bureaucracy  #######
   ########################################################################
