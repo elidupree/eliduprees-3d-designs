@@ -155,8 +155,9 @@ def make_full_face_mask():
   headband_cut_radius = 25
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
-  side_plate_width = max(min_wall_thickness + shield_glue_face_width, elastic_holder_depth)
-  shield_back = headphones_front + side_plate_width - shield_glue_face_width
+  #side_plate_width = max(min_wall_thickness + shield_glue_face_width, elastic_holder_depth)
+  #shield_back = headphones_front + side_plate_width - shield_glue_face_width
+  shield_back = headphones_front + min_wall_thickness
   back_edge = forehead_point[1] - 96
   
   
@@ -278,11 +279,20 @@ def make_full_face_mask():
   
   
   class CurveSample (ShieldSample):
-    def __init__(self, curve, distance):
+    def __init__(self, curve, distance = None, z = None, which = None):
       self.curve = curve
-      self.curve_distance = distance
-      self.curve_parameter = curve.parameterAtDistance (distance)
-      
+      if distance is not None:
+        self.curve_distance = distance
+        self.curve_parameter = curve.parameterAtDistance (distance)
+      elif z is not None:
+        position = vector(curve.intersect(
+              Part.Plane (vector(0,0,z), vector(0,0,1))
+            )[0][which])
+        self.curve_parameter = curve.parameter(position)
+        self.curve_distance = curve.length(0, self.curve_parameter)
+      else:
+        assert(false)
+        
       super().__init__(closest = curve.value (self.curve_parameter))
       
       self.curve_tangent = vector (*curve.tangent (self.curve_parameter))
@@ -296,7 +306,7 @@ def make_full_face_mask():
     def point(index):
       fraction = index / (num-1)
       distance = start_distance*(1-fraction) + end_distance*fraction
-      return CurveSample(curve, distance)
+      return CurveSample(curve, distance=distance)
     return (point(index) for index in range (num))
   
   
@@ -402,8 +412,9 @@ def make_full_face_mask():
   ########  Side rim and stuff #######
   ########################################################################
   
+  
   side_plate_bottom_z = -82
-  elastic_catch_slope = 8
+  '''elastic_catch_slope = 8
   
   side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
     vector(0, headphones_front + side_plate_width/2), vector(500, headphones_front + side_plate_width/2)
@@ -417,6 +428,7 @@ def make_full_face_mask():
   side_plate_normal = forehead_curve.normal(side_plate_top_parameter).cross(side_plate_downwards).cross(side_plate_downwards).normalized()
   def project_to_side_plate (input):
     return input - side_plate_normal*side_plate_normal.dot(input - side_plate_top)
+  '''
   
   side_rim_hoop_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
@@ -433,7 +445,7 @@ def make_full_face_mask():
       ]).to_wire()
   
   side_rim_hoops = []
-  side_plate_hoops = []
+  #side_plate_hoops = []
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   side_splitter = None
@@ -450,7 +462,7 @@ def make_full_face_mask():
       if side_splitter is None:
         side_splitter = box(centered(500), centered(500), 500).transformGeometry(sample.moving_frame)
     
-    if position [2] >= side_plate_bottom_z and position [0] > 0:
+    '''if position [2] >= side_plate_bottom_z and position [0] > 0:
       skew_away = -sample.curve_in_surface_normal/sample.curve_in_surface_normal[1]
       excess_forwards = position[1] - headphones_front
       back = position + skew_away * excess_forwards
@@ -462,7 +474,7 @@ def make_full_face_mask():
         project_to_side_plate (back),
       ]
       wire = polygon(points).to_wire()
-      side_plate_hoops.append(wire)
+      side_plate_hoops.append(wire)'''
       
     curve_normal = vector (*side_curve.normal(sample.curve_parameter))
     elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(sample.curve_tangent), sample.curve_tangent, position)
@@ -489,8 +501,8 @@ def make_full_face_mask():
   side_rim = Part.makeLoft (side_rim_hoops, True)
   show_transformed (side_rim, "side_rim")
   #side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
-  side_plate = Part.makeLoft (side_plate_hoops, True)
-  show_transformed (side_plate, "side_plate")
+  #side_plate = Part.makeLoft (side_plate_hoops, True)
+  #show_transformed (side_plate, "side_plate")
   
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
   
@@ -561,7 +573,7 @@ def make_full_face_mask():
   
   show_transformed (side_hooks, "side_hooks")'''
     
-  return finish()
+
   ########################################################################
   ########  Intake  #######
   ########################################################################
@@ -571,15 +583,9 @@ def make_full_face_mask():
   intake_flat_subdivisions = 10
   
   
-  intake_center = side_curve_at_z(-123, 1)
-  intake_center_parameter = side_curve.parameter (intake_center)
-  intake_center_distance = side_curve.length (0, intake_center_parameter)
-  intake_center_on_shield = ShieldSurfacePoint (z = intake_center[2], y = intake_center[1])
-  intake_center_on_shield = ShieldSurfacePoint (z = intake_center_on_shield.position[2], x = -intake_center_on_shield.position [0])
-  intake_center_tangent = tangent = vector (*side_curve.tangent (intake_center_parameter)).normalized()
-  intake_center_away = intake_center_tangent.cross (intake_center_on_shield.normal)
+  intake_center = CurveSample(side_curve, z=-123, which=0)
   intake_skew_factor = 0.8
-  intake_forwards = ((- intake_center_away) - intake_center_tangent*intake_skew_factor).normalized()
+  intake_forwards = (intake_center.curve_in_surface_normal + intake_center.curve_tangent*intake_skew_factor).normalized()
   
   
   class IntakeSurface:
@@ -616,9 +622,9 @@ def make_full_face_mask():
       return curve.toShape().to_wire()
        
     def CPAP_hoop (self, offset):
-      center = intake_center - intake_forwards*45 - intake_center_on_shield.normal*(min_wall_thickness + intake_flat_thickness_base/2) - intake_forwards*offset
-      direction = -intake_forwards.cross (intake_center_on_shield.normal).normalized()
-      other_direction = -direction.cross (intake_forwards)
+      center = intake_center.position - intake_forwards*45 - intake_center.normal*(min_wall_thickness + intake_flat_thickness_base/2) - intake_forwards*offset
+      direction = intake_forwards.cross (intake_center.normal).normalized()
+      other_direction = direction.cross (intake_forwards)
       def CPAP_point (index):
         angle = index/self.num_points*math.tau
         return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
@@ -630,30 +636,22 @@ def make_full_face_mask():
       return rim_edge [len(rim_edge)//2:] + other_edge + rim_edge [:len(rim_edge)//2]
     def flat_edge(self, forwards_offset, rim_side):
       edge = []
-      backness = shield_glue_face_width - forwards_offset
-      height = intake_flat_width + 2*(self.expansion + backness/elastic_catch_slope)
+      height = intake_flat_width + 2*self.expansion
       if self.outside and rim_side:
         height += 8
       for index in range (intake_flat_subdivisions):
         fraction = index/(intake_flat_subdivisions -1)
         offset = (fraction - 0.5)*height# - forwards_offset*intake_skew_factor
-        parameter = side_curve.parameterAtDistance (intake_center_distance + offset)
       
-        source = side_curve.value(parameter)
-        precise = ShieldSurfacePoint (z = source [2], y = source [1])
-        precise = ShieldSurfacePoint (z = precise.position[2], x = -precise.position [0])
-      
-        tangent = vector (*side_curve.tangent (parameter)).normalized()
-        normal = precise.normal
-        away = tangent.cross (normal)
-      
+        sample = CurveSample(side_curve, distance = intake_center.curve_distance + offset)
+
         if rim_side:
           normal_distance = min_wall_thickness - self.expansion
         else:
           thickness = intake_flat_thickness_base*0.5*(1+math.sin(fraction*math.tau/2))
           normal_distance = min_wall_thickness + thickness + self.expansion
       
-        edge.append (precise.position - away*forwards_offset - normal*normal_distance)
+        edge.append (sample.position + sample.curve_in_surface_normal*forwards_offset - sample.normal*normal_distance)
       if rim_side:
         edge.reverse()
         if self.outside:
@@ -687,7 +685,7 @@ def make_full_face_mask():
   print (intake_solid)'''
   
   show_transformed (intake_solid, "intake_solid")
-  
+  return finish()
   
   ########################################################################
   ########  SVG bureaucracy  #######
