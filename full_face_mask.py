@@ -261,7 +261,8 @@ def make_full_face_mask():
 
   glasses_point = forehead_point + vector (66, 0, -10)
   show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
-  show_transformed(Part.LineSegment(shield_focal_point, glasses_point*2 - shield_focal_point).toShape(), "glasses_line", invisible = False)
+  diff = (glasses_point - shield_focal_point).normalized()
+  show_transformed(Part.LineSegment(glasses_point + diff*180, glasses_point - diff*180).toShape(), "glasses_line", invisible = False)
   
   class ShieldSample:
     def __init__(self, parameter = None, closest = None):
