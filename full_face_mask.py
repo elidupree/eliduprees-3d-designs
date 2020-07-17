@@ -866,7 +866,172 @@ def make_full_face_mask():
   ########################################################################
   ########  Forehead cloth  #######
   ########################################################################
+  '''
+  math for laying out these cloths:
+  
+  we want to force a particular curve of the cloth to stay on the rim. We do this by putting elastic on the outer edge (which tries to pull the cloth further onto the face shield) while making the cloth have curvature such that the next bit is shorter than the edge, so it can't be pulled over. Also, to keep the cloth relatively taut, we make every point on the rim have a straight line going to the closest point on the other curve.
+  
+  To lay it out in two-dimensional space, we flatten small increments at a time. Treating it as infinitesimal, from a segment AB, we form a quadrilateral (A, B, B+dB, A+dA).
+  A and B are given
+  ||dA|| is given (arc length of outer edge)
+  (component of (dB-dA) in the direction parallel to (B-A)) is given (change in distance from the outer edge to inner edge)
+  
+  this leaves 2 degrees of freedom. Other constraints:
+  
+  ||dB|| >= arc length of inner edge
+  k(A) (signed curvature) >= a certain value (note: this is the only constraint that's nonlocal)
+  neither dB nor dA may become parallel to (B-A) (note: this is redundant with the below condition)
+  (component of dB in the direction perpendicular to (B-A))/(component of dA in the direction perpendicular to (B-A))/||B-A|| <= elastic tube border width (ability to lay out the elastic tube beyond A - wait, I think I did the math wrong here...), and vice versa for B
+  (dB in the direction of (B-A)) == 0 (without this condition, there's some OTHER A-to-other-curve line that's shorter than this one; if dB is positive OR negative, then there's an infinitesimally-close point that's infinitesimally shorter)
+  
+  wait a minute, that last one is super restrictive... so it boils down to...
+  
+  Assume X is the AB direction and Y is the other
+  dB[0] is 0
+  dA[0] can be inferred from that
+  dA[1] can be inferred from THAT
+  dB[1] is the only degree of freedom
+  
+  what's the actual elastic-tube condition?
+  dA[1] * ||A-B|| / (dB[1] - dA[1]) >= elastic_tube_border_width, i.e. if dB[1]-dA[1] is positive,
+  dA[1] * ||A-B|| >= elastic_tube_border_width * (dB[1] - dA[1])
+  dA[1] * ||A-B|| + dA[1]*elastic_tube_border_width >= elastic_tube_border_width * dB[1]
+  dA[1] * ||A-B|| / elastic_tube_border_width + dA[1] >= dB[1]
+  dA[1] * (1 + ||A-B|| / elastic_tube_border_width) >= dB[1]
+  
+  and in the other direction
+  dB[1] <= dA[1] / (1 + ||A-B|| / elastic_tube_border_width)
+  
+  
+  arc length of inner edge <= dB[1] <= dA[1]*||A-B||/elastic_tube_border_width
+  (also dA[1]*elastic_tube_border_width/||A-B|| <= dB[1], but that's redundant with the "arc length of inner edge" bond unless the B curve is already violating the elastic-tube condtion in the original shape, which doesn't happen anywhere in practice) 
+  
+  the only constraint left is the curvature, which...
+  the angle change induced by dB[1] is (dB[1]-dA[1])/||B-A|| (which is infinitesimal)
+  so the curvature change is (dB[1]-dA[1])/||B-A||/||dA|| (finite again)
+  I'm pretty sure this is just additive with the curvature due to changes in dA as you advance through the cloth strip. Since it's linear, we can just take it relative to a base point:
+  curvature = (original curvature) - (dB[1]-(original dB[1]))/||B-A||/||dA||
+            = (original curvature + (original dB[1]))/||B-A||/||dA||) - dB[1]/||B-A||/||dA||
+  if you have a target curvature and want to solve for dB
+  dB[1] = original dB[1] - (target curvature - original curvature) * ||B-A||*||dA||
+            
+  
+  
+  '''
+  
   elastic_tube_border_width = 16
+
+  class RimHeadClothPiece(object):
+    pass
+            
+  class RimHeadCloth:
+    def __init__(self, rim_samples, head_curve, target_head_multiplier = 1.5, min_curvature = 1/100, rim_extra_width = elastic_tube_border_width, head_extra_width = elastic_tube_border_width):
+      self.source_head_length = 0
+      self.cloth_head_length = 0
+      
+      self.pieces = []
+      rim_samples = list(rim_samples)
+      debug_display_target = 100
+      debug_display_rate = math.ceil(len(rim_samples)/debug_display_target)
+      
+      for index, rim_sample in enumerate(rim_samples):
+        piece = RimHeadClothPiece()
+        piece.rim_source = rim_sample.position
+        head_parameter = head_curve.parameter (piece.rim_source)
+        piece.head_source = head_curve.value (head_parameter)
+        source_diff = piece.head_source - piece.rim_source
+        source_diff_direction = source_diff.normalized()
+        piece.AB_length = source_diff.Length
+        
+        if len(self.pieces) == 0:
+          piece.rim_output = vector()
+          piece.head_output = vector(piece.AB_length, 0)
+        else:
+          previous = self.pieces [-1]
+          dA0 = previous.AB_length - piece.AB_length
+          dA_length = (piece.rim_source - previous.rim_source).Length
+          dA1 = math.sqrt (dA_length**2 - dA0**2)
+          original_dB1 = (piece.head_source - previous.head_source).cross(source_diff_direction).Length
+          original_dB_length = (piece.head_source - previous.head_source).Length
+          original_curvature = rim_sample.curve.curvature(rim_sample.curve_parameter)
+          min_curvature_change = min_curvature - original_curvature
+          
+          dB1_min_due_to_head_arc_length = original_dB_length
+          dB1_min_due_to_head_extra_width = dA1/(1 + piece.AB_length / head_extra_width)
+          dB1_max_due_to_rim_extra_width = dA1*(1 + piece.AB_length / rim_extra_width)
+          dB1_max_due_to_curvature = original_dB1 - min_curvature_change * piece.AB_length * dA_length
+          if dB1_max_due_to_rim_extra_width < dB1_max_due_to_curvature:
+            print("Warning: RimHeadCloth conditions not behaving as expected (dB1_max_due_to_curvature should require positive curvature, which should make dB1_max_due_to_rim_extra_width irrelevant)")
+          
+          dB1_min = max(dB1_min_due_to_head_arc_length, dB1_min_due_to_head_extra_width)
+          dB1_max = min(dB1_max_due_to_rim_extra_width, dB1_max_due_to_curvature)
+          dB1_target = original_dB_length*target_head_multiplier
+          if dB1_min > dB1_max_due_to_rim_extra_width:
+            print("Warning: RimHeadCloth conditions were unsatisfiable (this should never happen in practice, because it should only happen the original position of the other rim is concave enough to prevent allocating rim_extra_width")
+            dB1 = (dB1_min + dB1_max_due_to_rim_extra_width)/2
+          elif dB1_min > dB1_max_due_to_curvature:
+            dB1 = dB1_min
+            curvature = original_curvature - (dB1 - original_dB1)/(piece.AB_length * dA_length)
+            print(f"Warning: RimHeadCloth conditions couldn't be satisfied within the allowed curvature (original: {original_curvature}, allowed: {min_curvature}, used: {curvature}, difference: {min_curvature - curvature})")
+          elif dB1_target < dB1_min_due_to_head_extra_width:
+            print("Warning: RimHeadCloth dB1_min_due_to_head_extra_width was relevant (I thought this wouldn't happen in practice, is one of the curves really tight?)")
+            dB1 = dB1_min
+          elif dB1_target > dB1_max:
+            dB1 = dB1_max
+          else:
+            dB1 = dB1_target
+            
+          self.source_head_length += original_dB_length
+          self.cloth_head_length += dB1
+          
+          previous_output_direction = (previous.head_output - previous.rim_output).normalized()
+          previous_output_perpendicular = vector(-previous_output_direction[1], previous_output_direction[0])
+          piece.rim_output = previous.rim_output + previous_output_direction*dA0 + previous_output_perpendicular*dA1
+          piece.head_output = previous.head_output + previous_output_perpendicular*dB1
+        
+        output_diff = piece.head_output - piece.rim_output
+        output_direction = output_diff.normalized()
+        #print (f"cloth distances: {output_diff.Length}, {source_diff.Length}, {output_diff.Length/source_diff.Length}")
+        if abs(output_diff.Length-source_diff.Length) > 0.5:
+          print (f"Warning: cloth distances mismatch: original: {source_diff.Length}, generated: {output_diff.Length}, absolute difference: {output_diff.Length - source_diff.Length}, relative difference: {output_diff.Length/source_diff.Length - 1}")
+        
+        piece.endpoints = [
+          piece.rim_output - output_direction*rim_extra_width,
+          piece.head_output + output_direction*head_extra_width,
+        ]
+        self.pieces.append(piece)
+        
+        debug_display = False
+        #debug_display = True
+        if debug_display:
+          if index % debug_display_rate == 0 or index == len(rim_samples) - 1:
+            Part.show(Part.Compound([Part.LineSegment(piece.head_output, piece.rim_output).toShape(), Part.LineSegment(piece.head_source, piece.rim_source).toShape()]))
+          
+  # TODO: more correct
+  top_outer_rim_curve = top_curve
+  forehead_top_curve = forehead_curve.translated(vector(0,0,top_outer_rim_curve.StartPoint[2] - forehead_curve.StartPoint[2]))
+  forehead_cloth = RimHeadCloth(
+    curve_samples (top_outer_rim_curve, math.floor(top_curve_length * 2), top_curve_length/2, top_curve_length - 10),
+    forehead_top_curve,
+    min_curvature = 1/120
+  )
+  
+  forehead_cloth_points = (
+    [piece.endpoints [0] for piece in forehead_cloth.pieces]
+    + [piece.endpoints [1] for piece in reversed (forehead_cloth.pieces)]
+  )
+  center_vertices_on_letter_paper(forehead_cloth_points)
+  forehead_cloth_shape = polygon(forehead_cloth_points)
+  show_transformed (forehead_cloth_shape, "forehead_cloth", invisible=pieces_invisible)
+  save_inkscape_svg("forehead_cloth.svg", forehead_cloth_shape)
+  
+  print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
+  
+  
+  '''
+  
+  
+  
   
   source_forehead_length = 0
   cloth_forehead_length = 0
@@ -947,7 +1112,7 @@ def make_full_face_mask():
   center_vertices_on_letter_paper(forehead_cloth_points)
   forehead_cloth = Part.makePolygon(forehead_cloth_points)
   show_transformed (forehead_cloth, "forehead_cloth", invisible=pieces_invisible)
-  save_inkscape_svg("forehead_cloth.svg", forehead_cloth)
+  save_inkscape_svg("forehead_cloth.svg", forehead_cloth)'''
   
   return finish()
   
