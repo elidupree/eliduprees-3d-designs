@@ -454,6 +454,38 @@ def make_full_face_mask():
   
   top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
   show_transformed (top_rim, "top_rim")
+  
+  contact_leeway = 0.4
+  temple_block_inside = []
+  temple_block_top = []
+  temple_block_bottom = []
+  temple_block_start_distance = forehead_curve.length (0, forehead_curve.parameter (temple))-1
+  for distance in range (11):
+    temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
+    sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance)
+    
+    curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
+    wall_thickness_skewed = min_wall_thickness/sample.curve_in_surface_normal.cross(sample.normal).Length
+    flat_outwards = (sample.normal - vector(0,0,sample.normal[2])).normalized()
+    
+    foo = sample.position - flat_outwards*(wall_thickness_skewed + contact_leeway)
+    temple_block_top.append(foo + curve_in_surface_normal_skewed*min_wall_thickness)
+    temple_block_bottom.append(foo - curve_in_surface_normal_skewed*shield_glue_face_width)
+  temple_block_hoops = [
+    polygon(temple_block_top + [vector(a[0], a[1], shield_glue_face_width+min_wall_thickness) for a in reversed(temple_block_inside)]), 
+    polygon(temple_block_bottom + [vector(a[0], a[1], 0) for a in reversed(temple_block_inside)]), 
+  ]
+  temple_block = Part.makeLoft(temple_block_hoops, True)
+  temple_side_peg_flat = polygon([
+    (temple_block_bottom[2] + temple_block_inside[2])/2,
+    (temple_block_bottom[6]*4 + temple_block_inside[6])/5,
+    (temple_block_bottom[6] + temple_block_inside[6]*4)/5,
+  ])
+  temple_side_peg = temple_side_peg_flat.to_face().fancy_extrude(vector(0,0,1), bounds(-5, shield_glue_face_width+min_wall_thickness))
+  temple_block = temple_block.cut (temple_side_peg_flat.makeOffset2D (contact_leeway, join=2).to_face().fancy_extrude(vector(0,0,1), centered (500)))
+  
+  show_transformed (temple_block, "temple_block")
+  show_transformed (temple_side_peg, "temple_side_peg")
 
   ########################################################################
   ########  Side rim and stuff #######
