@@ -327,7 +327,8 @@ def make_full_face_mask():
   show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = False)
   show_transformed(shield_upper_side_curve.toShape(), "shield_upper_side_curve", invisible = False)
   show_transformed(shield_lower_side_curve.toShape(), "shield_lower_side_curve", invisible = False)
-
+  upper_side_curve_source_surface.exchangeUV()
+  lower_side_curve_source_surface.exchangeUV()
   
   shield_top_curve = ShieldCurveInPlane(Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1)))
   shield_top_curve_length = shield_top_curve.length()
@@ -393,7 +394,7 @@ def make_full_face_mask():
       
       if isinstance(self.curve, ShieldCurveInPlane):
         self.plane_normal = self.curve.plane.normal(0,0)
-        self.normal_in_plane = self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
+        self.normal_in_plane = -self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
         
         self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
         self.curve_in_surface_normal_unit_height_from_plane = self.curve_in_surface_normal/self.curve_in_surface_normal.dot(self.plane_normal)
@@ -558,76 +559,43 @@ def make_full_face_mask():
     return input - side_plate_normal*side_plate_normal.dot(input - side_plate_top)
   '''
   
-  side_rim_hoop_wire = FreeCAD_shape_builder().build ([
-        start_at(0, 0),
-        vertical_to (shield_glue_face_width),
-        horizontal_to (-min_wall_thickness),
-        vertical_to (-min_wall_thickness),
-        horizontal_to (min_wall_thickness),
-        vertical_to (0),
-        close()
-      ]).to_wire()
   elastic_tension_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
         horizontal_to (shield_glue_face_width),
       ]).to_wire()
   
-  side_rim_hoops = []
+  upper_side_rim_hoops = []
+  lower_side_rim_hoops = []
   #side_plate_hoops = []
   elastic_holder_hoops = []
   elastic_tension_hoops = []
-  side_splitter = None
   for sample in curve_samples(shield_side_curve, 79, 0, shield_side_curve_length):
-    position = sample.position
-    
-    shield_shape = side_rim_hoop_wire.copy()
-    shield_shape.transformShape (sample.moving_frame)
-    side_rim_hoops.append(shield_shape)
-    #show_transformed (shape,f"side_strut_shape_{index}")
-    
-    # for historical reasons, defined as "first point that meets the condition" rather than a specific z; we're leaving it that way for now for backwards compatibility with already-printed parts, but it can be fixed in a future version. When fixing it, consider the issue about the splitter shape no longer lining up with the edge of the elastic holder plate
-    if position [2] < side_plate_bottom_z - 4:
-      if side_splitter is None:
-        side_splitter = box(centered(500), centered(500), 500).transformGeometry(sample.moving_frame)
-    
-    '''if position [2] >= side_plate_bottom_z and position [0] > 0:
-      skew_away = -sample.curve_in_surface_normal/sample.curve_in_surface_normal[1]
-      excess_forwards = position[1] - headphones_front
-      back = position + skew_away * excess_forwards
-      front = back - skew_away * side_plate_width
-      points = [
-        back,
-        front,
-        project_to_side_plate (front),
-        project_to_side_plate (back),
-      ]
-      wire = polygon(points).to_wire()
-      side_plate_hoops.append(wire)'''
-      
+    position = sample.position          
     curve_normal = vector (*shield_side_curve.normal(sample.curve_parameter))
     elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(sample.curve_tangent), sample.curve_tangent, position)
     elastic_tension_shape = elastic_tension_wire.copy()
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
   
-  '''
-  middle_distance = side_curve.length(0, 0.5)
-  distances = (SideCurvePoint(z=-87, which=0).side_curve_distance, SideCurvePoint(z=-87, which=1).side_curve_distance)
-  for point in side_curve_points(79, distances[0], distances[1]):
-    position = point.position
-    sine_curve = math.cos((point.side_curve_distance-middle_distance) / (distances[1]-distances[0]) * math.tau * 7.8)
-    elastic_holder_hoop_wire = FreeCAD_shape_builder().build ([
-        start_at(-min_wall_thickness, 0),
-        vertical_to (-min_wall_thickness),
-        horizontal_to (elastic_holder_depth * 0.5*(1.01+sine_curve)),
-        vertical_to (0),
-        close()
-    ]).to_wire()
-    elastic_holder_hoop_wire.transformShape (point.moving_frame)
-    elastic_holder_hoops.append(elastic_holder_hoop_wire)
-  '''
-  side_rim = Part.makeLoft (side_rim_hoops, True)
-  show_transformed (side_rim, "side_rim")
+  for curve, num, sink in [
+    (shield_upper_side_curve, 20, upper_side_rim_hoops),
+    (shield_lower_side_curve, 40, lower_side_rim_hoops),
+  ]:
+   for sample in curve_samples(curve, num, 0, curve.length()):
+    sink.append(polygon([
+      sample.position,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
+      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
+      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
+      sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness,
+      sample.position + sample.normal_in_plane*min_wall_thickness,
+    ]))
+  
+  upper_side_rim = Part.makeLoft (upper_side_rim_hoops, True)
+  show_transformed (upper_side_rim, "upper_side_rim")
+  lower_side_rim = Part.makeLoft (lower_side_rim_hoops, True)
+  show_transformed (lower_side_rim, "lower_side_rim")
   #side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
   #side_plate = Part.makeLoft (side_plate_hoops, True)
   #show_transformed (side_plate, "side_plate")
