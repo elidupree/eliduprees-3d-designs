@@ -208,7 +208,7 @@ def make_full_face_mask():
   shield_focal_point = vector (0, shield_focal_y, shield_focal_y * shield_focal_slope)
   
   
-  side_curve_points = [
+  shield_source_curve_points = [
     temple + vector(0,0,shield_glue_face_width),
     temple + vector(1,0,-20),
   ] + ([
@@ -229,46 +229,70 @@ def make_full_face_mask():
     temple + vector(-50,46,-153),
     temple + vector(-75,52,-156),
   ]
-  side_curve_points = side_curve_points + [vector(-v[0], v[1], v[2]) for v in reversed (side_curve_points[:-1])]
-  side_curve_points.reverse()
+  shield_source_curve_points = shield_source_curve_points + [vector(-v[0], v[1], v[2]) for v in reversed (shield_source_curve_points[:-1])]
+  shield_source_curve_points.reverse()
   degree = 3
-  side_curve = Part.BSplineCurve()
-  side_curve.buildFromPolesMultsKnots(
-    side_curve_points,
-    mults = [degree+1] + [1]*(len(side_curve_points) - degree - 1) + [degree+1],
+  shield_source_curve = Part.BSplineCurve()
+  shield_source_curve.buildFromPolesMultsKnots(
+    shield_source_curve_points,
+    mults = [degree+1] + [1]*(len(shield_source_curve_points) - degree - 1) + [degree+1],
     degree = degree,
   )
-  side_curve_length = side_curve.length()
+  shield_source_curve_length = shield_source_curve.length()
   
-  def scaled_side_curve_points (zmin=None, zmax=None):
+  def scaled_shield_source_curve_points (zmin=None, zmax=None):
     if zmin is not None:
-      factor = (zmin - shield_focal_point[2]) / (min(vertex[2] for vertex in side_curve_points) - shield_focal_point[2])
+      factor = (zmin - shield_focal_point[2]) / (min(vertex[2] for vertex in shield_source_curve_points) - shield_focal_point[2])
     if zmax is not None:
-      factor = (zmax - shield_focal_point[2]) / (max(vertex[2] for vertex in side_curve_points) - shield_focal_point[2])
-    return [shield_focal_point + (vertex - shield_focal_point)*factor for vertex in side_curve_points]
+      factor = (zmax - shield_focal_point[2]) / (max(vertex[2] for vertex in shield_source_curve_points) - shield_focal_point[2])
+    return [shield_focal_point + (vertex - shield_focal_point)*factor for vertex in shield_source_curve_points]
   
   shield_surface = Part.BSplineSurface()
   shield_surface.buildFromPolesMultsKnots([
-    scaled_side_curve_points (zmax = -160),
-    scaled_side_curve_points (zmin = 20),
+    scaled_shield_source_curve_points (zmax = -160),
+    scaled_shield_source_curve_points (zmin = 20),
   ],
         [2,2],
-        [degree+1] + [1]*(len(side_curve_points) - degree - 1) + [degree+1],
+        [degree+1] + [1]*(len(shield_source_curve_points) - degree - 1) + [degree+1],
         udegree = 1,
         vdegree = degree,
       )
-  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in side_curve_points]), "side_curve_points", invisible = False)
-  show_transformed(side_curve.toShape(), "side_curve2", invisible = False)
-  show_transformed(shield_surface.toShape(), "shield_surface", invisible = False)
-  top_curve = shield_surface.intersect(
+  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in shield_source_curve_points]), "shield_source_curve_points", invisible = False)
+  show_transformed(shield_source_curve.toShape(), "shield_source_curve", invisible = False)
+  show_transformed(shield_surface.toShape(), "shield_surface", invisible = True)
+  
+  side_curve_source_points = [
+    (shield_back, shield_glue_face_width),
+    (shield_back, -100),
+    (-80, -156)
+  ]
+  side_curve_source_surface = Part.BSplineSurface()
+  side_curve_source_surface.buildFromPolesMultsKnots([
+    [vector(100, y, z) for y,z in side_curve_source_points],
+    [vector(-100, y, z) for y,z in side_curve_source_points],
+  ],
+        [2,2],
+        [2] + [1]*(len(side_curve_source_points) - 1 - 1) + [2],
+        udegree = 1,
+        vdegree = 1,
+      )
+  show_transformed(side_curve_source_surface.toShape(), "side_curve_source_surface", invisible = True)
+  #return finish()
+  shield_side_curve = shield_surface.intersect(
+            side_curve_source_surface
+          )[0]
+  shield_side_curve_length = shield_side_curve.length()
+  show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = False)
+  
+  shield_top_curve = shield_surface.intersect(
             Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1))
           )[0]
-  top_curve_length = top_curve.length()
-  show_transformed(top_curve.toShape(), "top_curve", invisible = False)
-  print(top_curve.NbPoles)
+  shield_top_curve_length = shield_top_curve.length()
+  show_transformed(shield_top_curve.toShape(), "shield_top_curve", invisible = False)
+  print(shield_top_curve.NbPoles)
   for index in range(100):
     foo = index / 100
-    a = top_curve.value(foo)
+    a = shield_top_curve.value(foo)
     p = shield_surface.parameter(a)
     b = shield_surface.value(*p)
     #print((a-b).Length)
@@ -293,13 +317,19 @@ def make_full_face_mask():
   
   
   class CurveSample (ShieldSample):
-    def __init__(self, curve, distance = None, closest = None, z = None, which = None):
+    def __init__(self, curve, distance = None, closest = None, y = None, z = None, which = 0):
       self.curve = curve
       if distance is not None:
         self.curve_distance = distance
         self.curve_parameter = curve.parameterAtDistance (distance)
       elif closest is not None:
         self.curve_parameter = curve.parameter(closest)
+        self.curve_distance = curve.length(0, self.curve_parameter)
+      elif y is not None:
+        position = vector(curve.intersect(
+              Part.Plane (vector(0,y,0), vector(0,1,0))
+            )[0][which])
+        self.curve_parameter = curve.parameter(position)
         self.curve_distance = curve.length(0, self.curve_parameter)
       elif z is not None:
         position = vector(curve.intersect(
@@ -327,7 +357,7 @@ def make_full_face_mask():
     return (point(index) for index in range (num))
   
   
-  shield_top_full_wire = Part.Shape([top_curve, Part.LineSegment(top_curve.EndPoint, top_curve.StartPoint)]).to_wire()
+  shield_top_full_wire = Part.Shape([shield_top_curve, Part.LineSegment(shield_top_curve.EndPoint, shield_top_curve.StartPoint)]).to_wire()
   shield_box = box(centered (500), bounds (shield_back, 500), bounds (-180, 0))
   shield_cross_section = shield_top_full_wire.to_face()
   shield_cross_sections = []
@@ -406,7 +436,7 @@ def make_full_face_mask():
   
   top_rim_subdivisions = 20
   top_rim_hoops = []
-  for sample in curve_samples(top_curve, top_rim_subdivisions, top_curve_length/2, top_curve_length):
+  for sample in curve_samples(shield_top_curve, top_rim_subdivisions, shield_top_curve_length/2, shield_top_curve_length):
     curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
     wall_thickness_skewed = min_wall_thickness/sample.curve_in_surface_normal.cross(sample.normal).Length
     flat_outwards = (sample.normal - vector(0,0,sample.normal[2])).normalized()
@@ -466,7 +496,7 @@ def make_full_face_mask():
   elastic_holder_hoops = []
   elastic_tension_hoops = []
   side_splitter = None
-  for sample in curve_samples(side_curve, 79, 0, side_curve_length):
+  for sample in curve_samples(shield_side_curve, 79, 0, shield_side_curve_length):
     position = sample.position
     
     shield_shape = side_rim_hoop_wire.copy()
@@ -493,7 +523,7 @@ def make_full_face_mask():
       wire = polygon(points).to_wire()
       side_plate_hoops.append(wire)'''
       
-    curve_normal = vector (*side_curve.normal(sample.curve_parameter))
+    curve_normal = vector (*shield_side_curve.normal(sample.curve_parameter))
     elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(sample.curve_tangent), sample.curve_tangent, position)
     elastic_tension_shape = elastic_tension_wire.copy()
     elastic_tension_shape.transformShape (elastic_tension_matrix)
@@ -570,8 +600,8 @@ def make_full_face_mask():
 
   def side_hook(distance):
     
-    top = side_curve.value (side_curve.parameterAtDistance (distance))
-    bottom = side_curve.value (side_curve.parameterAtDistance (distance+elastic_hook_forwards))
+    top = shield_side_curve.value (shield_side_curve.parameterAtDistance (distance))
+    bottom = shield_side_curve.value (shield_side_curve.parameterAtDistance (distance+elastic_hook_forwards))
     downwards = (bottom-top).normalized()
     matrix = matrix_from_columns(side_plate_normal, downwards, -side_plate_normal.cross(downwards), top)
     hook = elastic_hook.copy()
@@ -600,7 +630,7 @@ def make_full_face_mask():
   intake_flat_subdivisions = 10
   
   
-  intake_center = CurveSample(side_curve, z=-123, which=0)
+  intake_center = CurveSample(shield_side_curve, z=-123, which=0)
   intake_skew_factor = 0.8
   intake_forwards = (intake_center.curve_in_surface_normal + intake_center.curve_tangent*intake_skew_factor).normalized()
   
@@ -660,7 +690,7 @@ def make_full_face_mask():
         fraction = index/(intake_flat_subdivisions -1)
         offset = (fraction - 0.5)*height# - forwards_offset*intake_skew_factor
       
-        sample = CurveSample(side_curve, distance = intake_center.curve_distance + offset)
+        sample = CurveSample(shield_side_curve, distance = intake_center.curve_distance + offset)
 
         if rim_side:
           normal_distance = min_wall_thickness - self.expansion
@@ -799,7 +829,7 @@ def make_full_face_mask():
   flat_approximation_increments = 201
   previous_sample = None
   flat_approximations = [0]
-  for sample in curve_samples(top_curve, flat_approximation_increments, 0, top_curve_length):
+  for sample in curve_samples(shield_top_curve, flat_approximation_increments, 0, shield_top_curve_length):
     if previous_sample is not None:
       difference = sample.position - previous_sample.position
       average = (sample.position + previous_sample.position)/2
@@ -811,8 +841,8 @@ def make_full_face_mask():
   #print (f"{flat_approximations}")
   def flat_approximate_angle (sample):
     difference = (sample.position - shield_focal_point)
-    projected = CurveSample (top_curve, closest = shield_focal_point + difference*(top_curve.StartPoint[2] - shield_focal_point[2])/difference [2])
-    adjusted = projected.curve_distance*(flat_approximation_increments -1)/top_curve_length
+    projected = CurveSample (shield_top_curve, closest = shield_focal_point + difference*(shield_top_curve.StartPoint[2] - shield_focal_point[2])/difference [2])
+    adjusted = projected.curve_distance*(flat_approximation_increments -1)/shield_top_curve_length
     #linearly interpolate
     floor = math.floor (adjusted)
     fraction = adjusted - floor
@@ -846,9 +876,9 @@ def make_full_face_mask():
     print (f"total length: {sum( segment.length() for segment in result)}")
     return result
   
-  unrolled_side = [unrolled (surface) for surface in curve_samples (side_curve, 40, 0, side_curve_length/2)
+  unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, 40, 0, shield_side_curve_length/2)
     ]
-  unrolled_top = [unrolled (surface) for surface in curve_samples (top_curve, 40, 0, top_curve_length/2)
+  unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 40, 0, shield_top_curve_length/2)
       ]
     
   unrolled_combined = unrolled_top+unrolled_side
@@ -1008,10 +1038,10 @@ def make_full_face_mask():
             Part.show(Part.Compound([Part.LineSegment(piece.head_output, piece.rim_output).toShape(), Part.LineSegment(piece.head_source, piece.rim_source).toShape()]))
           
   # TODO: more correct
-  top_outer_rim_curve = top_curve
+  top_outer_rim_curve = shield_top_curve
   forehead_top_curve = forehead_curve.translated(vector(0,0,top_outer_rim_curve.StartPoint[2] - forehead_curve.StartPoint[2]))
   forehead_cloth = RimHeadCloth(
-    curve_samples (top_outer_rim_curve, math.floor(top_curve_length * 2), top_curve_length/2, top_curve_length - 10),
+    curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, shield_top_curve_length - 10),
     forehead_top_curve,
     min_curvature = 1/120
   )
@@ -1057,9 +1087,9 @@ def make_full_face_mask():
   show_transformed(neck_curve.toShape(), "neck_curve", invisible = True)
   
   # TODO: more correct
-  side_outer_rim_curve = side_curve
+  side_outer_rim_curve = shield_side_curve
   chin_cloth = RimHeadCloth(
-    curve_samples (side_outer_rim_curve, math.floor(side_curve_length * 2), side_curve_length/2, side_curve_length),
+    curve_samples (side_outer_rim_curve, math.floor(shield_side_curve_length * 2), shield_side_curve_length/2, shield_side_curve_length),
     neck_curve,
     min_curvature = 1/120
   )
