@@ -543,21 +543,9 @@ def make_full_face_mask():
   
   
   side_plate_bottom_z = -82
-  '''elastic_catch_slope = 8
   
-  side_plate_top = vector(forehead_curve.intersect(Part.LineSegment(
-    vector(0, headphones_front + side_plate_width/2), vector(500, headphones_front + side_plate_width/2)
-  ))[0])
-  side_plate_top_parameter = forehead_curve.parameter(side_plate_top)
-  side_plate_bottom = vector(shield_surface.intersect(Part.LineSegment(
-    side_plate_top + vector(-10, 0, side_plate_bottom_z),
-    side_plate_top + vector(10, 0, side_plate_bottom_z), 
-  ))[0][0])
-  side_plate_downwards = (side_plate_bottom - side_plate_top).normalized()
-  side_plate_normal = forehead_curve.normal(side_plate_top_parameter).cross(side_plate_downwards).cross(side_plate_downwards).normalized()
-  def project_to_side_plate (input):
-    return input - side_plate_normal*side_plate_normal.dot(input - side_plate_top)
-  '''
+  lower_rim_cut = box(centered(500), bounds(-500, shield_back + shield_glue_face_width + contact_leeway), bounds(-100-contact_leeway, 500))
+  show_transformed (lower_rim_cut, "lower_rim_cut", invisible=True)
   
   elastic_tension_wire = FreeCAD_shape_builder().build ([
         start_at(0, 0),
@@ -588,29 +576,76 @@ def make_full_face_mask():
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ]))
     
+  def augment_lower_curve_sample(sample):
+    sample.lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
+    sample.lip_direction_unit_height_from_shield = sample.lip_direction/sample.lip_direction.dot(sample.normal)
+    sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).Length
+    sample.lip_tip = sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip + sample.lip_direction_unit_height_from_shield*min_wall_thickness
+    
   for sample in curve_samples(shield_lower_side_curve, 40, 0, shield_lower_side_curve.length()):
-    lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
-    lip_direction_unit_height_from_shield = lip_direction/lip_direction.dot(sample.normal)
-    curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(lip_direction).Length
+    augment_lower_curve_sample(sample)
     lower_side_rim_hoops.append(polygon([
       sample.position,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-      sample.position - min_wall_thickness*curve_in_surface_normal_unit_height_from_lip - lip_direction_unit_height_from_shield*min_wall_thickness,
-      sample.position - min_wall_thickness*curve_in_surface_normal_unit_height_from_lip + lip_direction_unit_height_from_shield*min_wall_thickness,
-      sample.position + lip_direction_unit_height_from_shield*min_wall_thickness,
+      sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip - sample.lip_direction_unit_height_from_shield*min_wall_thickness,
+      sample.lip_tip,
+      sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
     ]))
 
   
   upper_side_rim = Part.makeLoft (upper_side_rim_hoops, True)
   show_transformed (upper_side_rim, "upper_side_rim")
   lower_side_rim = Part.makeLoft (lower_side_rim_hoops, True)
+  lower_side_rim = lower_side_rim.cut(lower_rim_cut)
   show_transformed (lower_side_rim, "lower_side_rim")
   #side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
   #side_plate = Part.makeLoft (side_plate_hoops, True)
   #show_transformed (side_plate, "side_plate")
   
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
+  
+  side_joint_peg_flat = polygon([
+    vector(-2, shield_glue_face_width, 0),
+    vector(-4, shield_glue_face_width, 0),
+    vector(-5, shield_glue_face_width-3, 0),
+    vector(-1, shield_glue_face_width-3, 0),
+  ])
+  
+  side_joint_peg = side_joint_peg_flat.to_face().fancy_extrude(vector(0,0,1), bounds(-5, 8))
+  sample = CurveSample (shield_lower_side_curve, distance = shield_lower_side_curve.length())
+  matrix = matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position)
+  side_joint_peg = side_joint_peg.transformGeometry(matrix)
+  side_joint_peg_hole = side_joint_peg.makeOffsetShape(contact_leeway, 0.01)
+  show_transformed (side_joint_peg, "side_joint_peg")
+  show_transformed (side_joint_peg_hole, "side_joint_peg_hole", invisible=True)
+  
+  lower_rim_block = Part.makeLoft ([
+    polygon([
+      vector(0, shield_glue_face_width, 0),
+      vector(-5, shield_glue_face_width, 0),
+      vector(-5, shield_glue_face_width-3, 0),
+      vector(0, shield_glue_face_width-3, 0),
+    ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
+
+    for sample in curve_samples(shield_lower_side_curve, 5, shield_lower_side_curve.length() - 10, shield_lower_side_curve.length())
+  ], True)
+  lower_rim_block = lower_rim_block.cut(lower_rim_cut)
+  show_transformed (lower_rim_block, "lower_rim_block")
+  upper_side_rim_lower_block = Part.makeLoft ([
+    polygon([
+      vector(0, shield_glue_face_width, 0),
+      vector(-7, shield_glue_face_width, 0),
+      vector(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.Length, 0),
+      vector(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.Length, 0),
+    ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
+
+    for sample in curve_samples(shield_upper_side_curve, 5, 0, 9)
+  ], True).cut(side_joint_peg_hole)
+  show_transformed (upper_side_rim_lower_block, "upper_side_rim_lower_block")
+  
+  
+  
   
   def elastic_plate_segment (num, start_distance, end_distance, thickness = min_wall_thickness):
     hoops = []
@@ -626,23 +661,6 @@ def make_full_face_mask():
       ]))
     return Part.makeLoft (hoops, True)
   
-  '''
-  side_elastic_holders = [
-    side_elastic_holder,
-    elastic_plate_segment (
-      30,
-      SideCurvePoint(z=-88, which=0).side_curve_distance,
-      SideCurvePoint(z=-144, which=1).side_curve_distance,
-    ),
-    elastic_plate_segment (
-      5,
-      SideCurvePoint(z=-95, which=1).side_curve_distance,
-      SideCurvePoint(z=-88, which=1).side_curve_distance,
-      min_wall_thickness*2
-    ),
-  ]
-  show_transformed (Part.Compound(side_elastic_holders), "side_elastic_holder")
-  '''
   
   elastic_hook_base_length = 6
   elastic_hook_outwards = 10
