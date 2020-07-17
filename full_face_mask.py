@@ -1028,109 +1028,22 @@ def make_full_face_mask():
   print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
   
   
-  '''
-  
-  
-  
-  
-  source_forehead_length = 0
-  cloth_forehead_length = 0
-  previous = None
-  class ForeheadClothPiece:
-    def __init__(self, sample):
-      nonlocal source_forehead_length
-      nonlocal cloth_forehead_length
-      self.shield = sample
-      self.forehead_parameter = forehead_curve.parameter(self.shield.position)
-      self.forehead = forehead_curve.value (self.forehead_parameter)
-      self.forehead[2] = self.shield.position[2]
-      self.source_diff = (self.forehead - self.shield.position)
-      if previous is None:
-        self.shield_output = vector()
-        self.forehead_output = vector(0, -self.source_diff.Length)
-        self.shield_angle = 0
-        self.forehead_angle = 0
-        self.output_shield_angle = 0
-        self.output_forehead_angle = 0
-      else:
-        shield_diff = self.shield.position - previous.shield.position
-        forehead_diff = self.forehead - previous.forehead
-        source_forehead_length += forehead_diff.Length
-        forehead_adjusted_distance = forehead_diff.Length+ min(0.2 * forehead_diff.Length, 0.01 * self.source_diff.Length)
-        self.shield_angle = shield_diff.angle()
-        shield_angle_diff = self.shield_angle - previous.shield_angle
-        self.forehead_angle = forehead_diff.angle()
-        forehead_angle_diff = self.forehead_angle - previous.forehead_angle
-        
-        self.output_shield_angle = previous.output_shield_angle + shield_angle_diff*0.7 # + shield_diff.Length/100
-        self.shield_output = previous.shield_output + vector(angle=self.output_shield_angle, length = shield_diff.Length)
-        
-        perp = self.output_shield_angle - math.tau / 4
-        diagonal = (previous.forehead_output - self.shield_output)
-        new_output_angle = max(perp, diagonal.angle())
-        if diagonal[0] < 0 and diagonal[1] > 0:
-          new_output_angle = perp
-        for i in range(180):
-          new_output_angle += math.tau / 1906
-          self.forehead_output = self.shield_output + vector(angle=new_output_angle, length = self.source_diff.Length)
-          new_forehead_diff = self.forehead_output - previous.forehead_output
-          self.output_forehead_angle = new_forehead_diff.angle()
-          output_forehead_angle_diff = self.output_forehead_angle - previous.output_forehead_angle
-          if new_forehead_diff.Length >= forehead_diff.Length and output_forehead_angle_diff <= forehead_angle_diff + forehead_diff.Length/60:
-            break
-          #print(f"{index}, {i}, {self.source_diff}, {new_forehead_diff}")
-          assert(i < 175)
-        cloth_forehead_length += new_forehead_diff.Length
-
-      self.output_diff = self.forehead_output - self.shield_output
-      self.output_direction = self.output_diff.normalized()
-      assert(abs(self.output_diff.Length-self.source_diff.Length) < 0.01)
-      #Part.show(Part.Compound([Part.LineSegment(self.forehead_output, self.shield_output).toShape(), Part.LineSegment(self.forehead, self.shield.position).toShape()]))
-      self.endpoints = [
-        self.forehead_output + self.output_direction*elastic_tube_border_width,
-        self.shield_output - self.output_direction*elastic_tube_border_width,
-      ]
-        
-  forehead_cloth_pieces = []
-  print(f"start forehead_cloth")
-  
-  for sample in curve_samples (top_curve, math.floor(top_curve_length / 2), top_curve_length/2, top_curve_length - 10):
-    current = ForeheadClothPiece(sample)
-    forehead_cloth_pieces.append(current)
-    previous = current
-  print(f"source_forehead_length: {source_forehead_length}, cloth_forehead_length: {cloth_forehead_length}")
-  
-  def flipped(v):
-    return vector(-v[0], v[1], v[2])
-  forehead_cloth_points = (
-    [piece.endpoints [0] for piece in forehead_cloth_pieces]
-    + [piece.endpoints [1] for piece in reversed (forehead_cloth_pieces)]
-    + [flipped(piece.endpoints [1]) for piece in forehead_cloth_pieces[1:]]
-    + [flipped(piece.endpoints [0]) for piece in reversed (forehead_cloth_pieces)]
-  )
-  forehead_cloth_points = [vector(v[1], v[0]) for v in forehead_cloth_points]
-  center_vertices_on_letter_paper(forehead_cloth_points)
-  forehead_cloth = Part.makePolygon(forehead_cloth_points)
-  show_transformed (forehead_cloth, "forehead_cloth", invisible=pieces_invisible)
-  save_inkscape_svg("forehead_cloth.svg", forehead_cloth)'''
-  
-  return finish()
-  
   ########################################################################
   ########  Chin cloth  #######
   ########################################################################
   
-  chin_cloth_subdivisions = 80
+  # add significant leeway to accommodate larger necks, reduce the chance of yanking it off the rim
+  neck_y = shield_back - 20
   neck_points = [
-    vector(75, shield_back, 20),
-    vector(75, shield_back, 0),
-    vector(75, shield_back, -20),
-    vector(74, shield_back, -40),
-    vector(70, shield_back, -60),
-    vector(66, shield_back, -80),
-    vector(57, shield_back, -100),
-    vector(38, shield_back, -120),
-    vector(8, shield_back, -140),
+    vector(75, neck_y, 20),
+    vector(75, neck_y, 0),
+    vector(75, neck_y, -20),
+    vector(74, neck_y, -40),
+    vector(70, neck_y, -60),
+    vector(66, neck_y, -80),
+    vector(57, neck_y, -100),
+    vector(38, neck_y, -120),
+    vector(8, neck_y, -140),
   ]
   neck_points = neck_points + [vector(-a[0], a[1], a[2]) for a in reversed(neck_points)]
   
@@ -1141,64 +1054,29 @@ def make_full_face_mask():
     mults = [degree+1] + [1]*(len(neck_points) - degree - 1) + [degree+1],
     degree = degree,
   )
-  #Part.show(neck_curve.toShape())
+  show_transformed(neck_curve.toShape(), "neck_curve", invisible = True)
   
-  shield_source_points = [a.position + a.away*(min_wall_thickness + elastic_holder_depth) for a in side_curve_points(chin_cloth_subdivisions+2, side_curve_length/2, 0)]
-  chin_source_points = [neck_curve.value(neck_curve.parameter(point)) for point in  shield_source_points]
-  
-  # a moderately questionable way to expand the flattened shape
-  for index in range(len(shield_source_points)):
-    sideways = (shield_source_points[index] - chin_source_points[index]).normalized()
-    shield_source_points[index] += sideways * elastic_tube_border_width
-    chin_source_points[index] -= sideways * elastic_tube_border_width
-  
-  shield_flat_points = [vector(0,0)]
-  chin_flat_points = [vector((shield_source_points[0] - chin_source_points[0]).Length, 0)]
-  for index in range(chin_cloth_subdivisions):
-    shield_flat = shield_flat_points [-1]
-    chin_flat = chin_flat_points [-1]
-    flat_sideways = (shield_flat - chin_flat).normalized()
-    flat_forwards = vector(-flat_sideways[1], flat_sideways[0])
-    if index % 2 == 0:
-      shield_source = shield_source_points[index]
-      chin_source = chin_source_points[max(0, index - 1)]
-      new_source = chin_source_points[index + 1]
-      add_to = chin_flat_points
-    else:
-      shield_source = shield_source_points[index - 1]
-      chin_source = chin_source_points[index]
-      new_source = shield_source_points[index + 1]
-      add_to = shield_flat_points
-    
-    source_sideways = (shield_source - chin_source).normalized()
-    sideways_amount = (new_source - shield_source).dot(source_sideways)
-    forwards_amount = (new_source - chin_source).cross(source_sideways).Length
-    forwards_amount2 = (new_source - shield_source).cross(source_sideways).Length
-    assert(abs(forwards_amount - forwards_amount2) < 0.001)
-    
-      
-    new_flat = shield_flat + flat_forwards*forwards_amount*1.05 + flat_sideways*sideways_amount
-    add_to.append(new_flat)
+  # TODO: more correct
+  side_outer_rim_curve = side_curve
+  chin_cloth = RimHeadCloth(
+    curve_samples (side_outer_rim_curve, math.floor(side_curve_length * 2), side_curve_length/2, side_curve_length),
+    neck_curve,
+    min_curvature = 1/120
+  )
   
   chin_cloth_points = (
-    chin_flat_points
-    + list(reversed(shield_flat_points))
-    + [vector(a[0], -a[1]) for a in shield_flat_points[1:]]
-    + [vector(a[0], -a[1]) for a in reversed(chin_flat_points[1:])]
-  )
-  chin_cloth_source_points = (
-    chin_source_points
-    + list(reversed(shield_source_points))
-    + [vector(-a[0], a[1], a[2]) for a in shield_source_points[1:]]
-    + [vector(-a[0], a[1], a[2]) for a in reversed(chin_source_points[1:])]
+    [piece.endpoints [0] for piece in chin_cloth.pieces]
+    + [piece.endpoints [1] for piece in reversed (chin_cloth.pieces)]
   )
   center_vertices_on_letter_paper(chin_cloth_points)
-  chin_cloth = polygon(chin_cloth_points)
-  chin_cloth_source = polygon(chin_cloth_source_points)
-  show_transformed (chin_cloth, "chin_cloth", invisible=pieces_invisible)
-  show_transformed (chin_cloth_source, "chin_cloth_source", invisible=True)
-  save_inkscape_svg("chin_cloth.svg", chin_cloth)
+  chin_cloth_shape = polygon(chin_cloth_points)
+  show_transformed (chin_cloth_shape, "chin_cloth", invisible=pieces_invisible)
+  save_inkscape_svg("chin_cloth.svg", chin_cloth_shape)
   
+  print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: {chin_cloth.cloth_head_length}, ratio: {chin_cloth.cloth_head_length/chin_cloth.source_head_length}")
+  
+  return finish()
+
   ########################################################################
   ########  Split/assemble components into printable parts  #######
   ########################################################################
