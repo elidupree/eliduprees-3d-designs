@@ -929,7 +929,7 @@ def make_full_face_mask():
   forehead_cloth_pieces = []
   print(f"start forehead_cloth")
   
-  for sample in curve_samples (top_curve, math.floor(top_curve_length), top_curve_length/2, top_curve_length - 10):
+  for sample in curve_samples (top_curve, math.floor(top_curve_length / 2), top_curve_length/2, top_curve_length - 10):
     current = ForeheadClothPiece(sample)
     forehead_cloth_pieces.append(current)
     previous = current
