@@ -577,12 +577,8 @@ def make_full_face_mask():
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
   
-  for curve, num, sink in [
-    (shield_upper_side_curve, 20, upper_side_rim_hoops),
-    (shield_lower_side_curve, 40, lower_side_rim_hoops),
-  ]:
-   for sample in curve_samples(curve, num, 0, curve.length()):
-    sink.append(polygon([
+  for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length()):
+    upper_side_rim_hoops.append(polygon([
       sample.position,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
@@ -591,6 +587,20 @@ def make_full_face_mask():
       sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness,
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ]))
+    
+  for sample in curve_samples(shield_lower_side_curve, 40, 0, shield_lower_side_curve.length()):
+    lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
+    lip_direction_unit_height_from_shield = lip_direction/lip_direction.dot(sample.normal)
+    curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(lip_direction).Length
+    lower_side_rim_hoops.append(polygon([
+      sample.position,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
+      sample.position - min_wall_thickness*curve_in_surface_normal_unit_height_from_lip - lip_direction_unit_height_from_shield*min_wall_thickness,
+      sample.position - min_wall_thickness*curve_in_surface_normal_unit_height_from_lip + lip_direction_unit_height_from_shield*min_wall_thickness,
+      sample.position + lip_direction_unit_height_from_shield*min_wall_thickness,
+    ]))
+
   
   upper_side_rim = Part.makeLoft (upper_side_rim_hoops, True)
   show_transformed (upper_side_rim, "upper_side_rim")
