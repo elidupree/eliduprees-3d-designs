@@ -261,6 +261,21 @@ def make_full_face_mask():
   show_transformed(shield_source_curve.toShape(), "shield_source_curve", invisible = False)
   show_transformed(shield_surface.toShape(), "shield_surface", invisible = True)
   
+  
+  
+  
+  class ShieldCurveInPlane:
+    def __init__(self, plane):
+      self.plane = plane
+      self.curve = shield_surface.intersect(
+            plane
+          )[0]
+      
+    def __getattr__(self, name):
+      return getattr(self.curve, name)
+      
+      
+      
   side_curve_source_points = [
     (shield_back, shield_glue_face_width),
     (shield_back, -100),
@@ -276,17 +291,45 @@ def make_full_face_mask():
         udegree = 1,
         vdegree = 1,
       )
+      
+  upper_side_curve_source_surface = Part.BSplineSurface()
+  upper_side_curve_source_surface.buildFromPolesMultsKnots([
+    [vector(100, y, z) for y,z in side_curve_source_points[0:2]],
+    [vector(0, y, z) for y,z in side_curve_source_points[0:2]],
+  ],
+        [2,2],
+        [2,2],
+        udegree = 1,
+        vdegree = 1,
+      )
+  lower_side_curve_source_surface = Part.BSplineSurface()
+  lower_side_curve_source_surface.buildFromPolesMultsKnots([
+    [vector(100, y, z) for y,z in side_curve_source_points[1:3]],
+    [vector(-100, y, z) for y,z in side_curve_source_points[1:3]],
+  ],
+        [2,2],
+        [2,2],
+        udegree = 1,
+        vdegree = 1,
+      )
+      
+  
+  
   show_transformed(side_curve_source_surface.toShape(), "side_curve_source_surface", invisible = True)
-  #return finish()
+  show_transformed(upper_side_curve_source_surface.toShape(), "upper_side_curve_source_surface", invisible = True)
+  show_transformed(lower_side_curve_source_surface.toShape(), "lower_side_curve_source_surface", invisible = True)
   shield_side_curve = shield_surface.intersect(
             side_curve_source_surface
           )[0]
+  shield_upper_side_curve = ShieldCurveInPlane(upper_side_curve_source_surface)
+  shield_lower_side_curve = ShieldCurveInPlane(lower_side_curve_source_surface)
   shield_side_curve_length = shield_side_curve.length()
   show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = False)
+  show_transformed(shield_upper_side_curve.toShape(), "shield_upper_side_curve", invisible = False)
+  show_transformed(shield_lower_side_curve.toShape(), "shield_lower_side_curve", invisible = False)
+
   
-  shield_top_curve = shield_surface.intersect(
-            Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1))
-          )[0]
+  shield_top_curve = ShieldCurveInPlane(Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1)))
   shield_top_curve_length = shield_top_curve.length()
   show_transformed(shield_top_curve.toShape(), "shield_top_curve", invisible = False)
   print(shield_top_curve.NbPoles)
@@ -302,6 +345,9 @@ def make_full_face_mask():
   show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
   diff = (glasses_point - shield_focal_point).normalized()
   show_transformed(Part.LineSegment(glasses_point + diff*180, glasses_point - diff*180).toShape(), "glasses_line", invisible = False)
+
+  
+  
   
   class ShieldSample:
     def __init__(self, parameter = None, closest = None):
@@ -345,6 +391,13 @@ def make_full_face_mask():
       self.curve_tangent = vector (*curve.tangent (self.curve_parameter))
       self.curve_in_surface_normal = self.curve_tangent.cross (self.normal)
       
+      if isinstance(self.curve, ShieldCurveInPlane):
+        self.plane_normal = self.curve.plane.normal(0,0)
+        self.normal_in_plane = self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
+        
+        self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
+        self.curve_in_surface_normal_unit_height_from_plane = self.curve_in_surface_normal/self.curve_in_surface_normal.dot(self.plane_normal)
+      
       # selected to approximately match XYZ when looking at the +x end of the side curve
       self.moving_frame = matrix_from_columns(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
 
@@ -357,7 +410,7 @@ def make_full_face_mask():
     return (point(index) for index in range (num))
   
   
-  shield_top_full_wire = Part.Shape([shield_top_curve, Part.LineSegment(shield_top_curve.EndPoint, shield_top_curve.StartPoint)]).to_wire()
+  shield_top_full_wire = Part.Shape([shield_top_curve.curve, Part.LineSegment(shield_top_curve.EndPoint, shield_top_curve.StartPoint)]).to_wire()
   shield_box = box(centered (500), bounds (shield_back, 500), bounds (-180, 0))
   shield_cross_section = shield_top_full_wire.to_face()
   shield_cross_sections = []
@@ -437,18 +490,18 @@ def make_full_face_mask():
   top_rim_subdivisions = 20
   top_rim_hoops = []
   for sample in curve_samples(shield_top_curve, top_rim_subdivisions, shield_top_curve_length/2, shield_top_curve_length):
-    curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
-    wall_thickness_skewed = min_wall_thickness/sample.curve_in_surface_normal.cross(sample.normal).Length
-    flat_outwards = (sample.normal - vector(0,0,sample.normal[2])).normalized()
     coords = [
       (0, -shield_glue_face_width),
       (0, 0),
-      (wall_thickness_skewed, 0),
-      (wall_thickness_skewed, min_wall_thickness),
-      (-wall_thickness_skewed, min_wall_thickness),
-      (-wall_thickness_skewed, -shield_glue_face_width),
+      (min_wall_thickness, 0),
+      (min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, -shield_glue_face_width),
     ]
-    wire = polygon([sample.position + curve_in_surface_normal_skewed*b + flat_outwards*a for a,b in coords]).to_wire()
+    wire = polygon([sample.position
+      + a*sample.normal_in_plane_unit_height_from_shield
+      + b*sample.curve_in_surface_normal_unit_height_from_plane
+      for a,b in coords]).to_wire()
     top_rim_hoops.append (wire)
     
   
@@ -464,13 +517,9 @@ def make_full_face_mask():
     temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
     sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance)
     
-    curve_in_surface_normal_skewed = sample.curve_in_surface_normal/sample.curve_in_surface_normal[2]
-    wall_thickness_skewed = min_wall_thickness/sample.curve_in_surface_normal.cross(sample.normal).Length
-    flat_outwards = (sample.normal - vector(0,0,sample.normal[2])).normalized()
-    
-    foo = sample.position - flat_outwards*(wall_thickness_skewed + contact_leeway)
-    temple_block_top.append(foo + curve_in_surface_normal_skewed*min_wall_thickness)
-    temple_block_bottom.append(foo - curve_in_surface_normal_skewed*shield_glue_face_width)
+    foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness + sample.normal_in_plane*contact_leeway
+    temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
+    temple_block_bottom.append(foo - sample.curve_in_surface_normal_unit_height_from_plane*shield_glue_face_width)
   temple_block_hoops = [
     polygon(temple_block_top + [vector(a[0], a[1], shield_glue_face_width+min_wall_thickness) for a in reversed(temple_block_inside)]), 
     polygon(temple_block_bottom + [vector(a[0], a[1], 0) for a in reversed(temple_block_inside)]), 
