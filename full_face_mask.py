@@ -810,7 +810,7 @@ def make_full_face_mask():
   intake_interior = IntakeSurface (False)
   intake_exterior = IntakeSurface (True)
   def intake_cover(index):
-    return Part.makeRuledSurface(intake_interior.ends[index], intake_exterior.ends[index])
+    return intake_exterior.ends[index].to_face().cut(intake_interior.ends[index].to_face())
   intake_CPAP_cover = intake_cover (-1)
   intake_flat_cover = intake_cover (0)
   show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
