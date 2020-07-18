@@ -105,7 +105,7 @@ def make_full_face_mask():
   on_face = False
   #on_face = True
   pieces_invisible = False
-  pieces_invisible = True
+  #pieces_invisible = True
   invisible_default = not pieces_invisible
   #invisible_default = True
   
@@ -257,8 +257,8 @@ def make_full_face_mask():
         udegree = 1,
         vdegree = degree,
       )
-  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in shield_source_curve_points]), "shield_source_curve_points", invisible = False)
-  show_transformed(shield_source_curve.toShape(), "shield_source_curve", invisible = False)
+  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in shield_source_curve_points]), "shield_source_curve_points", invisible = True)
+  show_transformed(shield_source_curve.toShape(), "shield_source_curve", invisible = True)
   show_transformed(shield_surface.toShape(), "shield_surface", invisible = True)
   
   
@@ -324,15 +324,15 @@ def make_full_face_mask():
   shield_upper_side_curve = ShieldCurveInPlane(upper_side_curve_source_surface)
   shield_lower_side_curve = ShieldCurveInPlane(lower_side_curve_source_surface)
   shield_side_curve_length = shield_side_curve.length()
-  show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = False)
-  show_transformed(shield_upper_side_curve.toShape(), "shield_upper_side_curve", invisible = False)
-  show_transformed(shield_lower_side_curve.toShape(), "shield_lower_side_curve", invisible = False)
+  show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = True)
+  show_transformed(shield_upper_side_curve.toShape(), "shield_upper_side_curve", invisible = True)
+  show_transformed(shield_lower_side_curve.toShape(), "shield_lower_side_curve", invisible = True)
   upper_side_curve_source_surface.exchangeUV()
   lower_side_curve_source_surface.exchangeUV()
   
   shield_top_curve = ShieldCurveInPlane(Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1)))
   shield_top_curve_length = shield_top_curve.length()
-  show_transformed(shield_top_curve.toShape(), "shield_top_curve", invisible = False)
+  show_transformed(shield_top_curve.toShape(), "shield_top_curve", invisible = True)
   print(shield_top_curve.NbPoles)
   for index in range(100):
     foo = index / 100
@@ -343,9 +343,9 @@ def make_full_face_mask():
 
 
   glasses_point = forehead_point + vector (66, 0, -10)
-  show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = False)
+  show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = True)
   diff = (glasses_point - shield_focal_point).normalized()
-  show_transformed(Part.LineSegment(glasses_point + diff*180, glasses_point - diff*180).toShape(), "glasses_line", invisible = False)
+  show_transformed(Part.LineSegment(glasses_point + diff*180, glasses_point - diff*180).toShape(), "glasses_line", invisible = True)
 
   
   
@@ -514,19 +514,19 @@ def make_full_face_mask():
   temple_block_top = []
   temple_block_bottom = []
   temple_block_start_distance = forehead_curve.length (0, forehead_curve.parameter (temple))-1
-  for distance in range (11):
+  for distance in range (16):
     temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
     sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance)
     
-    foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness + sample.normal_in_plane*contact_leeway
+    foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.normal_in_plane*contact_leeway
     temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
-    temple_block_bottom.append(foo - sample.curve_in_surface_normal_unit_height_from_plane*shield_glue_face_width)
+    temple_block_bottom.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*(min_wall_thickness - headband_width))
   temple_block_hoops = [
-    polygon(temple_block_top + [vector(a[0], a[1], shield_glue_face_width+min_wall_thickness) for a in reversed(temple_block_inside)]), 
-    polygon(temple_block_bottom + [vector(a[0], a[1], 0) for a in reversed(temple_block_inside)]), 
+    polygon(temple_block_top + [vector(a[0], a[1], temple_block_top[0][2]) for a in reversed(temple_block_inside)]), 
+    polygon(temple_block_bottom + [vector(a[0], a[1], temple_block_bottom[0][2]) for a in reversed(temple_block_inside)]), 
   ]
   temple_block = Part.makeLoft(temple_block_hoops, True)
-  temple_side_peg_flat = polygon([
+  '''temple_side_peg_flat = polygon([
     (temple_block_bottom[2] + temple_block_inside[2])/2,
     (temple_block_bottom[6]*4 + temple_block_inside[6])/5,
     (temple_block_bottom[6] + temple_block_inside[6]*4)/5,
@@ -535,7 +535,7 @@ def make_full_face_mask():
   temple_block = temple_block.cut (temple_side_peg_flat.makeOffset2D (contact_leeway, join=2).to_face().fancy_extrude(vector(0,0,1), centered (500)))
   
   show_transformed (temple_block, "temple_block")
-  show_transformed (temple_side_peg, "temple_side_peg")
+  show_transformed (temple_side_peg, "temple_side_peg")'''
 
   ########################################################################
   ########  Side rim and stuff #######
@@ -545,6 +545,7 @@ def make_full_face_mask():
   side_plate_bottom_z = -82
   
   lower_rim_cut = box(centered(500), bounds(-500, shield_back + shield_glue_face_width + contact_leeway), bounds(-100-contact_leeway, 500))
+  upper_rim_cut = box(centered(500), centered(500), bounds(0-contact_leeway, 500))
   show_transformed (lower_rim_cut, "lower_rim_cut", invisible=True)
   
   elastic_tension_wire = FreeCAD_shape_builder().build ([
@@ -595,6 +596,7 @@ def make_full_face_mask():
 
   
   upper_side_rim = Part.makeLoft (upper_side_rim_hoops, True)
+  upper_side_rim = upper_side_rim.cut(upper_rim_cut)
   show_transformed (upper_side_rim, "upper_side_rim")
   lower_side_rim = Part.makeLoft (lower_side_rim_hoops, True)
   lower_side_rim = lower_side_rim.cut(lower_rim_cut)
@@ -617,13 +619,14 @@ def make_full_face_mask():
   matrix = matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position)
   side_joint_peg = side_joint_peg.transformGeometry(matrix)
   side_joint_peg_hole = side_joint_peg.makeOffsetShape(contact_leeway, 0.01)
+  side_joint_peg_neighborhood = side_joint_peg.makeOffsetShape(contact_leeway + stiffer_wall_thickness, 0.01)
   show_transformed (side_joint_peg, "side_joint_peg")
   show_transformed (side_joint_peg_hole, "side_joint_peg_hole", invisible=True)
   
   lower_rim_block = Part.makeLoft ([
     polygon([
       vector(0, shield_glue_face_width, 0),
-      vector(-5, shield_glue_face_width, 0),
+      vector(-4, shield_glue_face_width, 0),
       vector(-5, shield_glue_face_width-3, 0),
       vector(0, shield_glue_face_width-3, 0),
     ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
@@ -632,6 +635,7 @@ def make_full_face_mask():
   ], True)
   lower_rim_block = lower_rim_block.cut(lower_rim_cut)
   show_transformed (lower_rim_block, "lower_rim_block")
+  
   upper_side_rim_lower_block = Part.makeLoft ([
     polygon([
       vector(0, shield_glue_face_width, 0),
@@ -641,10 +645,34 @@ def make_full_face_mask():
     ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
 
     for sample in curve_samples(shield_upper_side_curve, 5, 0, 9)
-  ], True).cut(side_joint_peg_hole)
+  ], True).cut(side_joint_peg_hole).common(side_joint_peg_neighborhood)
   show_transformed (upper_side_rim_lower_block, "upper_side_rim_lower_block")
   
+  upper_side_rim_upper_block = Part.makeLoft ([
+    polygon([
+      vector(0, 3, 0),
+      vector(-10, 3, 0),
+      vector(-10, -0.6, 0),
+      vector(0, -0.6, 0),
+    ]).to_wire().transformGeometry(matrix_from_columns(forehead_curve.tangent(forehead_curve.parameter(temple))[0], sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
+
+    for sample in curve_samples(shield_upper_side_curve, 2, shield_upper_side_curve.length() - shield_glue_face_width - contact_leeway, shield_upper_side_curve.length() + min_wall_thickness - headband_width + 2)
+  ], True)
+  show_transformed (upper_side_rim_upper_block, "upper_side_rim_upper_block")
   
+  def top_peg (distance, length):
+    sample = CurveSample (shield_top_curve, distance = distance)
+    return polygon([
+      vector(-1.3, min_wall_thickness, 0),
+      vector(1.3, min_wall_thickness, 0),
+      vector(2, -2.5, 0),
+      vector(-2, -2.5, 0),
+    ]).to_face().transformGeometry(matrix_from_columns(sample.curve_tangent, sample.curve_in_surface_normal_unit_height_from_plane, sample.normal, sample.position)).fancy_extrude (-forehead_curve.tangent(forehead_curve.parameter(temple))[0], bounds(min_wall_thickness/2, length))
+  top_pegs = [top_peg (shield_top_curve_length - 1.5, 10), top_peg (shield_top_curve_length - 8, 5)]
+  show_transformed (Part.Compound (top_pegs), "top_pegs")
+  
+  temple_block = temple_block.cut ([upper_side_rim_upper_block.makeOffsetShape(contact_leeway, 0.01)] + [peg.makeOffsetShape (contact_leeway, 0.01) for peg in top_pegs])
+  show_transformed (temple_block, "temple_block")
   
   
   def elastic_plate_segment (num, start_distance, end_distance, thickness = min_wall_thickness):
@@ -1181,13 +1209,11 @@ def make_full_face_mask():
   save_inkscape_svg("chin_cloth.svg", chin_cloth_shape)
   
   print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: {chin_cloth.cloth_head_length}, ratio: {chin_cloth.cloth_head_length/chin_cloth.source_head_length}")
-  
-  return finish()
 
   ########################################################################
   ########  Split/assemble components into printable parts  #######
   ########################################################################
-  whole_frame = Part.Compound ([
+  '''whole_frame = Part.Compound ([
     headband,
     top_rim,
     side_rim,
@@ -1198,38 +1224,22 @@ def make_full_face_mask():
     intake_solid,
   ]+side_elastic_holders)
   
-  show_transformed (whole_frame, "whole_frame", invisible=True)
+  show_transformed (whole_frame, "whole_frame", invisible=True)'''
   
-  top_splitter = box(centered (1500), centered (1500), bounds (-6.2, 500))
-  right_half = box(bounds(25, 500), centered (1500), centered (1500))
-  whole_frame_top = Part.Compound ([
-    headband,
-    top_rim,
-  ] + [a.common(top_splitter) for a in [
-    side_rim,
-    side_plate,
-    side_plate.mirror(vector(), vector (1, 0, 0)),
-    side_hooks,
-    side_hooks.mirror(vector(), vector (1, 0, 0)),
-  ]])
+  def reflected (component):
+    return [component, component.mirror (vector(), vector (1, 0, 0))]
   
-  show_transformed (whole_frame_top, "whole_frame_top", invisible=pieces_invisible)
+  whole_headband = Part.Compound ([headband] + reflected (temple_block))
+  show_transformed (whole_headband, "whole_headband", invisible=pieces_invisible)
   
-  upper_side = Part.Compound ([side_hooks.cut(top_splitter)] + [a.cut([top_splitter, side_splitter]).common(right_half) for a in [
-    side_rim,
-    side_plate,
-  ]])
+  whole_top_rim = Part.Compound ([top_rim] + reflected (top_pegs[0]) + reflected (top_pegs[1]))
+  show_transformed (whole_top_rim, "whole_top_rim", invisible=pieces_invisible)
+  
+  upper_side = Part.Compound ([upper_side_rim, upper_side_rim_lower_block, upper_side_rim_upper_block])
   show_transformed (upper_side, "upper_side", invisible=pieces_invisible)
   
-  lower_right_side = Part.Compound ([a.common(side_splitter).common(right_half) for a in [
-    side_rim,
-  ]+side_elastic_holders])
-  show_transformed (lower_right_side, "lower_right_side", invisible=pieces_invisible)
-  
-  lower_left_side = Part.Compound ([intake_solid]+[a.common(side_splitter.mirror(vector(), vector(1,0,0))).cut(right_half) for a in [
-    side_rim,
-  ]+side_elastic_holders])
-  show_transformed (lower_left_side, "lower_left_side", invisible=pieces_invisible)
+  lower_side = Part.Compound ([lower_side_rim, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
+  show_transformed (lower_side, "lower_side", invisible=pieces_invisible)
   
   '''import MeshPart
   whole_frame_top_mesh = MeshPart.meshFromShape (
