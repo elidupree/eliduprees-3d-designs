@@ -465,11 +465,13 @@ def make_full_face_mask():
   elastic_link_radius = 3
   elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), elastic_link_radius).toShape().to_wire().to_face())
   
+  headband_top = shield_glue_face_width + min_wall_thickness
+  
   headband_elastic_link = elastic_link.translated(vector(-25 - (elastic_link_radius + headband_thickness/2), forehead_point[1]-192, 0)).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
   headband = headband.fuse([
     headband_elastic_link,
     headband_elastic_link.mirror(vector(), vector(1,0,0)),
-  ]).translated(vector(0,0,shield_glue_face_width + min_wall_thickness - headband_width))
+  ]).translated(vector(0,0,headband_top - headband_width))
   show_transformed (headband, "headband")
   
   CPAP_grabber = (
@@ -703,27 +705,19 @@ def make_full_face_mask():
   ]).to_face().extrude(vector(0,0,stiffer_wall_thickness))
 
 
-  def side_hook(distance):
-    
-    top = shield_side_curve.value (shield_side_curve.parameterAtDistance (distance))
-    bottom = shield_side_curve.value (shield_side_curve.parameterAtDistance (distance+elastic_hook_forwards))
-    downwards = (bottom-top).normalized()
-    matrix = matrix_from_columns(side_plate_normal, downwards, -side_plate_normal.cross(downwards), top)
-    hook = elastic_hook.copy()
-    hook.transformShape (matrix)
-    return hook
-
-  '''rim_hook_back = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y= headphones_front+15)
-  rim_hook_front = ShieldSurfacePoint (z=shield_glue_face_width+min_wall_thickness, y=rim_hook_back.position[1]+elastic_hook_forwards)
-  rim_hook_forwards = (rim_hook_front.position - rim_hook_back.position).normalized()
-  rim_hook = elastic_hook.copy()
-  matrix = matrix_from_columns(rim_hook_forwards.cross (vector(0,0,1)), -rim_hook_forwards, vector(0,0,-1), rim_hook_front.position)
-  rim_hook.transformShape (matrix)
-  side_hooks = Part.Compound ([rim_hook]+[
-    side_hook(elastic_hook_base_length*index) for index in range(8)
-  ])
+  top_hook_back = CurveSample (shield_top_curve, y= headphones_front+8, which = 1)
+  top_hook_front = CurveSample (shield_top_curve, distance = top_hook_back.curve_distance - elastic_hook_forwards)
+  top_hook_forwards = (top_hook_front.position - top_hook_back.position).normalized()
+  top_hook = elastic_hook.copy()
+  matrix = matrix_from_columns(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness))
+  top_hook.transformShape (matrix)
   
-  show_transformed (side_hooks, "side_hooks")'''
+  side_hook = elastic_hook.copy()
+  matrix = matrix_from_columns(vector(1,0,0), vector(0,0,1), vector(0,1,0), temple + vector(0, -min_wall_thickness, -elastic_hook_base_length-1))
+  side_hook.transformShape (matrix)
+  
+  show_transformed (top_hook, "top_hook")
+  show_transformed (side_hook, "side_hook")
     
 
   ########################################################################
@@ -1146,7 +1140,7 @@ def make_full_face_mask():
   top_outer_rim_curve = shield_top_curve
   forehead_top_curve = forehead_curve.translated(vector(0,0,top_outer_rim_curve.StartPoint[2] - forehead_curve.StartPoint[2]))
   forehead_cloth = RimHeadCloth(
-    curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, shield_top_curve_length - 10),
+    curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance),
     forehead_top_curve,
     min_curvature = 1/120
   )
@@ -1194,7 +1188,7 @@ def make_full_face_mask():
   # TODO: more correct
   side_outer_rim_curve = shield_side_curve
   chin_cloth = RimHeadCloth(
-    curve_samples (side_outer_rim_curve, math.floor(shield_side_curve_length * 2), shield_side_curve_length/2, shield_side_curve_length),
+    curve_samples (side_outer_rim_curve, math.floor(shield_side_curve_length * 2), shield_side_curve_length/2, shield_side_curve_length + min_wall_thickness - headband_width),
     neck_curve,
     min_curvature = 1/120
   )
@@ -1232,10 +1226,10 @@ def make_full_face_mask():
   whole_headband = Part.Compound ([headband] + reflected (temple_block))
   show_transformed (whole_headband, "whole_headband", invisible=pieces_invisible)
   
-  whole_top_rim = Part.Compound ([top_rim] + reflected (top_pegs[0]) + reflected (top_pegs[1]))
+  whole_top_rim = Part.Compound ([top_rim] + reflected (top_pegs[0]) + reflected (top_pegs[1]) + reflected (top_hook))
   show_transformed (whole_top_rim, "whole_top_rim", invisible=pieces_invisible)
   
-  upper_side = Part.Compound ([upper_side_rim, upper_side_rim_lower_block, upper_side_rim_upper_block])
+  upper_side = Part.Compound ([upper_side_rim, upper_side_rim_lower_block, upper_side_rim_upper_block, side_hook])
   show_transformed (upper_side, "upper_side", invisible=pieces_invisible)
   
   lower_side = Part.Compound ([lower_side_rim, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
