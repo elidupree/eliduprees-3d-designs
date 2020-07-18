@@ -692,8 +692,8 @@ def make_full_face_mask():
     return Part.makeLoft (hoops, True)
   
   
-  elastic_hook_base_length = 6
-  elastic_hook_outwards = 10
+  elastic_hook_base_length = 5
+  elastic_hook_outwards = 6
   elastic_hook_forwards = 10
   
   elastic_hook = Part.makePolygon([
@@ -705,7 +705,7 @@ def make_full_face_mask():
   ]).to_face().extrude(vector(0,0,stiffer_wall_thickness))
 
 
-  top_hook_back = CurveSample (shield_top_curve, y= headphones_front+8, which = 1)
+  top_hook_back = CurveSample (shield_top_curve, y= headphones_front+4, which = 1)
   top_hook_front = CurveSample (shield_top_curve, distance = top_hook_back.curve_distance - elastic_hook_forwards)
   top_hook_forwards = (top_hook_front.position - top_hook_back.position).normalized()
   top_hook = elastic_hook.copy()
@@ -1234,6 +1234,12 @@ def make_full_face_mask():
   
   lower_side = Part.Compound ([lower_side_rim, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
   show_transformed (lower_side, "lower_side", invisible=pieces_invisible)
+  
+  
+  joint_test_box = box(centered(22, on=78), centered(40, on=-123), centered(40))
+  show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_side.Solids]), "upper_side_joint_test", invisible=pieces_invisible)
+  show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
+  show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)
   
   '''import MeshPart
   whole_frame_top_mesh = MeshPart.meshFromShape (
