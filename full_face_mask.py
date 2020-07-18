@@ -555,6 +555,7 @@ def make_full_face_mask():
         horizontal_to (shield_glue_face_width),
       ]).to_wire()
   
+  upper_side_cloth_lip = []
   upper_side_rim_hoops = []
   lower_side_rim_hoops = []
   #side_plate_hoops = []
@@ -569,9 +570,11 @@ def make_full_face_mask():
     elastic_tension_hoops.append(elastic_tension_shape)
   
   for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length()):
+    lip_tip = sample.position + shield_glue_face_width*sample.curve_in_surface_normal
+    upper_side_cloth_lip.append (lip_tip)
     upper_side_rim_hoops.append(polygon([
       sample.position,
-      sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
+      lip_tip,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
       sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
       sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
@@ -729,7 +732,7 @@ def make_full_face_mask():
   intake_flat_subdivisions = 10
   
   
-  intake_center = CurveSample(shield_side_curve, z=-123, which=0)
+  intake_center = CurveSample(shield_lower_side_curve, z=-123, which=0)
   intake_skew_factor = 0.8
   intake_forwards = (intake_center.curve_in_surface_normal + intake_center.curve_tangent*intake_skew_factor).normalized()
   
@@ -789,7 +792,7 @@ def make_full_face_mask():
         fraction = index/(intake_flat_subdivisions -1)
         offset = (fraction - 0.5)*height# - forwards_offset*intake_skew_factor
       
-        sample = CurveSample(shield_side_curve, distance = intake_center.curve_distance + offset)
+        sample = CurveSample(shield_lower_side_curve, distance = intake_center.curve_distance + offset)
 
         if rim_side:
           normal_distance = min_wall_thickness - self.expansion
@@ -797,7 +800,7 @@ def make_full_face_mask():
           thickness = intake_flat_thickness_base*0.5*(1+math.sin(fraction*math.tau/2))
           normal_distance = min_wall_thickness + thickness + self.expansion
       
-        edge.append (sample.position + sample.curve_in_surface_normal*forwards_offset - sample.normal*normal_distance)
+        edge.append (sample.position + sample.curve_in_surface_normal_unit_height_from_plane*forwards_offset - sample.normal_in_plane_unit_height_from_shield*normal_distance)
       if rim_side:
         edge.reverse()
         if self.outside:
