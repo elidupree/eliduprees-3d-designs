@@ -518,7 +518,7 @@ def make_full_face_mask():
   temple_block_start_distance = forehead_curve.length (0, forehead_curve.parameter (temple))-1
   for distance in range (16):
     temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
-    sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance)
+    sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance*1.1)
     
     foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.normal_in_plane*contact_leeway
     temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
@@ -569,16 +569,19 @@ def make_full_face_mask():
     elastic_tension_shape.transformShape (elastic_tension_matrix)
     elastic_tension_hoops.append(elastic_tension_shape)
   
+  def upper_side_lip_tip(sample):
+    return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
+  for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width):
+    upper_side_cloth_lip.append (upper_side_lip_tip(sample))
+    
   for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length()):
-    lip_tip = sample.position + shield_glue_face_width*sample.curve_in_surface_normal
-    upper_side_cloth_lip.append (lip_tip)
     upper_side_rim_hoops.append(polygon([
       sample.position,
-      lip_tip,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
       sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
       sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
-      sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness,
+      upper_side_lip_tip(sample),
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ]))
     
@@ -594,7 +597,7 @@ def make_full_face_mask():
       sample.position,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
       sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-      sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip - sample.lip_direction_unit_height_from_shield*min_wall_thickness,
+      sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
       sample.lip_tip,
       sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
     ]))
@@ -727,15 +730,81 @@ def make_full_face_mask():
   ########  Intake  #######
   ########################################################################
   
-  intake_flat_thickness_base = 9
-  intake_flat_width = 42
+  intake_flat_air_thickness_base = 9
+  intake_flat_width = 50
   intake_flat_subdivisions = 10
+  cloth_with_elastic_space = 3
+  intake_edge_skip_size = shield_glue_face_width + min_wall_thickness
   
   
-  intake_center = CurveSample(shield_lower_side_curve, z=-123, which=0)
+  intake_middle = CurveSample(shield_lower_side_curve, z=-127, which=0)
   intake_skew_factor = 0.8
-  intake_forwards = (intake_center.curve_in_surface_normal + intake_center.curve_tangent*intake_skew_factor).normalized()
+  intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
   
+  lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
+  augment_lower_curve_sample(lower_side_center_sample)
+  
+  lower_side_cloth_lip = []
+  lower_side_extra_lip_hoops = []
+  for sample in curve_samples(shield_lower_side_curve, 25, shield_lower_side_curve.length() - 3, intake_middle.curve_distance + intake_flat_width/2 + intake_edge_skip_size):
+    augment_lower_curve_sample(sample)
+    if sample.position[0] > 0:
+      lower_side_cloth_lip.append (sample.lip_tip)
+    else:
+      further = sample.lip_tip[2] - lower_side_center_sample.lip_tip[2]
+      new_lip_distance = min(elastic_holder_depth, further/sample.curve_in_surface_normal[2])
+      new_lip = sample.lip_tip - new_lip_distance*sample.curve_in_surface_normal
+      lower_side_cloth_lip.append (new_lip)
+      lower_side_extra_lip_hoops.append (polygon ([
+        sample.lip_tip,
+        sample.lip_tip - min_wall_thickness*sample.normal_in_plane_unit_height_from_shield,
+        new_lip - min_wall_thickness*sample.normal_in_plane_unit_height_from_shield,
+        new_lip,
+      ]).to_wire())
+      
+  
+  def augment_intake_sample(sample):
+    augment_lower_curve_sample(sample)
+    offset = sample.curve_distance - intake_middle.curve_distance
+    relative_offset = offset / intake_flat_width
+    
+    air_thickness = intake_flat_air_thickness_base*math.cos(relative_offset*math.tau/2)
+    air_thickness_derivative = -intake_flat_air_thickness_base*math.sin(relative_offset*math.tau/2) / intake_flat_width
+    beyond_air_angle = math.atan2(air_thickness_derivative, 1)
+    
+    edge_distances = [(0,0),
+      (min_wall_thickness,0),
+      (min_wall_thickness+air_thickness,0),
+      (min_wall_thickness+air_thickness, min_wall_thickness),
+      (min_wall_thickness+air_thickness, min_wall_thickness+cloth_with_elastic_space),
+      (min_wall_thickness+air_thickness, min_wall_thickness*2+cloth_with_elastic_space),
+    ]
+    
+    sample.intake_edge_points = []
+    for before_air, beyond_air in edge_distances:
+      x = before_air + beyond_air * math.cos(beyond_air_angle)
+      y = beyond_air * math.sin(beyond_air_angle)
+      
+      sample.intake_edge_points.append(
+        sample.position
+        - x*sample.normal_in_plane_unit_height_from_shield
+        + y*sample.curve_tangent
+      )
+        
+  
+  for sample in curve_samples(shield_lower_side_curve, 10, intake_middle.curve_distance + intake_flat_width/2, intake_middle.curve_distance - intake_flat_width/2):
+    augment_intake_sample(sample)
+    
+    lower_side_cloth_lip.append (sample.intake_edge_points[3] - (min_wall_thickness+elastic_holder_depth)*sample.curve_in_surface_normal)
+    
+  chin_cloth_lip = Part.BSplineCurve()
+  chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [vector(-a[0], a[1], a[2]) for a in upper_side_cloth_lip]
+  chin_cloth_lip.interpolate(chin_cloth_lip_points)
+  show_transformed(chin_cloth_lip.toShape(), "chin_cloth_lip", invisible = False)
+  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in chin_cloth_lip_points]), "chin_cloth_lip_points", invisible = False)
+  
+  
+  """
   
   class IntakeSurface:
     def __init__(self, outside):
@@ -833,8 +902,8 @@ def make_full_face_mask():
   ]))
   print (intake_solid)'''
   
-  show_transformed (intake_solid, "intake_solid")
-  
+  show_transformed (intake_solid, "intake_solid")"""
+  intake_solid = Part.Shape()
 
   ########################################################################
   ########  SVG bureaucracy  #######
@@ -1051,7 +1120,7 @@ def make_full_face_mask():
   
   '''
   
-  elastic_tube_border_width = 16
+  elastic_tube_border_width = 12
 
   class RimHeadClothPiece(object):
     pass
