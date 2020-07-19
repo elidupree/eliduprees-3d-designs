@@ -1165,9 +1165,9 @@ def make_full_face_mask():
       debug_display_target = 100
       debug_display_rate = math.ceil(len(rim_samples)/debug_display_target)
       
-      for index, rim_sample in enumerate(rim_samples):
+      for index, (rim_position, rim_curvature) in enumerate(rim_samples):
         piece = RimHeadClothPiece()
-        piece.rim_source = rim_sample.position
+        piece.rim_source = rim_position
         head_parameter = head_curve.parameter (piece.rim_source)
         piece.head_source = head_curve.value (head_parameter)
         source_diff = piece.head_source - piece.rim_source
@@ -1184,7 +1184,7 @@ def make_full_face_mask():
           dA1 = math.sqrt (dA_length**2 - dA0**2)
           original_dB1 = (piece.head_source - previous.head_source).cross(source_diff_direction).Length
           original_dB_length = (piece.head_source - previous.head_source).Length
-          original_curvature = rim_sample.curve.curvature(rim_sample.curve_parameter)
+          original_curvature = rim_curvature
           min_curvature_change = min_curvature - original_curvature
           
           dB1_min_due_to_head_arc_length = original_dB_length
@@ -1242,7 +1242,7 @@ def make_full_face_mask():
   top_outer_rim_curve = shield_top_curve
   forehead_top_curve = forehead_curve.translated(vector(0,0,top_outer_rim_curve.StartPoint[2] - forehead_curve.StartPoint[2]))
   forehead_cloth = RimHeadCloth(
-    curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance),
+    ((sample.position, sample.curve.curvature(sample.curve_parameter)) for sample in curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance)),
     forehead_top_curve,
     min_curvature = 1/120
   )
@@ -1289,8 +1289,10 @@ def make_full_face_mask():
   
   # TODO: more correct
   side_outer_rim_curve = shield_side_curve
+  chin_cloth_lip_subdivisions = 500
+  chin_cloth_lip_length = chin_cloth_lip.length()
   chin_cloth = RimHeadCloth(
-    curve_samples (side_outer_rim_curve, math.floor(shield_side_curve_length * 2), shield_side_curve_length/2, shield_side_curve_length + min_wall_thickness - headband_width),
+    ((chin_cloth_lip.value (parameter), chin_cloth_lip.curvature (parameter)) for parameter in (chin_cloth_lip.parameterAtDistance (index*chin_cloth_lip_length/(chin_cloth_lip_subdivisions-1)) for index in range(chin_cloth_lip_subdivisions))),
     neck_curve,
     min_curvature = 1/120
   )
