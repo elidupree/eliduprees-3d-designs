@@ -624,7 +624,7 @@ def make_full_face_mask():
   
   side_joint_peg = side_joint_peg_flat.to_face().fancy_extrude(vector(0,0,1), bounds(-5, 8))
   sample = CurveSample (shield_lower_side_curve, distance = shield_lower_side_curve.length())
-  matrix = matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position)
+  matrix = matrix_from_columns(sample.normal_in_plane_unit_height_from_shield, sample.curve_in_surface_normal_unit_height_from_plane, -sample.curve_tangent, sample.position)
   side_joint_peg = side_joint_peg.transformGeometry(matrix)
   side_joint_peg_hole = side_joint_peg.makeOffsetShape(contact_leeway, 0.01)
   side_joint_peg_neighborhood = side_joint_peg.makeOffsetShape(contact_leeway + stiffer_wall_thickness, 0.01)
@@ -634,10 +634,10 @@ def make_full_face_mask():
   lower_rim_block = Part.makeLoft ([
     polygon([
       vector(0, shield_glue_face_width, 0),
-      vector(-4, shield_glue_face_width, 0),
-      vector(-5, shield_glue_face_width-3, 0),
+      vector(-3.2, shield_glue_face_width, 0),
+      vector(-4.4, shield_glue_face_width-3, 0),
       vector(0, shield_glue_face_width-3, 0),
-    ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
+    ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane_unit_height_from_shield, sample.curve_in_surface_normal_unit_height_from_plane, -sample.curve_tangent, sample.position))
 
     for sample in curve_samples(shield_lower_side_curve, 5, shield_lower_side_curve.length() - 10, shield_lower_side_curve.length())
   ], True)
