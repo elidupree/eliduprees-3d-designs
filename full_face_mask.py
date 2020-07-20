@@ -731,7 +731,7 @@ def make_full_face_mask():
   ########################################################################
   
   intake_flat_air_thickness_base = 9
-  intake_flat_width = 60
+  intake_flat_width = 62
   intake_flat_subdivisions = 10
   cloth_with_elastic_space = 3
   intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
@@ -746,7 +746,7 @@ def make_full_face_mask():
   
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
-  for sample in curve_samples(shield_lower_side_curve, 100, shield_lower_side_curve.length(), 0):
+  for sample in curve_samples(shield_lower_side_curve, 200, shield_lower_side_curve.length()-3, 0):
     augment_lower_curve_sample(sample)
     offset = sample.curve_distance - intake_middle.curve_distance
     relative_offset = 2*offset / intake_flat_width
@@ -788,17 +788,28 @@ def make_full_face_mask():
       )
       lip_base_point = sample.lip_tip + intake_edge_offsets[4]
       inner_base_point = sample.lip_tip + intake_edge_offsets[5]
+      print_surface_base_point = sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane
       down = -new_lip_distance*sample.curve_in_surface_normal
       leeway = 0.5*min_wall_thickness*sample.curve_in_surface_normal
+      
+      def limited_project_towards (source, target):
+        #return target
+        starting_amount = (source - sample.position).dot (sample.normal) + min_wall_thickness*0.7
+        if starting_amount >= 0:
+          return source
+        amount_towards_shield = (target - source).dot (sample.normal)
+        if starting_amount + amount_towards_shield <= 0:
+          return target
+        return source + (target - source)*(-starting_amount)/amount_towards_shield
 
       wall_inwards = min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
       lower_side_extra_lip_hoops.append (polygon ([
-        inner_base_point + leeway,
+        limited_project_towards (inner_base_point + leeway, print_surface_base_point+ intake_edge_offsets [3]),
         inner_base_point,
         inner_base_point + down,
         lip_base_point + down,
         lip_base_point,
-        lip_base_point + leeway,
+        limited_project_towards (lip_base_point + leeway, print_surface_base_point+ intake_edge_offsets [2]),
       ]).to_wire())
       
       if air_thickness < 0.001:
@@ -1265,7 +1276,7 @@ def make_full_face_mask():
   ########################################################################
   
   # add significant leeway to accommodate larger necks, reduce the chance of yanking it off the rim
-  neck_y = shield_back - 20
+  neck_y = shield_back - 20 #5
   neck_points = [
     vector(75, neck_y, 20),
     vector(75, neck_y, 0),
@@ -1277,6 +1288,7 @@ def make_full_face_mask():
     vector(38, neck_y, -120),
     vector(8, neck_y, -140),
   ]
+  #neck_points = [vector(a[0], a[1] + a[2]*0.2, a[2]) for a in neck_points] 
   neck_points = neck_points + [vector(-a[0], a[1], a[2]) for a in reversed(neck_points)]
   
   degree = 3
