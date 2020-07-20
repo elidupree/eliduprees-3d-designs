@@ -595,8 +595,8 @@ def make_full_face_mask():
     augment_lower_curve_sample(sample)
     lower_side_rim_hoops.append(polygon([
       sample.position,
-      sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
-      sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
       sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
       sample.lip_tip,
       sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
@@ -746,6 +746,7 @@ def make_full_face_mask():
   
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
+  intake_edges = ([], [], [], [])
   for sample in curve_samples(shield_lower_side_curve, 200, shield_lower_side_curve.length()-3, 0):
     augment_lower_curve_sample(sample)
     offset = sample.curve_distance - intake_middle.curve_distance
@@ -778,6 +779,22 @@ def make_full_face_mask():
         + y*sample.curve_tangent
       )
       
+    print_surface_base_point = sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
+    elastic_end_base_point = sample.lip_tip - elastic_holder_depth*sample.curve_in_surface_normal_unit_height_from_plane
+    
+    if air_thickness > edge_distances[1][0] + 1.5 - edge_distances[2][1]:
+      for index in [1,2]:
+        intake_edges [index].append ((
+          print_surface_base_point + intake_edge_offsets [index],
+          elastic_end_base_point + intake_edge_offsets [index],
+        ))
+    if air_thickness > edge_distances[0][0] + 1 - edge_distances[3][1]:
+      for index in [0,3]:
+        intake_edges [index].append ((
+          print_surface_base_point + intake_edge_offsets [index],
+          elastic_end_base_point + intake_edge_offsets [index],
+        ))
+      
     if sample.position[0] > 0:
       lower_side_cloth_lip.append (sample.lip_tip)
     else:
@@ -788,7 +805,7 @@ def make_full_face_mask():
       )
       lip_base_point = sample.lip_tip + intake_edge_offsets[4]
       inner_base_point = sample.lip_tip + intake_edge_offsets[5]
-      print_surface_base_point = sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane
+      
       down = -new_lip_distance*sample.curve_in_surface_normal
       leeway = 0.5*min_wall_thickness*sample.curve_in_surface_normal
       
@@ -818,7 +835,10 @@ def make_full_face_mask():
       elif air_thickness >= outer_edge_from_air+intake_flat_air_thickness_base*0.5:
         lower_side_cloth_lip.append (sample.lip_tip + intake_edge_offsets[3] + down)
         
-      
+  intake_inner_pairs = intake_edges [1] + intake_edges[2][::-1]
+  intake_outer_pairs = intake_edges [0] + intake_edges[3][::-1]
+  
+  
         
   '''
   for sample in curve_samples(shield_lower_side_curve, 20, intake_middle.curve_distance + intake_flat_width/2, intake_middle.curve_distance - intake_flat_width/2):
@@ -840,25 +860,20 @@ def make_full_face_mask():
   chin_cloth_lip = Part.BSplineCurve()
   chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [vector(-a[0], a[1], a[2]) for a in upper_side_cloth_lip]
   chin_cloth_lip.interpolate(chin_cloth_lip_points)
-  show_transformed(chin_cloth_lip.toShape(), "chin_cloth_lip", invisible = False)
-  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in chin_cloth_lip_points]), "chin_cloth_lip_points", invisible = False)
+  show_transformed(chin_cloth_lip.toShape(), "chin_cloth_lip", invisible = True)
+  show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in chin_cloth_lip_points]), "chin_cloth_lip_points", invisible = True)
   
-  lower_side_extra_lip = Part.makeLoft(lower_side_extra_lip_hoops, True)
-  show_transformed(lower_side_extra_lip, "lower_side_extra_lip", invisible = False)
-  
-  """
+  lower_side_extra_lip = Part.makeLoft(lower_side_extra_lip_hoops, True, True, False, 1)
+  show_transformed(lower_side_extra_lip, "lower_side_extra_lip")
   
   class IntakeSurface:
-    def __init__(self, outside):
-      self.outside = outside
-      self.expansion = min_wall_thickness if outside else 0
+    def __init__(self, pairs, expansion):
+      self.pairs = pairs
+      self.expansion = expansion
       self.degree = 3
-      self.num_points = intake_flat_subdivisions*2
-      if outside:
-        self.num_points += (self.degree - 1)*2
+      self.num_points = len(self.pairs)
       
-      flat_hoops_length = shield_glue_face_width + min_wall_thickness + elastic_holder_depth
-      self.hoops = [self.flat_hoop (shield_glue_face_width-flat_hoops_length*index/4) for index in range (5)] + [self.CPAP_hoop (index*4) for index in range (5)]
+      self.hoops = [self.flat_hoop (frac) for frac in [0,0.8,0.9,1.0,1.1]] + [self.CPAP_hoop (index*4) for index in range (5)]
       self.ends = [
         self.wire (self.hoops[0]),
         self.wire (self.hoops[-1])
@@ -882,44 +897,19 @@ def make_full_face_mask():
       return curve.toShape().to_wire()
        
     def CPAP_hoop (self, offset):
-      center = intake_center.position - intake_forwards*45 - intake_center.normal*(min_wall_thickness + intake_flat_thickness_base/2) - intake_forwards*offset
-      direction = intake_forwards.cross (intake_center.normal).normalized()
+      center = intake_middle.position - intake_forwards*45 - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2) - intake_forwards*offset
+      direction = intake_forwards.cross (intake_middle.normal).normalized()
       other_direction = direction.cross (intake_forwards)
       def CPAP_point (index):
-        angle = index/self.num_points*math.tau
+        angle = index/self.num_points*math.tau - 0.2*math.tau
         return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
       return [CPAP_point (index) for index in range (self.num_points)]
 
-    def flat_hoop(self, forwards_offset):
-      rim_edge = self.flat_edge (forwards_offset, True)
-      other_edge = self.flat_edge (forwards_offset, False)
-      return rim_edge [len(rim_edge)//2:] + other_edge + rim_edge [:len(rim_edge)//2]
-    def flat_edge(self, forwards_offset, rim_side):
-      edge = []
-      height = intake_flat_width + 2*self.expansion
-      if self.outside and rim_side:
-        height += 8
-      for index in range (intake_flat_subdivisions):
-        fraction = index/(intake_flat_subdivisions -1)
-        offset = (fraction - 0.5)*height# - forwards_offset*intake_skew_factor
-      
-        sample = CurveSample(shield_lower_side_curve, distance = intake_center.curve_distance + offset)
+    def flat_hoop(self, frac):
+      return [a*(1-frac) + b*frac for a,b in self.pairs]
 
-        if rim_side:
-          normal_distance = min_wall_thickness - self.expansion
-        else:
-          thickness = intake_flat_thickness_base*0.5*(1+math.sin(fraction*math.tau/2))
-          normal_distance = min_wall_thickness + thickness + self.expansion
-      
-        edge.append (sample.position + sample.curve_in_surface_normal_unit_height_from_plane*forwards_offset - sample.normal_in_plane_unit_height_from_shield*normal_distance)
-      if rim_side:
-        edge.reverse()
-        if self.outside:
-          edge = [edge [0]]*(self.degree - 1) + edge + [edge [-1]]*(self.degree - 1)
-      return edge
-  
-  intake_interior = IntakeSurface (False)
-  intake_exterior = IntakeSurface (True)
+  intake_interior = IntakeSurface (intake_inner_pairs, 0)
+  intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
   def intake_cover(index):
     return intake_exterior.ends[index].to_face().cut(intake_interior.ends[index].to_face())
   intake_CPAP_cover = intake_cover (-1)
@@ -944,8 +934,8 @@ def make_full_face_mask():
   ]))
   print (intake_solid)'''
   
-  show_transformed (intake_solid, "intake_solid")"""
-  intake_solid = Part.Shape()
+  show_transformed (intake_solid, "intake_solid")
+  #intake_solid = Part.Shape()
 
   ########################################################################
   ########  SVG bureaucracy  #######
@@ -1349,7 +1339,7 @@ def make_full_face_mask():
   upper_side = Part.Compound ([upper_side_rim, upper_side_rim_lower_block, upper_side_rim_upper_block, side_hook])
   show_transformed (upper_side, "upper_side", invisible=pieces_invisible)
   
-  lower_side = Part.Compound ([lower_side_rim, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
+  lower_side = Part.Compound ([lower_side_rim, lower_side_extra_lip, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
   show_transformed (lower_side, "lower_side", invisible=pieces_invisible)
   
   
