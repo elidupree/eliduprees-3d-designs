@@ -467,7 +467,12 @@ def make_full_face_mask():
   
   headband_top = shield_glue_face_width + min_wall_thickness
   
-  headband_elastic_link = elastic_link.translated(vector(-25 - (elastic_link_radius + headband_thickness/2), forehead_point[1]-192, 0)).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
+  headband_elastic_link_parameter = forehead_curve.parameter(vector(60, forehead_point[1]-170))
+  
+  headband_elastic_link = elastic_link.translated(
+    forehead_curve.value(headband_elastic_link_parameter)
+    - forehead_curve.normal(headband_elastic_link_parameter) * (headband_thickness + elastic_link_radius * 0.5)
+  ).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
   headband = headband.fuse([
     headband_elastic_link,
     headband_elastic_link.mirror(vector(), vector(1,0,0)),
