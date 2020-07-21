@@ -153,6 +153,7 @@ def make_full_face_mask():
   headband_thickness = min_wall_thickness
   headband_width = 12
   headband_cut_radius = 25
+  cloth_with_elastic_space = 3
   forehead_point = vector (0, -58)
   headphones_front = forehead_point[1] - 75
   #side_plate_width = max(min_wall_thickness + shield_glue_face_width, elastic_holder_depth)
@@ -521,7 +522,8 @@ def make_full_face_mask():
   temple_block_top = []
   temple_block_bottom = []
   temple_block_start_distance = forehead_curve.length (0, forehead_curve.parameter (temple))-1
-  for distance in range (16):
+  temple_block_length = 15
+  for distance in range (temple_block_length + 1):
     temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
     sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance*1.1)
     
@@ -533,16 +535,68 @@ def make_full_face_mask():
     polygon(temple_block_bottom + [vector(a[0], a[1], temple_block_bottom[0][2]) for a in reversed(temple_block_inside)]), 
   ]
   temple_block = Part.makeLoft(temple_block_hoops, True)
-  '''temple_side_peg_flat = polygon([
-    (temple_block_bottom[2] + temple_block_inside[2])/2,
-    (temple_block_bottom[6]*4 + temple_block_inside[6])/5,
-    (temple_block_bottom[6] + temple_block_inside[6]*4)/5,
-  ])
-  temple_side_peg = temple_side_peg_flat.to_face().fancy_extrude(vector(0,0,1), bounds(-5, shield_glue_face_width+min_wall_thickness))
-  temple_block = temple_block.cut (temple_side_peg_flat.makeOffset2D (contact_leeway, join=2).to_face().fancy_extrude(vector(0,0,1), centered (500)))
   
-  show_transformed (temple_block, "temple_block")
-  show_transformed (temple_side_peg, "temple_side_peg")'''
+  forehead_hook_thickness = 3
+  forehead_hook_distance = temple_block_start_distance - temple_block_length - cloth_with_elastic_space - forehead_hook_thickness/2
+  forehead_hook_parameter = forehead_curve.parameterAtDistance(forehead_hook_distance)
+  forehead_hook_base = forehead_curve.value(forehead_hook_parameter)
+  forehead_hook_normal = forehead_curve.normal(forehead_hook_parameter)
+  forehead_hook_tangent = vector(forehead_curve.tangent(forehead_hook_parameter)[0])
+  forehead_hook = Part.Compound([
+    box(
+      bounds(0, cloth_with_elastic_space + forehead_hook_thickness/2),
+      centered(forehead_hook_thickness),
+      bounds(headband_width - forehead_hook_thickness, headband_width),
+    ),
+    Part.makeCylinder(
+      forehead_hook_thickness/2,
+      headband_width,
+      vector(cloth_with_elastic_space + forehead_hook_thickness/2, 0, 0),
+      vector(0,0,1),
+    )
+  ])
+  matrix = matrix_from_columns(-forehead_hook_normal, forehead_hook_tangent, vector(0,0,1), forehead_hook_base + vector(0,0,headband_top - headband_width))
+  forehead_hook = forehead_hook.transformGeometry (matrix)
+  
+  show_transformed (forehead_hook, "forehead_hook")
+  
+  forehead_hook_distance_range = forehead_curve.length(0, forehead_curve.parameter(vector(-forehead_hook_base[0], forehead_hook_base[1], forehead_hook_base[2]))) - forehead_hook_distance
+  num_forehead_elastic_guides = 16
+  forehead_elastic_guides = []
+  forehead_elastic_guide_length = 3.5
+  for index in range(num_forehead_elastic_guides):
+    frac = (index + 1) / (num_forehead_elastic_guides + 1)
+    distance = forehead_hook_distance + forehead_hook_distance_range*frac
+    parameter = forehead_curve.parameterAtDistance(distance)
+    base = forehead_curve.value(parameter)
+    normal = forehead_curve.normal(parameter)
+    tangent = vector(forehead_curve.tangent(parameter)[0])
+    shape = FreeCAD_shape_builder().build([
+      start_at(0,0),
+      horizontal_to(forehead_elastic_guide_length),
+      vertical_to(min_wall_thickness),
+      diagonal_to(min_wall_thickness, forehead_elastic_guide_length),
+      horizontal_to(0),
+      close()
+    ]).to_wire().to_face().fancy_extrude(vector(0,0,1), centered(stiffer_wall_thickness))
+    forehead_elastic_guides.append(
+      shape.transformGeometry (matrix_from_columns(
+        -normal,
+        vector(0,0,1),
+        tangent,
+        base + vector(0,0,headband_top - headband_width)
+      ))
+    )
+    forehead_elastic_guides.append(
+      shape.transformGeometry (matrix_from_columns(
+        -normal,
+        vector(0,0,-1),
+        tangent,
+        base + vector(0,0,headband_top)
+      ))
+    )
+  forehead_elastic_guides = Part.Compound(forehead_elastic_guides)
+  show_transformed (forehead_elastic_guides, "forehead_elastic_guides")
 
   ########################################################################
   ########  Side rim and stuff #######
@@ -729,6 +783,7 @@ def make_full_face_mask():
   
   show_transformed (top_hook, "top_hook")
   show_transformed (side_hook, "side_hook")
+  
     
 
   ########################################################################
@@ -738,7 +793,6 @@ def make_full_face_mask():
   intake_flat_air_thickness_base = 9
   intake_flat_width = 62
   intake_flat_subdivisions = 10
-  cloth_with_elastic_space = 3
   intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
   
   
@@ -1347,7 +1401,7 @@ def make_full_face_mask():
   def reflected (component):
     return [component, component.mirror (vector(), vector (1, 0, 0))]
   
-  whole_headband = Part.Compound ([headband] + reflected (temple_block))
+  whole_headband = Part.Compound ([headband, forehead_elastic_guides] + reflected (temple_block) + reflected (forehead_hook))
   show_transformed (whole_headband, "whole_headband", invisible=pieces_invisible)
   
   whole_top_rim = Part.Compound ([top_rim] + reflected (top_pegs[0]) + reflected (top_pegs[1]) + reflected (top_hook))
