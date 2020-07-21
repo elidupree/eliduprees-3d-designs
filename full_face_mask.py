@@ -460,7 +460,24 @@ def make_full_face_mask():
   show_transformed (headband_interior_2D , "headband_interior_2D", invisible=True)
   headband_2D = forehead_curve.toShape().makeOffset2D (headband_thickness, fill = True).cut(headband_cut_box)
   
-  headband = headband_2D.extrude (vector (0, 0, headband_width))
+  headband = headband_2D.fancy_extrude (vector (0, 0, 1), bounds(-500, headband_width))
+  
+  headband_side_profile = FreeCAD_shape_builder().build ([
+    start_at(500, 0),
+    horizontal_to(headphones_front + 20),
+    bezier([
+      (headphones_front + 15, 0),
+      (headphones_front + 10, -3),
+      (headphones_front + 5, -6),
+      (headphones_front, -6),
+    ]),
+    horizontal_to(-500),
+    vertical_to(headband_width),
+    horizontal_to(500),
+    close(),
+  ]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered(500))
+  show_transformed (headband_side_profile, "headband_side_profile", invisible=True)
+  headband = headband.common(headband_side_profile)
   
   # using a weird shaped way to attach the elastic for now, just for FDM convenience
   elastic_link_radius = 3
