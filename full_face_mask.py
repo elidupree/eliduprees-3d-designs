@@ -1246,10 +1246,23 @@ def make_full_face_mask():
             Part.show(Part.Compound([Part.LineSegment(piece.head_output, piece.rim_output).toShape(), Part.LineSegment(piece.head_source, piece.rim_source).toShape()]))
           
   # TODO: more correct
-  top_outer_rim_curve = shield_top_curve
-  forehead_top_curve = forehead_curve.translated(vector(0,0,top_outer_rim_curve.StartPoint[2] - forehead_curve.StartPoint[2]))
+  def top_outer_rim_sample(sample):
+    return (
+      sample.position
+        + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
+        + min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_plane,
+      # hack?
+      # curvature is the reciprocal of radius,
+      # and I think it works out that expanding the curve is basically just expanding the radius by that amount,
+      # so we can convert the curvature like so:
+      1/((1/sample.curve.curvature(sample.curve_parameter))
+        + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield.Length)
+    )
+        
+  
+  forehead_top_curve = forehead_curve.translated(vector(0,0,headband_top - forehead_curve.StartPoint[2]))
   forehead_cloth = RimHeadCloth(
-    ((sample.position, sample.curve.curvature(sample.curve_parameter)) for sample in curve_samples (top_outer_rim_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance)),
+    (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance)),
     forehead_top_curve,
     min_curvature = 1/120
   )
@@ -1295,8 +1308,7 @@ def make_full_face_mask():
   )
   show_transformed(neck_curve.toShape(), "neck_curve", invisible = True)
   
-  # TODO: more correct
-  side_outer_rim_curve = shield_side_curve
+
   chin_cloth_lip_subdivisions = 500
   chin_cloth_lip_length = chin_cloth_lip.length()
   chin_cloth = RimHeadCloth(
