@@ -163,9 +163,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     strong_filter_holder_plate.mirror (vector(), vector (0, 0, 1)). translated (vector (0, 0, strong_filter_bottom_z - wall_expansion)),
   ]
 
+  strong_filter_push_hole_width = 15
   strong_filter_push_hole = box (
     centered (500),
-    15,
+    strong_filter_push_hole_width,
     bounds (strong_filter_bottom_z - wall_expansion, strong_filter_seal_top_z + wall_expansion),
   )
 
@@ -234,15 +235,17 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
   
   foo = strong_filter_rim_inset/2 + max_zigzag_wall_thickness/2 - wall_expansion
+  strong_filter_airspace_right_x = strong_filter_right_x - foo
+  strong_filter_airspace_left_x = strong_filter_left_x + foo
   right_wall_profile = AirspaceProfile (
     beyond_left_x,
     beyond_front_y,
-    strong_filter_right_x - foo,
+    strong_filter_airspace_right_x,
     beyond_back_y,
   )
   
   strong_filter_airspace_left_wall_profile = AirspaceProfile (
-    strong_filter_left_x + foo,
+    strong_filter_airspace_left_x,
     beyond_front_y,
     beyond_right_x,
     beyond_back_y,
@@ -263,11 +266,19 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
   
   bar = airspace + wall_expansion
+  strong_filter_airspace_bottom_z = strong_filter_bottom_z - bar
   strong_filter_airspace_front_profile = AirspaceProfile (
     beyond_left_x,
-    strong_filter_bottom_z - bar,
+    strong_filter_airspace_bottom_z,
     beyond_right_x,
     strong_filter_seal_bottom_z + bar,
+    dimension = 1,
+  )
+  strong_filter_airspace_bottom_only = AirspaceProfile (
+    beyond_left_x,
+    strong_filter_airspace_bottom_z,
+    beyond_right_x,
+    beyond_top_z,
     dimension = 1,
   )
   
@@ -484,6 +495,12 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     (strong_filter_back_y if rotate_y_direction == 1 else strong_filter_front_y) + foo*rotate_y_direction,
     strong_filter_bottom_z - strong_filter_holder_plate_design_height - foo
   )
+  bottom_corner_2 = vector(
+    strong_filter_airspace_right_x + foo,
+    bottom_corner[1] - (max_zigzag_wall_thickness-wall_observed_thickness)*rotate_y_direction,
+    strong_filter_airspace_bottom_z - foo,
+  )
+  rotated_down_direction = vector(1,1*rotate_y_direction,-1).normalized()
   def rotated_to_diagonal (foo):
     return foo.rotated(vector(), vector(1, -1*rotate_y_direction, 0), rotate_to_diagonal_angle*rotate_y_direction)
   def rotated_from_diagonal (foo):
@@ -498,18 +515,92 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]).as_xz().to_wire().to_face().revolve (vector(), vector (0, 0, 1), 360)
   CPAP_airspace = CPAP_transformed (CPAP_airspace)
   
-  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_design_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut(box(centered(500), centered(500), bounds(-500, 0)))
+  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_design_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut([CPAP_airspace, box(centered(500), centered(500), bounds(-500, 0))])
   CPAP_solid = CPAP_transformed (CPAP_solid)
   
+  artifical_support_cuts = [strong_filter_airspace.inner_shape, box(
+    centered(500),
+    bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
+    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, 500)
+  )]
+  removable_support_cuts = [box(
+    bounds (strong_filter_left_x - wall_expansion, strong_filter_right_x + wall_expansion),
+    bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
+    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, strong_filter_seal_top_z + wall_expansion)
+  ), fan_intake_airspace_top_profile.inner_shape.common( strong_filter_airspace_bottom_only.inner_shape)]
   artifical_support = rotated_to_diagonal (box (
     bounds (-8, 3),
     bounds (-8, 3) if rotate_y_direction == 1 else bounds(-3, 8),
     bounds (0, 20),
-  )).translated (bottom_corner).cut([strong_filter_airspace.inner_shape, box(
-    centered(500),
-    bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
-    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, 500)
-  )])
+  )).translated (bottom_corner).cut(artifical_support_cuts)
+  
+  '''artifical_support_2_points = []
+  num = 100
+  for index in range(16, num-10):
+    frac = index/(num-1)
+    angle = frac * -2.8*math.tau + math.tau*0.25
+    length = 35 * frac
+    artifical_support_2_points.append(vector(angle=angle, length=length))
+  
+  artifical_support_2_curve = Part.BSplineCurve()
+  artifical_support_2_curve.interpolate(artifical_support_2_points)
+  artifical_support_2_curve = Part.makePolygon(artifical_support_2_points)
+  artifical_support_2 = artifical_support_2_curve.to_wire().makeOffset2D(wall_design_thickness/2, fill=True).extrude(vector(0,0,60))
+    
+  artifical_support_2 = rotated_to_diagonal (artifical_support_2).translated (bottom_corner).cut(removable_support_cuts)'''
+  
+  foo = wall_expansion + wall_design_thickness/2
+  foo_push_hole_right = strong_filter_right_x + wall_expansion - wall_design_thickness/2
+  extra_support_lines = [
+    [
+      vector (
+        foo_push_hole_right,
+        strong_filter_front_y + strong_filter_push_hole_width + foo,
+        strong_filter_bottom_z - foo,
+      ),
+      vector (
+        foo_push_hole_right,
+        strong_filter_front_y + strong_filter_push_hole_width + foo,
+        strong_filter_seal_top_z + foo,
+      ),
+      vector (
+        foo_push_hole_right,
+        strong_filter_front_y - foo,
+        strong_filter_seal_top_z + foo,
+      ),
+      vector (
+        foo_push_hole_right,
+        strong_filter_front_y - foo,
+        strong_filter_bottom_z - foo,
+      ),
+    ],
+    [bottom_corner_2 + vector (0, 40, 0), bottom_corner_2, bottom_corner_2 + vector (-60, 0, 0)],
+  ]
+  
+  #rotated_x = vector((3 + math.sqrt (3))/6, -(3 - math.sqrt (3))/6*rotate_y_direction, 1/math.sqrt (3)*rotate_y_direction)
+  #print(rotated_x)
+  rotated_x = rotated_to_diagonal(Part.Point(vector(1,0,0)).toShape()).Point
+  rotated_y = rotated_to_diagonal(Part.Point(vector(0,1,0)).toShape()).Point
+  #rotated_y = vector(-(3 - math.sqrt (3))/6*rotate_y_direction, (3 + math.sqrt (3))/6, 1/math.sqrt (3))
+  #print(rotated_y.cross(rotated_x).Length)
+  
+  artifical_support_2 = Part.Compound ([
+    rotated_to_diagonal (Part.makePolygon ([
+      vector(
+        (a-bottom_corner).dot(rotated_x),
+        (a-bottom_corner).dot(rotated_y),
+        0
+      )
+      for a in line
+    ]).to_wire()
+      .makeOffset2D(wall_design_thickness/2, fill=True)
+      .extrude(vector(0,0,60))).translated (bottom_corner)
+      .cut(removable_support_cuts)
+    for line in extra_support_lines #for pair in zip(line[:-1], line[1:])
+  ])
+  
+  
+
   
   fan_insert_box = box (
     bounds (fan_left_x - wall_expansion, fan_right_x + wall_expansion),
@@ -525,6 +616,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     fan_airspace_wall.cut(fan_insert_box),
     CPAP_solid,
     artifical_support,
+    artifical_support_2,
     fan_intake_airspace_side_walls,
     fan_intake_airspace_top_wall,
     fan_intake_airspace_rim,
