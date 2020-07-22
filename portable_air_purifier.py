@@ -518,10 +518,11 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   )
 
   
-  air_purifier = strong_filter_sides.fuse(strong_filter_holder_plates + [
-    strong_filter_airspace_wall,
-    fan_exit_airspace_with_wall,
-    fan_airspace_wall,
+  air_purifier = Part.Compound(strong_filter_holder_plates + [
+    strong_filter_sides,
+    strong_filter_airspace_wall.cut([CPAP_airspace, fan_exit_airspace]),
+    fan_exit_airspace_with_wall.cut(fan_exit_airspace),
+    fan_airspace_wall.cut(fan_insert_box),
     CPAP_solid,
     artifical_support,
     fan_intake_airspace_side_walls,
@@ -531,11 +532,12 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     fan_restraining_wall,
     #battery_space_wall,
     fan_cord_socket_slit_wall,
-  ]).cut ([
+  ])
+  '''.cut ([
     fan_exit_airspace,
     CPAP_airspace,
     fan_insert_box,
-  ])
+  ])'''
   
   displayed_objects ["air_purifier"] = air_purifier
   '''displayed_objects ["grip_test"] = air_purifier.common(box(
