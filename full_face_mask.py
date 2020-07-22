@@ -279,7 +279,7 @@ def make_full_face_mask():
       
   side_curve_source_points = [
     (shield_back, shield_glue_face_width),
-    (shield_back, -100),
+    (shield_back, -64),
     (-80, -156)
   ]
   side_curve_source_surface = Part.BSplineSurface()
@@ -622,7 +622,7 @@ def make_full_face_mask():
   
   side_plate_bottom_z = -82
   
-  lower_rim_cut = box(centered(500), bounds(-500, shield_back + shield_glue_face_width + contact_leeway), bounds(-100-contact_leeway, 500))
+  lower_rim_cut = box(centered(500), bounds(-500, shield_back + shield_glue_face_width + contact_leeway), bounds(side_curve_source_points[1][1]-contact_leeway, 500))
   upper_rim_cut = box(centered(500), centered(500), bounds(0-contact_leeway, 500))
   show_transformed (lower_rim_cut, "lower_rim_cut", invisible=True)
   
@@ -692,9 +692,9 @@ def make_full_face_mask():
   show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
   
   side_joint_peg_flat = polygon([
-    vector(-2, shield_glue_face_width, 0),
+    vector(-1, shield_glue_face_width, 0),
     vector(-4, shield_glue_face_width, 0),
-    vector(-5, shield_glue_face_width-3, 0),
+    vector(-3, shield_glue_face_width-3, 0),
     vector(-1, shield_glue_face_width-3, 0),
   ])
   
@@ -703,15 +703,15 @@ def make_full_face_mask():
   matrix = matrix_from_columns(sample.normal_in_plane_unit_height_from_shield, sample.curve_in_surface_normal_unit_height_from_plane, -sample.curve_tangent, sample.position)
   side_joint_peg = side_joint_peg.transformGeometry(matrix)
   side_joint_peg_hole = side_joint_peg.makeOffsetShape(contact_leeway, 0.01)
-  side_joint_peg_neighborhood = side_joint_peg.makeOffsetShape(contact_leeway + stiffer_wall_thickness, 0.01)
+  side_joint_peg_neighborhood = side_joint_peg.makeOffsetShape(contact_leeway + min_wall_thickness, 0.01)
   show_transformed (side_joint_peg, "side_joint_peg")
   show_transformed (side_joint_peg_hole, "side_joint_peg_hole", invisible=True)
   
   lower_rim_block = Part.makeLoft ([
     polygon([
       vector(0, shield_glue_face_width, 0),
-      vector(-3.2, shield_glue_face_width, 0),
-      vector(-4.4, shield_glue_face_width-3, 0),
+      vector(-3.7, shield_glue_face_width, 0),
+      vector(-2.9, shield_glue_face_width-3, 0),
       vector(0, shield_glue_face_width-3, 0),
     ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane_unit_height_from_shield, sample.curve_in_surface_normal_unit_height_from_plane, -sample.curve_tangent, sample.position))
 
@@ -807,15 +807,19 @@ def make_full_face_mask():
   ########  Intake  #######
   ########################################################################
   
-  intake_flat_air_thickness_base = 9
-  intake_flat_width = 62
+  intake_flat_air_thickness_base = 12
+  intake_flat_width = 78
   intake_flat_subdivisions = 10
   intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
   
   
-  intake_middle = CurveSample(shield_lower_side_curve, z=-127, which=0)
-  intake_skew_factor = 0.8
-  intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
+  intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=0)
+  augment_lower_curve_sample(intake_middle)
+  #intake_skew_factor = 0.8
+  #intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
+  CPAP_back_center = vector(-85, headphones_front - 40, -110)
+  intake_flat_back_center_approx = intake_middle.lip_tip - (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
+  CPAP_forwards = (intake_flat_back_center_approx - CPAP_back_center).normalized() #vector(0.2, 1, -0.1).normalized()
   
   lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
   augment_lower_curve_sample(lower_side_center_sample)
@@ -874,9 +878,10 @@ def make_full_face_mask():
     if sample.position[0] > 0:
       lower_side_cloth_lip.append (sample.lip_tip)
     else:
+      lower_side_center_max = (sample.lip_tip[2] - lower_side_center_sample.lip_tip[2])/sample.curve_in_surface_normal[2]
       new_lip_distance = min(
         elastic_holder_depth,
-        (sample.lip_tip[2] - lower_side_center_sample.lip_tip[2])/sample.curve_in_surface_normal[2],
+        lower_side_center_max*0.4,
         (sample.lip_tip[1] - headphones_front)/sample.curve_in_surface_normal[1],
       )
       lip_base_point = sample.lip_tip + intake_edge_offsets[4]
@@ -949,7 +954,7 @@ def make_full_face_mask():
       self.degree = 3
       self.num_points = len(self.pairs)
       
-      self.hoops = [self.flat_hoop (frac) for frac in [0,0.8,0.9,1.0,1.1]] + [self.CPAP_hoop (index*4) for index in range (5)]
+      self.hoops = [self.flat_hoop (frac) for frac in [0,0.7,0.8,0.9,1.5]] + [self.CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
       self.ends = [
         self.wire (self.hoops[0]),
         self.wire (self.hoops[-1])
@@ -972,10 +977,11 @@ def make_full_face_mask():
       )
       return curve.toShape().to_wire()
        
-    def CPAP_hoop (self, offset):
-      center = intake_middle.position - intake_forwards*45 - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2) - intake_forwards*offset
-      direction = intake_forwards.cross (intake_middle.normal).normalized()
-      other_direction = direction.cross (intake_forwards)
+    def CPAP_hoop (self, frac):
+      offset = (1 - frac) * 20
+      center = CPAP_back_center + CPAP_forwards*offset
+      direction = CPAP_forwards.cross (intake_middle.normal).normalized()
+      other_direction = direction.cross (CPAP_forwards)
       def CPAP_point (index):
         angle = index/self.num_points*math.tau - 0.2*math.tau
         return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
