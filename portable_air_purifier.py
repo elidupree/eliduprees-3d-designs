@@ -83,6 +83,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   
   strong_filter_front_y = 0
   strong_filter_back_y = strong_filter_front_y + strong_filter_width
+  strong_filter_center_y = (strong_filter_front_y + strong_filter_back_y)/2
   fan_back_y = strong_filter_back_y + wall_observed_thickness - max_zigzag_wall_thickness
   fan_front_y = fan_back_y - fan_length
   fan_body_front_y = fan_front_y + fan_exit_length
@@ -156,7 +157,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     ),
   ])
   
-  #strong_filter_holder_plate = strong_filter_holder_plate.mirror(vector(strong_filter_center_x, 0, 0), vector(1,0,0))
+  flip_filter_entry_direction = True
+  
+  if flip_filter_entry_direction:
+    strong_filter_holder_plate = strong_filter_holder_plate.mirror(vector(strong_filter_center_x, 0, 0), vector(1,0,0))
 
   strong_filter_holder_plates = [
     strong_filter_holder_plate.translated(vector (0, 0, strong_filter_seal_top_z + wall_expansion)),
@@ -177,7 +181,7 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     bounds (strong_filter_bottom_z - wall_expansion - strong_filter_holder_plate_design_height, strong_filter_seal_top_z + wall_expansion + strong_filter_holder_plate_design_height),
   ).cut([
   box (
-    bounds (strong_filter_left_x - 500, strong_filter_right_x + wall_expansion),
+    bounds (strong_filter_left_x - (wall_expansion if flip_filter_entry_direction else 500), strong_filter_right_x + (500 if flip_filter_entry_direction else wall_expansion)),
     bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
     centered(500),
   ),
@@ -515,8 +519,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   ]).as_xz().to_wire().to_face().revolve (vector(), vector (0, 0, 1), 360)
   CPAP_airspace = CPAP_transformed (CPAP_airspace)
   
-  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_design_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut([CPAP_airspace, box(centered(500), centered(500), bounds(-500, 0))])
-  CPAP_solid = CPAP_transformed (CPAP_solid)
+  CPAP_solid = CPAP_inner_wire.makeOffset2D(wall_design_thickness, fill=True).revolve (vector(), vector (0, 0, 1), 360).cut([box(centered(500), centered(500), bounds(-500, 0))])
+  CPAP_solid = CPAP_transformed (CPAP_solid).cut(CPAP_airspace)
+  
+  #displayed_objects ["CPAP_airspace"] = CPAP_airspace
   
   artifical_support_cuts = [strong_filter_airspace.inner_shape, box(
     centered(500),
@@ -524,9 +530,9 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, 500)
   )]
   removable_support_cuts = [box(
-    bounds (strong_filter_left_x - wall_expansion, strong_filter_right_x + wall_expansion),
+    bounds (strong_filter_left_x - wall_expansion - wall_design_thickness, strong_filter_right_x + wall_expansion + wall_design_thickness),
     bounds (strong_filter_front_y - wall_expansion, strong_filter_back_y + wall_expansion),
-    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_seal_squish_distance - tight_leeway, strong_filter_seal_top_z + wall_expansion)
+    bounds (strong_filter_bottom_z - wall_expansion - strong_filter_holder_plate_design_height, strong_filter_seal_top_z + wall_expansion + strong_filter_holder_plate_design_height)
   ), fan_intake_airspace_top_profile.inner_shape.common( strong_filter_airspace_bottom_only.inner_shape)]
   artifical_support = rotated_to_diagonal (box (
     bounds (-8, 3),
@@ -549,19 +555,14 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
     
   artifical_support_2 = rotated_to_diagonal (artifical_support_2).translated (bottom_corner).cut(removable_support_cuts)'''
   
-  foo = wall_expansion + wall_design_thickness/2
-  foo_push_hole_right = strong_filter_right_x + wall_expansion - wall_design_thickness/2
+  foo = max_zigzag_wall_thickness - wall_expansion - wall_design_thickness
+  foo_push_hole_right = strong_filter_right_x + wall_expansion + wall_design_thickness
   extra_support_lines = [
     [
       vector (
         foo_push_hole_right,
-        strong_filter_front_y + strong_filter_push_hole_width + foo,
+        strong_filter_front_y - foo,
         strong_filter_bottom_z - foo,
-      ),
-      vector (
-        foo_push_hole_right,
-        strong_filter_front_y + strong_filter_push_hole_width + foo,
-        strong_filter_seal_top_z + foo,
       ),
       vector (
         foo_push_hole_right,
@@ -570,11 +571,10 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
       ),
       vector (
         foo_push_hole_right,
-        strong_filter_front_y - foo,
-        strong_filter_bottom_z - foo,
-      ),
-    ],
-    [bottom_corner_2 + vector (0, 40, 0), bottom_corner_2, bottom_corner_2 + vector (-60, 0, 0)],
+        strong_filter_center_y + 20,
+        strong_filter_seal_top_z + foo,
+      ),    
+      bottom_corner_2 + vector (0, 60, 0), bottom_corner_2, bottom_corner_2 + vector (-60, 0, 0)],
   ]
   
   #rotated_x = vector((3 + math.sqrt (3))/6, -(3 - math.sqrt (3))/6*rotate_y_direction, 1/math.sqrt (3)*rotate_y_direction)
@@ -584,19 +584,27 @@ def make_portable_air_purifier (wall_design_thickness, wall_observed_thickness):
   #rotated_y = vector(-(3 - math.sqrt (3))/6*rotate_y_direction, (3 + math.sqrt (3))/6, 1/math.sqrt (3))
   #print(rotated_y.cross(rotated_x).Length)
   
-  artifical_support_2 = Part.Compound ([
-    rotated_to_diagonal (Part.makePolygon ([
+  def support_line(line):
+    flat_points = [
+    
       vector(
         (a-bottom_corner).dot(rotated_x),
         (a-bottom_corner).dot(rotated_y),
         0
       )
       for a in line
-    ]).to_wire()
+    ]
+    wire = FreeCAD_shape_builder(zigzag_length_limit = zigzag_length_limit, zigzag_depth = zigzag_depth).build (
+      [start_at(flat_points[0])]
+      + [diagonal_to(a) for a in flat_points[1:]]
+    ).to_wire()
+    solid = (wire
       .makeOffset2D(wall_design_thickness/2, fill=True)
-      .extrude(vector(0,0,60))).translated (bottom_corner)
-      .cut(removable_support_cuts)
-    for line in extra_support_lines #for pair in zip(line[:-1], line[1:])
+      .extrude(vector(0,0,60)))
+    return rotated_to_diagonal (solid).translated (bottom_corner).cut(removable_support_cuts)
+  
+  artifical_support_2 = Part.Compound ([
+    support_line(line) for line in extra_support_lines
   ])
   
   
