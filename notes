@@ -1,0 +1,9 @@
+Things I want that my current FreeCAD setup doesn't provide:
+
+– Auto rebuild (related: not crashing and forcing me to manually restart; not freezing when I accidentally make a slow operation; retaining the same view position across rebuilds)
+– Caching of intermediate products, perhaps saving to STEP format
+– Make some operations not so unnecessarily slow; also automatically report the amount of time taken for every operation that takes longer than, say, 10 ms
+– more consistent API (e.g. being able to rotate a vector using the same syntax as for a shape; all rotation operations should specify degrees or radians)
+– more principled way to design 3D shapes with consistent wall thickness/air passage size
+– polishing my "shape builder"
+– practical ways to select particular elements of combined shapes (e.g. "the edge that was extruded from this particular point in the flat shape", "the edges that arose from the intersection of these 2 shapes (and weren't present in either original shape)")
