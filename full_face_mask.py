@@ -89,6 +89,19 @@ Convexity imposes some interesting restrictions. We can think of it in terms of 
 
 Since we prefer not to have flat parts of the shield, it's ideal if the temple "line segment" projects to as short a segment as possible. This suggests that the focus should be BEHIND the face – moderately behind headphones_front, and therefore below the face. (Note that if the focus is too close behind headphones_front, it would project to a line segment going perpendicularly away from the face, which would need to bend too *sharply* in order to get to the front part of the face shield; putting the focus further behind headphones_front makes it diagonal enough to be fine).
 
+
+
+Additional notes after prototype #3:
+
+– It runs into my nose more now, and it runs into another tester's nose also. It seems like my model now mistakenly touches (0,-7,0) instead of (0,0,0) like the last version. And also, the physical version is another ~3mm inwards from the model at its default position. I think it's because the top rim is less pointy, and therefore more able to bend inwards at the nose. I should probably just reduce shield_focal_slope to make the forehead stick out more for the same chin position
+– The back parts of the headband still flex rather easily, and I still need a more convenient way to clip it together at the back.
+– The clips that were supposed to hold the forehead cloth to the headband broke off
+– The chin cloth pulls over the shield a bit more than it should on the non-intake side (but is fine on the intake side)
+– a small amount of air leaks out at the temple (a small amount of torque from the intake hose bends the frame away from the face, causing the headband to form a triangle of airspace that can't be closed by the elastic-cloth-edge; the CPAP grabber can fix this, but it's preferable to make it impossible to leak by accident).
+– We still need a way to make the headband more comfortable (I glued some foam on, but it's not the perfect foam for the job and also it's not very washable)
+– This version has WAY less reflections because the shield surface normals mostly point towards the face instead of places where there can be bright light
+
+
 '''
 
 
