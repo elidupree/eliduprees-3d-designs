@@ -510,18 +510,27 @@ def make_full_face_mask():
   ]).translated(vector(0,0,headband_top - headband_width))
   show_transformed (headband, "headband")
   
-  CPAP_grabber = (
-    Part.Circle(vector(), vector(0,0,1), CPAP_hose_helix_outer_radius + min_wall_thickness).toShape().to_wire().to_face()
-    .cut(Part.Circle(vector(), vector(0,0,1), CPAP_hose_helix_outer_radius).toShape().to_wire().to_face())
-    .cut(FreeCAD_shape_builder().build ([
+  
+  CPAP_grabber_length = 16
+  CPAP_grabber_shape = FreeCAD_shape_builder(zigzag_length_limit = 3, zigzag_depth = -1).build ([
+        start_at(CPAP_hose_helix_outer_radius + min_wall_thickness/2, 0),
+        vertical_to(CPAP_grabber_length),
+    ]).as_xz().to_wire().makeOffset2D(min_wall_thickness/2, fill=True).common(box(centered(500), centered(500), bounds(0, CPAP_grabber_length)))
+  
+  CPAP_grabber_shape = CPAP_grabber_shape.revolve(vector(), vector(0,0,1), 360)
+  CPAP_grabber_shape = CPAP_grabber_shape.cut(
+    FreeCAD_shape_builder().build ([
         start_at(0, 0),
         diagonal_to(-50, -100),
         horizontal_to(50),
         close()
-      ]).to_wire().to_face())
-    .fuse(elastic_link.translated(vector(CPAP_hose_helix_outer_radius + min_wall_thickness + elastic_link_radius, 0, 0)))
-    .extrude(vector (0, 0, headband_width))
+      ]).to_wire().to_face().extrude(vector (0, 0, CPAP_grabber_length))
   )
+  
+  CPAP_grabber = Part.Compound([
+    CPAP_grabber_shape,
+    elastic_link.translated(vector(CPAP_hose_helix_outer_radius + min_wall_thickness + elastic_link_radius, 0, 0)).extrude(vector (0, 0, CPAP_grabber_length))
+  ])
   show_transformed (CPAP_grabber, "CPAP_grabber")
   
   
