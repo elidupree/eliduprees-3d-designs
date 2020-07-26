@@ -9,6 +9,8 @@ import os.path
 import json
 from OCCT.BOPAlgo import BOPAlgo_Options
 import OCCT.Exchange
+import OCCT.TopoDS
+import OCCT.gp
 
 BOPAlgo_Options.SetParallelMode_(True)
 
@@ -23,6 +25,11 @@ def _watch_time(name, func):
   return result
 
 
+def _unwrap(value):
+  if type (value) is Wrapper:
+    return value.inner
+  else:
+    return value
 
 class Wrapper:
   def __init__(self, inner, supername = None):
@@ -31,15 +38,24 @@ class Wrapper:
     if supername is not None:
       self.name = supername + self.name
   def __call__(self, *args, **kwargs):
-    return watch_time(self.name, lambda: self.inner(*args, **kwargs))
+    return _watch_time(self.name, lambda: self.inner(
+      *(_unwrap (value) for value in args),
+      **{key: _unwrap (value) for key, value in kwargs.items()}
+    ))
   def __getattr__(self, name):
-    inner_attribute = getattr(self.inner)
+    inner_attribute = getattr(self.inner, name)
     if type(inner_attribute) is not Wrapper:
       return Wrapper(inner_attribute, self.name)
     return inner_attribute
 
 
 _ExchangeBasic = Wrapper(OCCT.Exchange.ExchangeBasic)
+_GP = Wrapper (OCCT.gp)
+def vector(*arguments):
+  if len (arguments) == 3:
+    return _GP.gp_Vec (*(float (value) for value in arguments))
+  if len (arguments) == 0:
+    return _GP.gp_Vec ()
 
 _cache_globals = None
 _cache_directory = None
@@ -136,7 +152,9 @@ def _save_cache (key, kind, value, info):
       os.fsync(file.fileno())
   elif kind == "BREP":
     value_path = path + ".brep"
-    ExchangeBasic.write_brep(value, temp_path)
+    if type (_unwrap (value)) != OCCT.TopoDS.TopoDS_Shape:
+      raise RuntimeError(f"BREP caching requires a TopoDS_Shape object, but got `{value}`")
+    _ExchangeBasic.write_brep(value, temp_path)
   else:
     raise RuntimeError(f"{ext} filetype not currently supported by pyocct_system.cached")
     

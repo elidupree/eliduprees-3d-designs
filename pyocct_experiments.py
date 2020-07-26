@@ -31,6 +31,7 @@ transitive_dependency = 6
 print(repr(str(dis.Bytecode(pprint.pprint).dis())))
 print (type (globals()))
 
+import pyocct_system
 from pyocct_system import *
 print (sys.argv)
 initialize_system (globals(), sys.argv[1])
@@ -44,3 +45,8 @@ def test():
   dependency_function()
   return g
 print (test)
+
+import OCCT.BRepBuilderAPI
+@cached("BREP")
+def test2():
+  return Wrapper (OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex( pyocct_system._GP.gp_Pnt(0, 0, 0)).Shape()
