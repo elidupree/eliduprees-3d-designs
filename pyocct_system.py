@@ -100,22 +100,16 @@ def _setup():
       return value.wrapped_object
     else:
       return value
-      
-  def vec_str(self):
-    return f"Vec({self.X()}, {self.Y()}, {self.Z()})"
-  def vec_index(self, index):
-    if index == 0:
-      return self.X()
-    if index == 1:
-      return self.Y()
-    if index == 2:
-      return self.Z()
-    raise IndexError("vector can only be indexed with 0-2")
     
   #attribute_overrides [(OCCT.Exchange.ExchangeBasic, "read_brep")] = lambda original: None
   attribute_overrides [(OCCT.gp.gp_Vec, "__init__")] = lambda original: None
-  attribute_overrides [(OCCT.gp.gp_Vec, "__str__")] = lambda original: vec_str
-  attribute_overrides [(OCCT.gp.gp_Vec, "__index__")] = lambda original: vec_index
+  
+  import pyocct_api_wrappers
+  def export(name, value):
+    globals()[name] = value
+  def override_attribute(c, name, value):
+    attribute_overrides [(c, name)] = value
+  pyocct_api_wrappers.setup(wrap, export, override_attribute)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
     globals() [export] = locals() [export]
@@ -124,13 +118,6 @@ def _setup():
 _setup()
 
 _ExchangeBasic = wrap(OCCT.Exchange.ExchangeBasic)
-_GP = wrap(OCCT.gp)
-def vector(*arguments):
-  if len (arguments) == 3:
-    return _GP.gp_Vec(*(float (value) for value in arguments))
-  if len (arguments) == 0:
-    return _GP.gp_Vec()
-    
 
 
 _cache_globals = None
