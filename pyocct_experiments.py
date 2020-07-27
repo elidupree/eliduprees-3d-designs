@@ -51,6 +51,9 @@ v2 = vector(4,5,6)
 print("vectors added", v1 + v2)
 
 import OCCT.BRepBuilderAPI
-@cached("BREP")
+import OCCT.gp
+@cached(Vertex)
 def test2():
-  return wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex( pyocct_system._GP.gp_Pnt(0, 0, 0)).Shape()
+  return wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0)).Shape()
+  
+print(wrap(OCCT.TopoDS).TopoDS.Vertex_(test2))  

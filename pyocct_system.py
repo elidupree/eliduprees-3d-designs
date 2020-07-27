@@ -46,33 +46,63 @@ def _setup():
       self.wrapped_object = wrapped_object
     def __call__(self, *args, **kwargs):
       inner = self.wrapped_object
-      #print(f"calling {inner}")
+      #print(f"calling {inner}, {args}")
       return watch_time(repr(inner), lambda: wrap(inner(
         *(unwrap (value) for value in args),
         **{key: unwrap (value) for key, value in kwargs.items()}
       )))
     def __getattr__(self, name):
       inner = self.wrapped_object
-      inner_attribute = getattr(inner, name)
       override = attribute_overrides.get((inner, name))
       if override is None:
         c = getattr(inner, "__class__")
         if c is not None:
           override = attribute_overrides.get((c, name))
+          
+      #print("in getattr", inner, name, override)
+      if override is None:
+        inner_attribute = getattr(inner, name)
+      else:
+        inner_attribute = getattr(inner, name, None)
+      #print("in getattr", inner, name, inner_attribute, override)
+      
       #print (inner, name, override)
       if override is not None:
-        inner_attribute = override(inner_attribute)
+        inner_attribute = unwrap (override(inner_attribute))
         if hasattr(inner_attribute, "__get__"):
-          if type(inner) is type:
+          # hack - treat pybind11_type as type
+          if type(inner) is type or type(inner) is type(OCCT.TopoDS.TopoDS_Shape):
             inner_attribute = inner_attribute.__get__(None, inner)
           else:
             inner_attribute = inner_attribute.__get__(inner, type(inner))
       return wrap(inner_attribute)
+    
+    # the catchall below SHOULD be able to handle format/str, but
+    def __format__(self, format_arguments):
+      attr = self.__getattr__("__format__")
+      if attr.wrapped_object is object.__format__:
+        return object.__format__(self.wrapped_object, format_arguments)
+      else:
+        return attr(format_arguments)
+    def __str__(self):
+      attr = self.__getattr__("__str__")
+      if attr.wrapped_object is object.__str__:
+        return object.__str__(self.wrapped_object)
+      else:
+        return attr()
+    def __repr__(self):
+      attr = self.__getattr__("__repr__")
+      if attr.wrapped_object is object.__repr__:
+        result = object.__repr__(self.wrapped_object)
+      else:
+        result = attr()
+      return f"Wrapper({result} / {str(self)})"
       
      
       
   def wrap_special_method (method):
     def method_wrapper(self, *args, **kwargs):
+      #print("method called", self.wrapped_object, method, args)
       return self.__getattr__(method)(*args, **kwargs)
     setattr(Wrapper, method, method_wrapper)
 
@@ -83,8 +113,8 @@ def _setup():
 
   arithmetic = re.findall(r"[\w]+", "add, sub, mul, matmul, truediv, floordiv, div, mod, divmod, pow, lshift, rshift, and, xor, or")
   
-  # deliberately left out, at least for now: new, init, del, getattr, getattribute, setattr, delattr, call
-  other_special_methods = re.findall(r"[\w]+", "str,bytes,format,lt,le,eq,ne,gt,ge,hash,bool,dir,get,set,delete,set_name, slots, init_subclass, instancecheck, subclasscheck, class_getitem, len, length_hint, getitem, setitem, delitem, missing, iter, reversed, contains,neg,pos,abs, invert, complex, int, float, index, round,trunc, floor, ceil, enter, exit, await,aiter,anext,aenter,aexit,")
+  # deliberately left out, at least for now: new, init, del, format, str, repr, getattr, getattribute, setattr, delattr, call
+  other_special_methods = re.findall(r"[\w]+", "bytes,lt,le,eq,ne,gt,ge,hash,bool,dir,get,set,delete,set_name, slots, init_subclass, instancecheck, subclasscheck, class_getitem, len, length_hint, getitem, setitem, delitem, missing, iter, reversed, contains,neg,pos,abs, invert, complex, int, float, index, round,trunc, floor, ceil, enter, exit, await,aiter,anext,aenter,aexit,")
 
   special_methods = arithmetic + ["r"+a for a in arithmetic] + ["i"+a for a in arithmetic]+other_special_methods
   for name in special_methods:
@@ -102,13 +132,13 @@ def _setup():
       return value
     
   #attribute_overrides [(OCCT.Exchange.ExchangeBasic, "read_brep")] = lambda original: None
-  attribute_overrides [(OCCT.gp.gp_Vec, "__init__")] = lambda original: None
+  #attribute_overrides [(OCCT.gp.gp_Vec, "__init__")] = lambda original: None
   
   import pyocct_api_wrappers
   def export(name, value):
     globals()[name] = value
   def override_attribute(c, name, value):
-    attribute_overrides [(c, name)] = value
+    attribute_overrides [(unwrap(c), name)] = value
   pyocct_api_wrappers.setup(wrap, export, override_attribute)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
@@ -183,11 +213,11 @@ def _info_path (key):
 def _load_cache (key, kind):
   path = os.path.join (_cache_directory, key)
   
-  if kind == "JSON":
+  if type(kind) is str and kind == "JSON":
     with open(path + ".json") as file:
       result = json.load(file)
-  elif kind == "BREP":
-    result = _ExchangeBasic.read_brep(path + ".brep")
+  elif hasattr(kind, "read_brep"):
+    result = kind.read_brep(path + ".brep")
   else:
     raise RuntimeError(f"{kind} isn't a supported kind for pyocct_system caching")
   
@@ -207,19 +237,24 @@ def _save_cache (key, kind, value, info):
     pass
     
   temp_path = path + ".temp"
-  if kind == "JSON":
+  if type(kind) is str and kind == "JSON":
     value_path = path + ".json"
     with open(temp_path, "w") as file:
       json.dump (value, file)
       file.flush()
       os.fsync(file.fileno())
-  elif kind == "BREP":
+  elif hasattr(kind, "read_brep"):
     value_path = path + ".brep"
-    if type (unwrap (value)) != OCCT.TopoDS.TopoDS_Shape:
-      raise RuntimeError(f"BREP caching requires a TopoDS_Shape object, but got `{value}`")
-    _ExchangeBasic.write_brep(value, temp_path)
+    if type (unwrap (value)) is not unwrap (kind):
+      if type (unwrap (value)) is unwrap (Shape):
+        value = kind.from_shape (value)
+      else:
+        raise RuntimeError(f"BREP caching was told to expect a `{kind}`, but got `{value}`")
+    #print(repr(value))
+    value.write_brep(temp_path)
   else:
-    raise RuntimeError(f"{ext} filetype not currently supported by pyocct_system.cached")
+    print(getattr(kind, "read_brep"))
+    raise RuntimeError(f"{kind} isn't a supported kind for pyocct_system caching")
     
   os.replace (temp_path, value_path)
   
