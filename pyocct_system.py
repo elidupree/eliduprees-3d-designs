@@ -14,48 +14,124 @@ import OCCT.gp
 
 BOPAlgo_Options.SetParallelMode_(True)
 
-def _watch_time(name, func):
-  start = datetime.datetime.now()
-  result = func()
-  finish = datetime.datetime.now()
-  duration = finish - start
-  seconds = duration.total_seconds()
-  if seconds > 0.1:
-    print(f"operation {name} took {seconds} seconds")
-  return result
+
+def _setup():
+  def watch_time(name, func):
+    start = datetime.datetime.now()
+    result = func()
+    finish = datetime.datetime.now()
+    duration = finish - start
+    seconds = duration.total_seconds()
+    if seconds > 0.01:
+      print(f"operation {name} took {seconds} seconds")
+    return result
 
 
-def _unwrap(value):
-  if type (value) is Wrapper:
-    return value.inner
-  else:
-    return value
+  attribute_overrides = {}
 
-class Wrapper:
-  def __init__(self, inner, supername = None):
-    self.inner = inner
-    self.name = inner.__name__
-    if supername is not None:
-      self.name = supername + self.name
-  def __call__(self, *args, **kwargs):
-    return _watch_time(self.name, lambda: self.inner(
-      *(_unwrap (value) for value in args),
-      **{key: _unwrap (value) for key, value in kwargs.items()}
-    ))
-  def __getattr__(self, name):
-    inner_attribute = getattr(self.inner, name)
-    if type(inner_attribute) is not Wrapper:
-      return Wrapper(inner_attribute, self.name)
-    return inner_attribute
+  def get_name(a):
+    if hasattr(a, "__qualname__"):
+      return a.__qualname__
+    elif hasattr(a, "__name__"):
+      return a.__name__
+    elif hasattr(a, "__class__"):
+      return get_name(a.__class__)
+    else:
+      return "<object without recognized name attributes>"
 
 
-_ExchangeBasic = Wrapper(OCCT.Exchange.ExchangeBasic)
-_GP = Wrapper (OCCT.gp)
+
+  class Wrapper:
+    def __init__(self, wrapped_object):
+      self.wrapped_object = wrapped_object
+    def __call__(self, *args, **kwargs):
+      inner = self.wrapped_object
+      #print(f"calling {inner}")
+      return watch_time(repr(inner), lambda: wrap(inner(
+        *(unwrap (value) for value in args),
+        **{key: unwrap (value) for key, value in kwargs.items()}
+      )))
+    def __getattr__(self, name):
+      inner = self.wrapped_object
+      inner_attribute = getattr(inner, name)
+      override = attribute_overrides.get((inner, name))
+      if override is None:
+        c = getattr(inner, "__class__")
+        if c is not None:
+          override = attribute_overrides.get((c, name))
+      #print (inner, name, override)
+      if override is not None:
+        inner_attribute = override(inner_attribute)
+        if hasattr(inner_attribute, "__get__"):
+          if type(inner) is type:
+            inner_attribute = inner_attribute.__get__(None, inner)
+          else:
+            inner_attribute = inner_attribute.__get__(inner, type(inner))
+      return wrap(inner_attribute)
+      
+     
+      
+  def wrap_special_method (method):
+    def method_wrapper(self, *args, **kwargs):
+      return self.__getattr__(method)(*args, **kwargs)
+    setattr(Wrapper, method, method_wrapper)
+
+  types_not_to_wrap = set([
+    Wrapper, str, int, float, bool, type(None)
+  ])
+
+
+  arithmetic = re.findall(r"[\w]+", "add, sub, mul, matmul, truediv, floordiv, div, mod, divmod, pow, lshift, rshift, and, xor, or")
+  
+  # deliberately left out, at least for now: new, init, del, getattr, getattribute, setattr, delattr, call
+  other_special_methods = re.findall(r"[\w]+", "str,bytes,format,lt,le,eq,ne,gt,ge,hash,bool,dir,get,set,delete,set_name, slots, init_subclass, instancecheck, subclasscheck, class_getitem, len, length_hint, getitem, setitem, delitem, missing, iter, reversed, contains,neg,pos,abs, invert, complex, int, float, index, round,trunc, floor, ceil, enter, exit, await,aiter,anext,aenter,aexit,")
+
+  special_methods = arithmetic + ["r"+a for a in arithmetic] + ["i"+a for a in arithmetic]+other_special_methods
+  for name in special_methods:
+    wrap_special_method(f"__{name}__")
+    
+  def wrap(value):
+    if type (value) in types_not_to_wrap:
+      return value
+    else:
+      return Wrapper(value)
+  def unwrap(value):
+    if type (value) is Wrapper:
+      return value.wrapped_object
+    else:
+      return value
+      
+  def vec_str(self):
+    return f"Vec({self.X()}, {self.Y()}, {self.Z()})"
+  def vec_index(self, index):
+    if index == 0:
+      return self.X()
+    if index == 1:
+      return self.Y()
+    if index == 2:
+      return self.Z()
+    raise IndexError("vector can only be indexed with 0-2")
+    
+  #attribute_overrides [(OCCT.Exchange.ExchangeBasic, "read_brep")] = lambda original: None
+  attribute_overrides [(OCCT.gp.gp_Vec, "__init__")] = lambda original: None
+  attribute_overrides [(OCCT.gp.gp_Vec, "__str__")] = lambda original: vec_str
+  attribute_overrides [(OCCT.gp.gp_Vec, "__index__")] = lambda original: vec_index
+  
+  for export in re.findall(r"[\w_]+", "wrap, unwrap"):
+    globals() [export] = locals() [export]
+  
+  
+_setup()
+
+_ExchangeBasic = wrap(OCCT.Exchange.ExchangeBasic)
+_GP = wrap(OCCT.gp)
 def vector(*arguments):
   if len (arguments) == 3:
-    return _GP.gp_Vec (*(float (value) for value in arguments))
+    return _GP.gp_Vec(*(float (value) for value in arguments))
   if len (arguments) == 0:
-    return _GP.gp_Vec ()
+    return _GP.gp_Vec()
+    
+
 
 _cache_globals = None
 _cache_directory = None
@@ -75,24 +151,24 @@ def initialize_system (cache_globals, cache_directory):
 
 
 def _globals_in_code(code):
-  return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code))
+  return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if not hasattr(_cache_globals["__builtins__"], match.group(1)))
 
-class Recursive:
+class _Recursive:
   pass
 class OutputHashError(Exception):
   pass
 def _output_hash (key):
   #print("output_hash called", key)
   in_memory = _cache_info_by_global_key.get(key)
-  if in_memory is Recursive:
+  if in_memory is _Recursive:
     raise OutputHashError("the system currently can't handle recursive functions")
   if in_memory is not None:
     return in_memory ["output_hash"]
   
-  _cache_info_by_global_key [key] = Recursive
+  _cache_info_by_global_key [key] = _Recursive
   
   if key not in _cache_globals:
-    raise OutputHashError("the system currently can't handle references to global keys that don't exist yet")  
+    raise OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet. Current globals: {_cache_globals}")  
   value = _cache_globals [key]
   
   try:
@@ -152,7 +228,7 @@ def _save_cache (key, kind, value, info):
       os.fsync(file.fileno())
   elif kind == "BREP":
     value_path = path + ".brep"
-    if type (_unwrap (value)) != OCCT.TopoDS.TopoDS_Shape:
+    if type (unwrap (value)) != OCCT.TopoDS.TopoDS_Shape:
       raise RuntimeError(f"BREP caching requires a TopoDS_Shape object, but got `{value}`")
     _ExchangeBasic.write_brep(value, temp_path)
   else:

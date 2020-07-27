@@ -46,7 +46,11 @@ def test():
   return g
 print (test)
 
+v1 = vector(1,2,3)
+v2 = vector(4,5,6)
+print("vectors added", v1 + v2)
+
 import OCCT.BRepBuilderAPI
 @cached("BREP")
 def test2():
-  return Wrapper (OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex( pyocct_system._GP.gp_Pnt(0, 0, 0)).Shape()
+  return wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex( pyocct_system._GP.gp_Pnt(0, 0, 0)).Shape()
