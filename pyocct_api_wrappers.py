@@ -9,35 +9,51 @@ def setup(wrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRepBuilderAPI")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
   ExchangeBasic = Exchange.ExchangeBasic
   
+  Vector = gp.gp_Vec
+  Point = gp.gp_Pnt
   
+  def vector(*args, **kwargs):
+    return Vector (*args, **kwargs)
   
-  def vector(*arguments):
-    if len (arguments) == 3:
-      return gp.gp_Vec(*(float (value) for value in arguments))
-    if len (arguments) == 0:
-      return gp.gp_Vec()
+  def make_Vector(original):
+    def derived(cls, *args):
+      #if type(args[0]) is Point:
+      if len(args) == 3:
+        return original(*(float (value) for value in args))
+      return original(*args)
+    return classmethod(derived)
+  override_attribute(Vector, "__new__", make_Vector)
   
-  def vec_str(self):
-    return f"Vec({self.X()}, {self.Y()}, {self.Z()})"
-  def vec_index(self, index):
+  def Vector_str(self):
+    return f"Vector({self.X()}, {self.Y()}, {self.Z()})"
+  def Point_str(self):
+    return f"Point({self.X()}, {self.Y()}, {self.Z()})"
+  def Vector_index(self, index):
     if index == 0:
       return self.X()
     if index == 1:
       return self.Y()
     if index == 2:
       return self.Z()
-    raise IndexError("vector can only be indexed with 0-2")
+    raise IndexError("point/vector can only be indexed with 0-2")
   
-  simple_override(gp.gp_Vec, "__str__", vec_str)
-  simple_override(gp.gp_Vec, "__index__", vec_index)
+  simple_override(Vector, "__str__", Vector_str)
+  simple_override(Vector, "__index__", Vector_index)
+  simple_override(Point, "__index__", Vector_index)
+  simple_override(Point, "__str__", Point_str)
+  simple_override(Vector, "Translated", lambda self, other: self + other)
+    
+    
+  simple_override(Point, "__add__", lambda self, other: self.Translated (other))
+  simple_override(Point, "__sub__", lambda self, other: self.Translated (-other))
   
-  
+   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_types_by_ShapeType = {}
   def handle_shape_type(typename):
@@ -78,52 +94,68 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
+      if len (args) == 3:
+        args = [Point (*args)]
       return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Vertex()
     return classmethod(derived)
   override_attribute(Vertex, "__new__", make_Vertex)
   
   def make_Edge(original):
-    def derived(cls, *args, **kwargs):
+    def derived(cls, *args):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args, **kwargs).Edge()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args).Edge()
     return classmethod(derived)
   override_attribute(Edge, "__new__", make_Edge)
   
   def make_Wire(original):
-    def derived(cls, *args, **kwargs):
-      if len(args) == 0:
-        return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeWire(*args, **kwargs).Wire()
+    def derived(cls, edges_or_wires = []):
+      builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
+      for item in edges_or_wires:
+        builder.Add (item)
+      return builder.Wire()
     return classmethod(derived)
   override_attribute(Wire, "__new__", make_Wire)
   
   def make_Face(original):
-    def derived(cls, *args, **kwargs):
+    def derived(cls, *args, holes = []):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args, **kwargs).Face()
+      builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
+      for hole in holes:
+        builder.Add (hole)
+      return builder.Face()
     return classmethod(derived)
   override_attribute(Face, "__new__", make_Face)
   
   def make_Shell(original):
-    def derived(cls, *args, **kwargs):
-      if len(args) == 0:
-        return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeShell(*args, **kwargs).Shell()
+    def derived(cls, faces = []):
+      shell = original()
+      builder = BRep.BRep_Builder()
+      #print ("builder created")
+      builder.MakeShell(shell)
+      #print ("Shell made?")
+      for face in faces:
+        #print ("adding face", face)
+        builder.Add (shell, face)
+      #print ("done adding faces")
+      return shell
     return classmethod(derived)
   override_attribute(Shell, "__new__", make_Shell)
   
   def make_Solid(original):
-    def derived(cls, *args, **kwargs):
+    def derived(cls, *args, holes = []):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args, **kwargs).Solid()
+      builder = BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args)
+      for hole in holes:
+        builder.Add (hole)
+      return builder.Solid()
     return classmethod(derived)
   override_attribute(Solid, "__new__", make_Solid)
   
   
-  for name in re.findall(r"[\w_]+", "vector, Shape, is_shape, read_brep"):
+  for name in re.findall(r"[\w_]+", "vector, Vector, Point, Shape, is_shape, read_brep"):
     export(name, locals()[name])
   for name in shape_typenames:
     export(name, globals()[name])

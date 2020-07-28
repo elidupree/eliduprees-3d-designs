@@ -184,20 +184,20 @@ def _setup_serialization():
     def __init__(self, path_base):
       self.path_base = path_base
     
-    def serialized(self, value, key_path = ""):
+    def serialized(self, value, key_path = []):
       value = unwrap (value)
       
       if type (value) is dict:
-        return {key: self.serialized (inner_value, f"{key_path}.{key}") for key, inner_value in value.items()}
+        return {key: self.serialized (inner_value, key_path + [key]) for key, inner_value in value.items()}
         
       if type (value) is list:
-        return [self.serialized (inner_value, f"{key_path}.{key}") for key, inner_value in enumerate (value)]
+        return [self.serialized (inner_value, key_path + [str(key)]) for key, inner_value in enumerate (value)]
       
       if is_shape (value):
         value = wrap (value)
-        if "." in key_path:
+        if any ("." in key for key in key_path):
           raise RuntimeError (f"We don't support serializing shapes inside objects with keys that contain `.`, because we use the dot-separated key path as the file path and need it to be unique (Tried to serialize {value} at key path {key_path})")
-        file_path = self.path_base + key_path + ".brep"
+        file_path = ".".join ([self.path_base] + key_path) + ".brep"
         temp_path = file_path + ".temp"
         value.write_brep (temp_path)
         os.replace (temp_path, file_path)
@@ -212,7 +212,7 @@ def _setup_serialization():
     def __init__(self, path_base):
       self.path_base = path_base
     
-    def deserialized(self, value, key_path = ""):
+    def deserialized(self, value):
       value = unwrap (value)
       
       if type (value) is dict:
@@ -222,7 +222,7 @@ def _setup_serialization():
         name, data = placeholder_info (value)
         if name == brep_placeholder:
           return read_brep (data)
-        return [self.deserialized (inner_value) for key, inner_value in enumerate (value)]
+        return [self.deserialized (inner_value) for inner_value in value]
       
       if type (value) in [str, int, float, type (None)]:
         return value

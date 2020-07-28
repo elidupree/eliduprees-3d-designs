@@ -57,7 +57,7 @@ def test2():
   result = Vertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0))
   print ("before caching", repr (result))
   return result
-  
+
 
 print("after caching", repr(test2))
 print(dir(test2))
@@ -69,3 +69,53 @@ print("shape", repr(Shape()))
 from OCCT.BRep import BRep_Builder
 import io
 wrap(BRepTools).Read_(Shape(), io.BytesIO(b""), BRep_Builder())'''
+
+@cached
+def cube():
+  vertices = [
+    Vertex (0, 0, 0),
+    Vertex (0, 0, 1),
+    Vertex (0, 1, 0),
+    Vertex (0, 1, 1),
+    Vertex (1, 0, 0),
+    Vertex (1, 0, 1),
+    Vertex (1, 1, 0),
+    Vertex (1, 1, 1),
+  ]
+  edges = [
+    Edge (vertices [0], vertices [1]),
+    Edge (vertices [0], vertices [2]),
+    Edge (vertices [0], vertices [4]),
+    Edge (vertices [1], vertices [3]),
+    Edge (vertices [1], vertices [5]),
+    Edge (vertices [2], vertices [3]),
+    
+    Edge (vertices [2], vertices [6]),
+    Edge (vertices [3], vertices [7]),
+    Edge (vertices [4], vertices [5]),
+    Edge (vertices [4], vertices [6]),
+    Edge (vertices [5], vertices [7]),
+    Edge (vertices [6], vertices [7]),
+  ]
+  wires = [
+    Wire ([edges [0], edges [3], edges [5], edges [1]]),
+    Wire ([edges [8], edges [10], edges [11], edges [9]]),
+    Wire ([edges [0], edges [4], edges [8], edges [2]]),
+    Wire ([edges [5], edges [7], edges [11], edges [6]]),
+    Wire ([edges [1], edges [6], edges [9], edges [2]]),
+    Wire ([edges [3], edges [7], edges [10], edges [4]]),
+  ]
+  faces = [Face (wire) for wire in wires]
+  shell = Shell (faces)
+  solid = Solid (shell)
+  
+  return {
+    "vertices": vertices,
+    "edges": edges,
+    "wires": wires,
+    "faces": faces,
+    "shell": shell,
+    "solid": solid,
+  }
+  
+print ("cube", cube)
