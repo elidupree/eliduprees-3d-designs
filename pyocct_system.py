@@ -4,6 +4,7 @@ import dis
 import inspect
 import functools
 import re
+import sys
 import os
 import os.path
 import json
@@ -15,7 +16,11 @@ import OCCT.gp
 BOPAlgo_Options.SetParallelMode_(True)
 
 
-def _setup():
+##########################################################
+###################   Wrapper system   ###################
+##########################################################
+
+def _setup_wrappers():
   def watch_time(name, func):
     start = datetime.datetime.now()
     result = func()
@@ -146,14 +151,107 @@ def _setup():
     globals() [export] = locals() [export]
   
   
-_setup()
+_setup_wrappers()
 
-_ExchangeBasic = wrap(OCCT.Exchange.ExchangeBasic)
+
+##########################################################
+##################   De/serialization   ##################
+##########################################################
+
+def _setup_serialization():
+  # just a casual 128 bits of random data so there's no way it would occur by accident
+  unique_placeholder = "PLACEHOLDER_d43e642cf620e3fa21378b00c24dd6b4"
+  brep_placeholder = "BREP"
+  
+  def placeholder (name, data):
+    return [unique_placeholder, name, data]
+  
+  def placeholder_info (value):
+    if type (value) is list and len(value) == 3 and value [0] == unique_placeholder:
+      return value [1], value [2]
+    return None, None
+
+  class Serializer:
+    def __init__(self, path_base):
+      self.path_base = path_base
+    
+    def serialized(self, value, key_path = ""):
+      value = unwrap (value)
+      
+      if type (value) is dict:
+        return {key: self.serialized (inner_value, f"{key_path}.{key}") for key, inner_value in value.items()}
+        
+      if type (value) is list:
+        return [self.serialized (inner_value, f"{key_path}.{key}") for key, inner_value in enumerate (value)]
+      
+      if is_shape (value):
+        value = wrap (value)
+        if "." in key_path:
+          raise RuntimeError (f"We don't support serializing shapes inside objects with keys that contain `.`, because we use the dot-separated key path as the file path and need it to be unique (Tried to serialize {value} at key path {key_path})")
+        file_path = self.path_base + key_path + ".brep"
+        temp_path = file_path + ".temp"
+        value.write_brep (temp_path)
+        os.replace (temp_path, file_path)
+        return placeholder (brep_placeholder, file_path)
+      
+      if type (value) in [str, input, float, type (None)]:
+        return value
+  
+  class Deserializer:
+    def __init__(self, path_base):
+      self.path_base = path_base
+    
+    def deserialized(self, value, key_path = ""):
+      value = unwrap (value)
+      
+      if type (value) is dict:
+        return {key: self.deserialized (inner_value) for key, inner_value in value.items()}
+        
+      if type (value) is list:
+        name, data = placeholder_info (value)
+        if name == brep_placeholder:
+          return read_brep (data)
+        return [self.deserialized (inner_value) for key, inner_value in enumerate (value)]
+      
+      if type (value) in [str, input, float, type (None)]:
+        return value
+      
+  
+  def atomic_write_json (file_path, value):
+    temp_path = file_path + ".temp"
+    with open(temp_path, "w") as file:
+      json.dump (value, file)
+      file.flush()
+      os.fsync(file.fileno())
+    os.replace (temp_path, file_path)
+    
+  def serialize(path_base, value):
+    with_placeholders = Serializer (path_base).serialized (value)
+    atomic_write_json (path_base + ".json", with_placeholders)
+  
+  def deserialize(path_base):
+    with open(path_base + ".json") as file:
+      with_placeholders = json.load(file)
+    return Deserializer (path_base).deserialized (with_placeholders)
+    
+  for export in re.findall(r"[\w_]+", "serialize, deserialize, atomic_write_json"):
+    globals() [export] = locals() [export]
+    
+
+_setup_serialization()
+
+
+##########################################################
+###################   Caching system   ###################
+##########################################################
 
 
 _cache_globals = None
 _cache_directory = None
 _cache_info_by_global_key = {}
+
+_cache_system_source = inspect.getsource (sys.modules [__name__])
+_cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
 def initialize_system (cache_globals, cache_directory):
   global _cache_globals
@@ -211,20 +309,12 @@ def _info_path (key):
   path = os.path.join (_cache_directory, key)
   return path + ".cache_info"
 
-def _load_cache (key, kind):
-  path = os.path.join (_cache_directory, key)
-  
-  if type(kind) is str and kind == "JSON":
-    with open(path + ".json") as file:
-      result = json.load(file)
-  elif hasattr(kind, "read_brep"):
-    result = kind.read_brep(path + ".brep")
-  else:
-    raise RuntimeError(f"{kind} isn't a supported kind for pyocct_system caching")
-  
-  return result
 
-def _save_cache (key, kind, value, info):
+def _load_cache (key):
+  path = os.path.join (_cache_directory, key)
+  return deserialize (path)
+
+def _save_cache (key, value, info):
   path = os.path.join (_cache_directory, key)
   info_path = _info_path (key)
   
@@ -237,35 +327,8 @@ def _save_cache (key, kind, value, info):
   except FileNotFoundError:
     pass
     
-  temp_path = path + ".temp"
-  if type(kind) is str and kind == "JSON":
-    value_path = path + ".json"
-    with open(temp_path, "w") as file:
-      json.dump (value, file)
-      file.flush()
-      os.fsync(file.fileno())
-  elif hasattr(kind, "read_brep"):
-    value_path = path + ".brep"
-    if type (unwrap (value)) is not unwrap (kind):
-      if type (unwrap (value)) is unwrap (Shape):
-        value = kind.from_shape (value)
-      else:
-        raise RuntimeError(f"BREP caching was told to expect a `{kind}`, but got `{value}`")
-    #print(repr(value))
-    value.write_brep(temp_path)
-  else:
-    print(getattr(kind, "read_brep"))
-    raise RuntimeError(f"{kind} isn't a supported kind for pyocct_system caching")
-    
-  os.replace (temp_path, value_path)
-  
-  with open(temp_path, "w") as file:
-    json.dump (info, file)
-    file.flush()
-    os.fsync(file.fileno())
-  os.replace (temp_path, info_path)
-
-  
+  serialize (path, value)
+  atomic_write_json (info_path, info)
 
   
   
@@ -276,6 +339,8 @@ def _cache_is_valid (key, source_hash):
       stored = json.load(file)
       if stored["source_hash"] != source_hash:
         return False
+      if stored["cache_system_source_hash"] != _cache_system_source_hash:
+        return False
       for key2, value in stored["globals"].items():
         try: 
           if _output_hash (key2) != value:
@@ -283,12 +348,12 @@ def _cache_is_valid (key, source_hash):
         except OutputHashError:
           return False
         
-  except (FileNotFoundError, json.decoder.JSONDecodeError):
+  except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
     return False
     
   return True
 
-def _get_cached(key, kind, generate):
+def _get_cached(key, generate):
   print (f"### doing {key} ###")
   code = dis.Bytecode(generate).dis()
   code2 = inspect.getsource (generate)
@@ -308,26 +373,25 @@ def _get_cached(key, kind, generate):
     new_result = generate()
     cache_info = {
       "source_hash": source_hash,
+      "cache_system_source_hash": _cache_system_source_hash,
       "globals": {key2: _output_hash(key2) for key2 in _globals_in_code(code)},
     }
     output_hash = hashlib.sha256 (json.dumps (cache_info).encode ("utf-8")).hexdigest()
     cache_info ["output_hash"] = output_hash
     
-    _save_cache (key, kind, new_result, cache_info)
+    _save_cache (key, new_result, cache_info)
     finish_time = datetime.datetime.now()
     print(f"…done! ({finish_time}, took {(finish_time - start_time)})")
     
   
   # note: always reload the cache instead of using the one that was just generated in memory,
   # to make sure it is properly canonicalized
-  return _load_cache (key, kind)
+  return _load_cache (key)
     
     
-def cached(kind):
-  def decorate(generate):
-    key = generate.__name__
-    return _get_cached(key, kind, generate)
-  return decorate
+def cached(generate):
+  key = generate.__name__
+  return _get_cached(key, generate)
 
 
       

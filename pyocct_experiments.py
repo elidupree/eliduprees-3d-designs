@@ -40,7 +40,7 @@ def dependency_function():
   transitive_dependency
   pass
 
-@cached("JSON")
+@cached
 def test():
   dependency_function()
   return g
@@ -52,13 +52,16 @@ print("vectors added", v1 + v2)
 
 import OCCT.BRepBuilderAPI
 import OCCT.gp
-@cached(Vertex)
+@cached
 def test2():
-  return wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0)).Shape()
+  result = wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0)).Shape()
+  print ("before caching", repr (result))
+  return result
   
-print(test2)
+print("after caching", repr(test2))
 print(dir(test2))
 print(test2.ShapeType())
+print (isinstance((test2), (Shape)), unwrap(Shape))
 
 
 '''from OCCT.BRepTools import BRepTools
