@@ -9,7 +9,7 @@ def setup(wrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRepBuilderAPI")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -73,6 +73,15 @@ def setup(wrap, export, override_attribute):
   
   simple_override(Shape, "shape_type", lambda self: shape_types_by_ShapeType[self.ShapeType()])
   simple_override(Shape, "downcast", lambda self: shape_type(self).from_shape (self))
+  
+  def make_vertex (original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Vertex, "__new__", make_vertex)
+  
   
   for name in re.findall(r"[\w_]+", "vector, Shape, is_shape, read_brep"):
     export(name, locals()[name])

@@ -52,6 +52,11 @@ def _setup_wrappers():
     def __call__(self, *args, **kwargs):
       inner = self.wrapped_object
       #print(f"calling {inner}, {args}")
+      if inspect.isclass(inner):
+        override = attribute_overrides.get((inner, "__new__"))
+        if override is not None:
+          inner = override(inner).__get__(None, inner)
+          
       return watch_time(repr(inner), lambda: wrap(inner(
         *(unwrap (value) for value in args),
         **{key: unwrap (value) for key, value in kwargs.items()}
@@ -103,6 +108,10 @@ def _setup_wrappers():
       else:
         result = attr()
       return f"Wrapper({result} / {str(self)})"
+      
+    '''def __new__(cls, *args, **kwargs):
+      attr = self.__getattr__("__new__")
+      attr(*args, **kwargs)'''
       
      
       
@@ -194,8 +203,10 @@ def _setup_serialization():
         os.replace (temp_path, file_path)
         return placeholder (brep_placeholder, file_path)
       
-      if type (value) in [str, input, float, type (None)]:
+      if type (value) in [str, int, float, type (None)]:
         return value
+        
+      raise RuntimeError(f"Couldn't serialize {value} ({type(value)})")
   
   class Deserializer:
     def __init__(self, path_base):
@@ -213,8 +224,10 @@ def _setup_serialization():
           return read_brep (data)
         return [self.deserialized (inner_value) for key, inner_value in enumerate (value)]
       
-      if type (value) in [str, input, float, type (None)]:
+      if type (value) in [str, int, float, type (None)]:
         return value
+      
+      raise RuntimeError(f"Couldn't deserialize {value} ({type(value)})")
       
   
   def atomic_write_json (file_path, value):

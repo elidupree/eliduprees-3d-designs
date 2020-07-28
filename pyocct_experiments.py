@@ -54,15 +54,16 @@ import OCCT.BRepBuilderAPI
 import OCCT.gp
 @cached
 def test2():
-  result = wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0)).Shape()
+  result = Vertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0))
   print ("before caching", repr (result))
   return result
   
+
 print("after caching", repr(test2))
 print(dir(test2))
 print(test2.ShapeType())
 print (isinstance((test2), (Shape)), unwrap(Shape))
-
+print("shape", repr(Shape()))
 
 '''from OCCT.BRepTools import BRepTools
 from OCCT.BRep import BRep_Builder
