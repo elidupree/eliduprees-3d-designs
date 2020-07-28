@@ -78,7 +78,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Vertex()
     return classmethod(derived)
   override_attribute(Vertex, "__new__", make_Vertex)
   
@@ -86,7 +86,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args, **kwargs).Edge()
     return classmethod(derived)
   override_attribute(Edge, "__new__", make_Edge)
   
@@ -94,7 +94,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeWire(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeWire(*args, **kwargs).Wire()
     return classmethod(derived)
   override_attribute(Wire, "__new__", make_Wire)
   
@@ -102,7 +102,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args, **kwargs).Face()
     return classmethod(derived)
   override_attribute(Face, "__new__", make_Face)
   
@@ -110,7 +110,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeShell(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeShell(*args, **kwargs).Shell()
     return classmethod(derived)
   override_attribute(Shell, "__new__", make_Shell)
   
@@ -118,7 +118,7 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args, **kwargs).Shape()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args, **kwargs).Solid()
     return classmethod(derived)
   override_attribute(Solid, "__new__", make_Solid)
   
