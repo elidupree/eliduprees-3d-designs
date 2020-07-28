@@ -74,13 +74,53 @@ def setup(wrap, export, override_attribute):
   simple_override(Shape, "shape_type", lambda self: shape_types_by_ShapeType[self.ShapeType()])
   simple_override(Shape, "downcast", lambda self: shape_type(self).from_shape (self))
   
-  def make_vertex (original):
+  def make_Vertex (original):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
         return original()
       return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Shape()
     return classmethod(derived)
-  override_attribute(Vertex, "__new__", make_vertex)
+  override_attribute(Vertex, "__new__", make_Vertex)
+  
+  def make_Edge(original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Edge, "__new__", make_Edge)
+  
+  def make_Wire(original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeWire(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Wire, "__new__", make_Wire)
+  
+  def make_Face(original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Face, "__new__", make_Face)
+  
+  def make_Shell(original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeShell(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Shell, "__new__", make_Shell)
+  
+  def make_Solid(original):
+    def derived(cls, *args, **kwargs):
+      if len(args) == 0:
+        return original()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args, **kwargs).Shape()
+    return classmethod(derived)
+  override_attribute(Solid, "__new__", make_Solid)
   
   
   for name in re.findall(r"[\w_]+", "vector, Shape, is_shape, read_brep"):
