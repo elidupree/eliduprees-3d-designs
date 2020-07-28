@@ -53,8 +53,9 @@ def _setup():
       )))
     def __getattr__(self, name):
       inner = self.wrapped_object
-      override = attribute_overrides.get((inner, name))
-      if override is None:
+      if inspect.isclass(inner):
+        override = attribute_overrides.get((inner, name))
+      else:
         c = getattr(inner, "__class__")
         if c is not None:
           override = attribute_overrides.get((c, name))
@@ -114,7 +115,7 @@ def _setup():
   arithmetic = re.findall(r"[\w]+", "add, sub, mul, matmul, truediv, floordiv, div, mod, divmod, pow, lshift, rshift, and, xor, or")
   
   # deliberately left out, at least for now: new, init, del, format, str, repr, getattr, getattribute, setattr, delattr, call
-  other_special_methods = re.findall(r"[\w]+", "bytes,lt,le,eq,ne,gt,ge,hash,bool,dir,get,set,delete,set_name, slots, init_subclass, instancecheck, subclasscheck, class_getitem, len, length_hint, getitem, setitem, delitem, missing, iter, reversed, contains,neg,pos,abs, invert, complex, int, float, index, round,trunc, floor, ceil, enter, exit, await,aiter,anext,aenter,aexit,")
+  other_special_methods = re.findall(r"[\w]+", "bytes,lt,le,eq,ne,gt,ge,hash,bool,dir,get,set,delete,set_name, slots, init_subclass, instancecheck, subclasscheck, class_getitem, len, length_hint, getitem, setitem, delitem, missing, iter, next, reversed, contains,neg,pos,abs, invert, complex, int, float, index, round,trunc, floor, ceil, enter, exit, await,aiter,anext,aenter,aexit,")
 
   special_methods = arithmetic + ["r"+a for a in arithmetic] + ["i"+a for a in arithmetic]+other_special_methods
   for name in special_methods:

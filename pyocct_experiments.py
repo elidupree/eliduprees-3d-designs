@@ -56,4 +56,12 @@ import OCCT.gp
 def test2():
   return wrap(OCCT.BRepBuilderAPI).BRepBuilderAPI_MakeVertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0)).Shape()
   
-print(wrap(OCCT.TopoDS).TopoDS.Vertex_(test2))  
+print(test2)
+print(dir(test2))
+print(test2.ShapeType())
+
+
+'''from OCCT.BRepTools import BRepTools
+from OCCT.BRep import BRep_Builder
+import io
+wrap(BRepTools).Read_(Shape(), io.BytesIO(b""), BRep_Builder())'''
