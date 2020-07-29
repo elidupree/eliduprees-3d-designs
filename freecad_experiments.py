@@ -1763,12 +1763,12 @@ def ice_bottle_thing():
 
 
 #faces.run(globals())
-#air_adapters.run(globals())
+air_adapters.run(globals())
 #adjustable_elastic_connector()
 #portable_air_purifier.run(globals())
 
 do_faces = False
-do_faces = full_face_mask.run(globals())
+#do_faces = full_face_mask.run(globals())
 if do_faces:
   faces.run(globals())
 

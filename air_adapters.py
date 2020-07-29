@@ -14,6 +14,17 @@ def elidupree_4in_to_CPAP_solid():
   + [CPAP_wire.translated (vector (0, 0, 95+index*4)) for index in range (5)], True, False, False, 5)
   
   show (adapter, "adapter")
+  
+
+def CPAP_to_anemometer_solid():
+  anemometer_inner_radius = 26/2
+  CPAP_wire = Part.Shape([Part.Circle (vector(), vector (0, 0, 1), CPAP_outer_radius)]).to_wire()
+  anemometer_wire = Part.Shape([Part.Circle (vector(), vector (0, 0, 1), anemometer_inner_radius + single_wall_thickness)]).to_wire()
+  
+  adapter = Part.makeLoft ([anemometer_wire.translated (vector (0, 0, index*5)) for index in range (5)]
+  + [CPAP_wire.translated (vector (0, 0, 60+index*4)) for index in range (5)], True, False, False, 5)
+  
+  show (adapter, "adapter")
 
 def CPAP_to_CPAP():
   wall_thickness = single_wall_thickness*2 # make 'em tough because you put a bunch of force on these things
@@ -35,7 +46,7 @@ def CPAP_to_CPAP():
 def run(g):
   for key, value in g.items():
     globals()[key] = value
-  CPAP_to_CPAP()
+  CPAP_to_anemometer_solid()
   
   
   

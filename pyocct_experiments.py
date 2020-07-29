@@ -119,3 +119,9 @@ def cube():
   }
   
 print ("cube", cube)
+
+from OCCT.Visualization.QtViewer import ViewerQt
+
+'''v = ViewerQt(width=2000, height=1500)
+v.display_shape(unwrap(cube["solid"]))
+v.start()'''
