@@ -9,7 +9,7 @@ def setup(wrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -113,7 +113,12 @@ def setup(wrap, export, override_attribute):
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
       for item in edges_or_wires:
         builder.Add (item)
-      return builder.Wire()
+      if not builder.IsDone():
+        raise RuntimeError("Invalid wire (detected by builder)")
+      result = builder.Wire()
+      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
+        raise RuntimeError("Invalid wire (detected by analyzer)")
+      return result
     return classmethod(derived)
   override_attribute(Wire, "__new__", make_Wire)
   
@@ -124,7 +129,12 @@ def setup(wrap, export, override_attribute):
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
       for hole in holes:
         builder.Add (hole)
-      return builder.Face()
+      if not builder.IsDone():
+        raise RuntimeError("Invalid face (detected by builder)")
+      result = builder.Face()
+      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
+        raise RuntimeError("Invalid face (detected by analyzer)")
+      return result
     return classmethod(derived)
   override_attribute(Face, "__new__", make_Face)
   
@@ -139,6 +149,8 @@ def setup(wrap, export, override_attribute):
         #print ("adding face", face)
         builder.Add (shell, face)
       #print ("done adding faces")
+      if not BRepCheck.BRepCheck_Analyzer(shell).IsValid():
+        raise RuntimeError("Invalid shell (detected by analyzer)")
       return shell
     return classmethod(derived)
   override_attribute(Shell, "__new__", make_Shell)
@@ -150,7 +162,12 @@ def setup(wrap, export, override_attribute):
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeSolid(*args)
       for hole in holes:
         builder.Add (hole)
-      return builder.Solid()
+      if not builder.IsDone():
+        raise RuntimeError("Invalid solid (detected by builder)")
+      result = builder.Solid()
+      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
+        raise RuntimeError("Invalid solid (detected by analyzer)")
+      return result
     return classmethod(derived)
   override_attribute(Solid, "__new__", make_Solid)
   
