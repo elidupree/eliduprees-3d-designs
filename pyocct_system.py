@@ -139,7 +139,18 @@ def _setup_wrappers():
     if type (value) in types_not_to_wrap:
       return value
     else:
+      c = getattr(value, "__class__")
+      if c is not None:
+        override = attribute_overrides.get((c, "__wrap__"))
+        if override is not None:
+          override = override(None)
+          result = override(value)
+          if result is value:
+            return Wrapper(value)
+          else:
+            return wrap(result)
       return Wrapper(value)
+
   def unwrap(value):
     if type (value) is Wrapper:
       return value.wrapped_object

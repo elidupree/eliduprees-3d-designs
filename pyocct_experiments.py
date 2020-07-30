@@ -10,6 +10,9 @@ import OCCT.Geom
 import OCCT.Geom2d
 from OCCT.STEPControl import STEPControl_Reader
 
+'''from OCCT.TopoDS import TopoDS_Shape as Shape
+Shape().ShapeType()'''
+
 '''
 for mod in [OCCT.BOPAlgo, OCCT.BRepAlgoAPI, OCCT.BRepBuilderAPI, OCCT.TopoDS, OCCT.gp]:
   print(mod)
@@ -63,6 +66,9 @@ print("after caching", repr(test2))
 print(dir(test2))
 print(test2.ShapeType())
 print (isinstance((test2), (Shape)), unwrap(Shape))
+print("uhhh")
+s=Shape()
+print("uhhh")
 print("shape", repr(Shape()))
 
 '''from OCCT.BRepTools import BRepTools
@@ -97,13 +103,14 @@ def cube():
     Edge (vertices [5], vertices [7]),
     Edge (vertices [6], vertices [7]),
   ]
+  # note that the latter edges don't need to be complemented; it seems like MakeWire forces the later edge orientations to match the first edge.
   wires = [
-    Wire ([edges [0], edges [3], edges [5], edges [1]]),
-    Wire ([edges [8], edges [10], edges [11], edges [9]]),
-    Wire ([edges [0], edges [4], edges [8], edges [2]]),
-    Wire ([edges [5], edges [7], edges [11], edges [6]]),
-    Wire ([edges [1], edges [6], edges [9], edges [2]]),
-    Wire ([edges [3], edges [7], edges [10], edges [4]]),
+    Wire ([edges [0], edges [3], edges [5].Complemented(), edges [1].Complemented()]),
+    Wire ([edges [8], edges [10], edges [11].Complemented(), edges [9].Complemented()]).Complemented(),
+    Wire ([edges [0], edges [4], edges [8].Complemented(), edges [2].Complemented()]).Complemented(),
+    Wire ([edges [5], edges [7], edges [11].Complemented(), edges [6].Complemented()]),
+    Wire ([edges [1], edges [6], edges [9].Complemented(), edges [2].Complemented()]),
+    Wire ([edges [3], edges [7], edges [10].Complemented(), edges [4].Complemented()]).Complemented(),
   ]
   faces = [Face (wire) for wire in wires]
   shell = Shell (faces)

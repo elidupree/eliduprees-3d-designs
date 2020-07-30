@@ -64,6 +64,7 @@ def setup(wrap, export, override_attribute):
     simple_override(c, "from_shape", from_shape)
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
+    simple_override(c, "ShapeType", lambda self: c)
     #import pprint
     print(c().wrapped_object.__class__ is c.wrapped_object)
     #pprint.pprint({a:getattr(c().wrapped_object, a, None) for a in dir(c().wrapped_object)})
@@ -82,13 +83,23 @@ def setup(wrap, export, override_attribute):
   def is_shape(obj):
     return isinstance(obj, Shape)
   def read_brep (path):
-    shape = Exchange.ExchangeBasic.read_brep (path)
-    return shape.downcast()
-  def shape_type(shape):
-    return shape_types_by_ShapeType[shape.ShapeType()]
+    return Exchange.ExchangeBasic.read_brep (path)
+  def shape_type(original, shape):
+    #print("shapetype", shape),
+    # note: pyOCCT segfaults when you construct a null shape and call ShapeType on it
+    if shape.IsNull():
+      return None
+    else:
+      return shape_types_by_ShapeType[original()]
+  def downcast_shape(shape):
+    if shape.IsNull():
+      return shape
+    shapetype = shape_type(shape.ShapeType, shape)
+    #print("downcasting", repr(shape), shapetype)
+    return shapetype.from_shape (shape)
   
-  simple_override(Shape, "shape_type", lambda self: shape_types_by_ShapeType[self.ShapeType()])
-  simple_override(Shape, "downcast", lambda self: shape_type(self).from_shape (self))
+  override_attribute (Shape, "ShapeType", lambda original: lambda self: shape_type(original, shape))
+  simple_override(Shape, "__wrap__", downcast_shape)
   
   def make_Vertex (original):
     def derived(cls, *args, **kwargs):
