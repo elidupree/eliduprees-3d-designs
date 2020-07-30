@@ -291,7 +291,10 @@ def initialize_system (cache_globals, cache_directory):
 
 
 def _globals_in_code(code):
-  return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if not hasattr(_cache_globals["__builtins__"], match.group(1)))
+  def ignore_predefined_filter(match):
+    key = match.group(1)
+    return key not in globals() and not hasattr(_cache_globals["__builtins__"], key)
+  return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if ignore_predefined_filter(match))
 
 class _Recursive:
   pass
@@ -323,6 +326,8 @@ def _output_hash (key):
     result = hasher.hexdigest()
   except TypeError:
     result = repr(value)
+    if " object at 0x" in result:
+      raise RuntimeError("Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
     
   #print(f"Info: decided that output hash of {key} is {result}")
     
