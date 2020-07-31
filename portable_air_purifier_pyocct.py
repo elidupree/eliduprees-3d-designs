@@ -38,20 +38,57 @@ fan_cord_socket_slit_width = 15
 fan_cord_socket_slit_length = 40
 
 strong_filter_rim_inset = 6
+strong_filter_airspace_wall_inset = strong_filter_rim_inset
 strong_filter_size = Vector (strong_filter_length, strong_filter_width, strong_filter_seal_depth_squished)
 strong_filter_min = Point (0, 0, 0)
 strong_filter_max = strong_filter_min + strong_filter_size
+strong_filter_center = strong_filter_min + (strong_filter_size/2)
 
+hose_inner_radius = (38.1/2)-tight_leeway
+
+
+def loop_pairs(points):
+  return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
+  
+def range_thing(increments, start, end):
+  dist = end - start
+  factor = 1/(increments - 1)
+  return (start + dist*i*factor for i in range(increments))
 
 @cached
+def strong_filter_output_solid():
+  inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
+  rect_min = strong_filter_min + inset
+  rect_max = strong_filter_max - inset
+  corners = [
+    Point (rect_min[0], rect_min[1], 0),
+    Point (rect_min[0], rect_max[1], 0),
+    Point (rect_max[0], rect_max[1], 0),
+    Point (rect_max[0], rect_min[1], 0),
+  ]
+  pairs = loop_pairs(corners)
+  center = Point (strong_filter_center[0], strong_filter_center[1], 0)
+  
+  def face(pair):
+    delta = pair[1] - pair[0]
+    filter_poles = [[pos + vector(0,0,z) for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
+    hose_poles = [[center + vector(0,0,z) + (pos - center).Normalized()*(hose_inner_radius - wall_thickness) for pos in range_thing(10, *pair)] for z in range_thing(4, 15, 30)]
+    
+    return Face(BSplineSurface(filter_poles + hose_poles))
+  
+  faces = [face(pair) for pair in pairs]
+  #return Compound(faces)
+  shell = Shell(faces)
+  return shell
+  
+  
 
 
-
-
+final_shape = strong_filter_output_solid
 
 
 view = False
-#view = True
+view = True
 if view:
   from OCCT.Visualization.QtViewer import ViewerQt
   v = ViewerQt(width=2000, height=1500)

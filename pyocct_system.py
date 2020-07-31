@@ -107,7 +107,13 @@ def _setup_wrappers():
         result = object.__repr__(self.wrapped_object)
       else:
         result = attr()
-      return f"Wrapper({result} / {str(self)})"
+        
+      c = getattr(self.wrapped_object, "__class__")
+      if c is not None:
+        if (c, "__repr__") in attribute_overrides:
+          return result
+        
+      return f"Wrapper({attr()} / {str(self)})"
       
     '''def __new__(cls, *args, **kwargs):
       attr = self.__getattr__("__new__")
@@ -331,7 +337,7 @@ def _output_hash (key):
   except TypeError:
     result = repr(value)
     if " object at 0x" in result:
-      raise RuntimeError("Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
+      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
     
   #print(f"Info: decided that output hash of {key} is {result}")
     

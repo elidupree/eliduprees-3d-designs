@@ -132,6 +132,7 @@ def surface_test():
   surface = BSplineSurface(
     [[Point(0,0,0), Point(1,0,0)], [Point(0,1,0), Point(1,1,1)]],
     u = BSplineDimension (degree = 1),
+    v = BSplineDimension (degree = 1),
     weights = [[1,1], [1,1]]
   )
   
@@ -142,7 +143,7 @@ print(surface_test)
 
 
 view = False
-view = True
+#view = True
 if view:
   from OCCT.Visualization.QtViewer import ViewerQt
   viewed = cube["solid"]

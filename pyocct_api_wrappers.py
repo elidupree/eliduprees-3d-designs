@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck, Geom, TColStd, TColgp")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck, Geom, TColStd, TColgp, ShapeUpgrade")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -89,14 +89,17 @@ def setup(wrap, unwrap, export, override_attribute):
     raise IndexError("point/vector can only be indexed with 0-2")
   
   simple_override(Vector, "__str__", Vector_str)
-  simple_override(Vector, "__index__", Vector_index)
-  simple_override(Point, "__index__", Vector_index)
+  simple_override(Vector, "__repr__", Vector_str)
+  simple_override(Vector, "__getitem__", Vector_index)
+  simple_override(Point, "__getitem__", Vector_index)
   simple_override(Point, "__str__", Point_str)
+  simple_override(Point, "__repr__", Point_str)
   simple_override(Vector, "Translated", lambda self, other: self + other)
+  simple_override(Vector, "__neg__", lambda self: self * -1)
     
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
-  simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (-other))
+  simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (other*-1))
       
   export_locals ("vector, Vector, Point")
   
@@ -113,11 +116,11 @@ def setup(wrap, unwrap, export, override_attribute):
     else:
       return [degree+1] + [1]*(num_poles - degree - 1) + [degree+1]
   
-  def default_knots(num_poles):
-    return list(range(num_poles))
+  def default_knots(num_multiplicities):
+    return list(range(num_multiplicities))
   
   class BSplineDimension:
-    def __init__(self, num_poles = None, multiplicities = None, knots = None, degree = 1, periodic = False):
+    def __init__(self, num_poles = None, multiplicities = None, knots = None, degree = 3, periodic = False):
       self.explicit_multiplicities = multiplicities
       self.explicit_knots = knots
       self.degree = degree
@@ -128,7 +131,7 @@ def setup(wrap, unwrap, export, override_attribute):
       return self.explicit_multiplicities
     def knots(self, num_poles):
       if self.explicit_knots is None:
-        return default_knots(num_poles)
+        return default_knots(len(self.multiplicities(num_poles)))
       return self.explicit_knots
   
   def make_BSplineSurface (original):
@@ -138,7 +141,7 @@ def setup(wrap, unwrap, export, override_attribute):
       
       if weights is None:
         weights = [[1 for value in row] for row in poles]
-              
+      print(num_u, u.knots(num_u), u.multiplicities(num_u))
       return original(
         unwrap(Array2OfPnt(poles)),
         unwrap(Array2OfReal(weights)),
@@ -207,6 +210,13 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute (Shape, "ShapeType", lambda original: lambda self: shape_type(original, shape))
   simple_override(Shape, "__wrap__", downcast_shape)
   
+  def shape_valid(shape):
+    return BRepCheck.BRepCheck_Analyzer(shape).IsValid()
+  def check_shape(shape):
+    a = BRepCheck.BRepCheck_Analyzer(shape)
+    if not a.IsValid():
+      raise RuntimeError(f'Invalid shape (detected by analyzer) {[str(b).replace("BRepCheck_Status.BRepCheck_", "") for b in a.Result(shape).Status()]}')
+  
   def make_Vertex (original):
     def derived(cls, *args, **kwargs):
       if len(args) == 0:
@@ -233,8 +243,7 @@ def setup(wrap, unwrap, export, override_attribute):
       if not builder.IsDone():
         raise RuntimeError("Invalid wire (detected by builder)")
       result = builder.Wire()
-      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
-        raise RuntimeError("Invalid wire (detected by analyzer)")
+      check_shape(result)
       return result
     return classmethod(derived)
   override_attribute(Wire, "__new__", make_Wire)
@@ -251,8 +260,7 @@ def setup(wrap, unwrap, export, override_attribute):
       if not builder.IsDone():
         raise RuntimeError("Invalid face (detected by builder)")
       result = builder.Face()
-      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
-        raise RuntimeError("Invalid face (detected by analyzer)")
+      check_shape(result)
       return result
     return classmethod(derived)
   override_attribute(Face, "__new__", make_Face)
@@ -268,8 +276,9 @@ def setup(wrap, unwrap, export, override_attribute):
         #print ("adding face", face)
         builder.Add (shell, face)
       #print ("done adding faces")
-      if not BRepCheck.BRepCheck_Analyzer(shell).IsValid():
-        raise RuntimeError("Invalid shell (detected by analyzer)")
+      if not shape_valid(shell):
+        shell = ShapeUpgrade.ShapeUpgrade_ShellSewing().ApplySewing(shell)
+      check_shape(shell)
       return shell
     return classmethod(derived)
   override_attribute(Shell, "__new__", make_Shell)
@@ -284,11 +293,26 @@ def setup(wrap, unwrap, export, override_attribute):
       if not builder.IsDone():
         raise RuntimeError("Invalid solid (detected by builder)")
       result = builder.Solid()
-      if not BRepCheck.BRepCheck_Analyzer(result).IsValid():
-        raise RuntimeError("Invalid solid (detected by analyzer)")
+      check_shape(result)
       return result
     return classmethod(derived)
   override_attribute(Solid, "__new__", make_Solid)
+  
+  def make_Compound(original):
+    def derived(cls, shapes = []):
+      compound = original()
+      builder = BRep.BRep_Builder()
+      #print ("builder created")
+      builder.MakeCompound(compound)
+      #print ("Compound made?")
+      for shape in shapes:
+        #print ("adding shape", face)
+        builder.Add (compound, shape)
+      #print ("done adding faces")
+      check_shape(compound)
+      return compound
+    return classmethod(derived)
+  override_attribute(Compound, "__new__", make_Compound)
   
   export_locals ("Shape, is_shape, read_brep")
   for name in shape_typenames:
