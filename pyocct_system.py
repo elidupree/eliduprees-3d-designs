@@ -152,10 +152,12 @@ def _setup_wrappers():
       return Wrapper(value)
 
   def unwrap(value):
-    if type (value) is Wrapper:
-      return value.wrapped_object
-    else:
-      return value
+    result = value
+    if type(result) is Wrapper:
+      result = value.wrapped_object
+    if type(result) is list:
+      result = [unwrap(item) for item in result]
+    return result
     
   #attribute_overrides [(OCCT.Exchange.ExchangeBasic, "read_brep")] = lambda original: None
   #attribute_overrides [(OCCT.gp.gp_Vec, "__init__")] = lambda original: None
@@ -165,7 +167,7 @@ def _setup_wrappers():
     globals()[name] = value
   def override_attribute(c, name, value):
     attribute_overrides [(unwrap(c), name)] = value
-  pyocct_api_wrappers.setup(wrap, export, override_attribute)
+  pyocct_api_wrappers.setup(wrap, unwrap, export, override_attribute)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
     globals() [export] = locals() [export]
@@ -285,6 +287,8 @@ def initialize_system (cache_globals, cache_directory):
     raise RuntimeError ("called initialize_system without giving globals")
   if _cache_globals is not None:
     raise RuntimeError ("called initialize_system more than once")
+  
+  os.makedirs(cache_directory, exist_ok=True)
   
   _cache_globals = cache_globals
   _cache_directory = cache_directory

@@ -127,8 +127,26 @@ def cube():
   
 print ("cube", cube)
 
-from OCCT.Visualization.QtViewer import ViewerQt
+@cached
+def surface_test():
+  surface = BSplineSurface(
+    [[Point(0,0,0), Point(1,0,0)], [Point(0,1,0), Point(1,1,1)]],
+    u = BSplineDimension (degree = 1),
+    weights = [[1,1], [1,1]]
+  )
+  
+  return Face(surface)
 
-'''v = ViewerQt(width=2000, height=1500)
-v.display_shape(unwrap(cube["solid"]))
-v.start()'''
+print(surface_test)
+
+
+
+view = False
+view = True
+if view:
+  from OCCT.Visualization.QtViewer import ViewerQt
+  viewed = cube["solid"]
+  viewed = surface_test
+  v = ViewerQt(width=2000, height=1500)
+  v.display_shape(unwrap(viewed))
+  v.start()

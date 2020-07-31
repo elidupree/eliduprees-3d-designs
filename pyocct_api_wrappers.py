@@ -3,24 +3,69 @@ import re
 import importlib
 
 
-def setup(wrap, export, override_attribute):
+def setup(wrap, unwrap, export, override_attribute):
   def simple_override (c, name, value):
     override_attribute(c, name, lambda original: value)
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck, Geom, TColStd, TColgp")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
   ExchangeBasic = Exchange.ExchangeBasic
   
+  exported_locals = []
+  def export_locals(names):
+    for match in re.finditer(r"[\w_]+", names):
+      exported_locals.append(match.group(0))
+      
+  default_tolerance = 1e-6
+  
+  ################################################################
+  #######################  Type utils  ###########################
+  ################################################################
+  
+  def make_Array1(original):
+    def derived(cls, values):
+      result = original (0, len(values) - 1)
+      for index, value in enumerate (values):
+        result.SetValue (index, value)
+      return result
+    return classmethod(derived)
+    
+  def make_Array2(original):
+    def derived(cls, rows):
+      num_rows = len (rows)
+      num_columns = len (rows[0])
+      if any(len (row) != num_columns for row in rows):
+        raise RuntimeError (f"inconsistent numbers of columns in Array2OfPnt constructor: {rows}")
+      result = original (0, num_rows-1, 0, num_columns-1)
+      for row_index, row in enumerate (rows):
+        for column_index, value in enumerate (row):
+          result.SetValue (row_index, column_index, value)
+      #print (result.NbRows(), result.NbColumns())
+      return result
+    return classmethod(derived)
+  
+  Array1OfReal = TColStd.TColStd_Array1OfReal
+  override_attribute(Array1OfReal, "__new__", make_Array1)
+  Array2OfReal = TColStd.TColStd_Array2OfReal
+  override_attribute(Array2OfReal, "__new__", make_Array2)
+  Array1OfInteger = TColStd.TColStd_Array1OfInteger
+  override_attribute(Array1OfInteger, "__new__", make_Array1)
+  Array2OfPnt = TColgp.TColgp_Array2OfPnt
+  override_attribute(Array2OfPnt, "__new__", make_Array2)
+  
+  ################################################################
+  ######################  Vector/etc.  ###########################
+  ################################################################
   Vector = gp.gp_Vec
   Point = gp.gp_Pnt
   
   def vector(*args, **kwargs):
     return Vector (*args, **kwargs)
-  
+
   def make_Vector(original):
     def derived(cls, *args):
       #if type(args[0]) is Point:
@@ -51,9 +96,70 @@ def setup(wrap, export, override_attribute):
     
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
-  simple_override(Point, "__sub__", lambda self, other: self.Translated (-other))
+  simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (-other))
+      
+  export_locals ("vector, Vector, Point")
   
-   
+  ################################################################
+  #####################  Other geometry  #########################
+  ################################################################
+  
+  Surface = Geom.Geom_Surface
+  BSplineSurface = Geom.Geom_BSplineSurface
+  
+  def default_multiplicities(num_poles, degree, periodic):
+    if periodic:
+      return [1]*num_poles
+    else:
+      return [degree+1] + [1]*(num_poles - degree - 1) + [degree+1]
+  
+  def default_knots(num_poles):
+    return list(range(num_poles))
+  
+  class BSplineDimension:
+    def __init__(self, num_poles = None, multiplicities = None, knots = None, degree = 1, periodic = False):
+      self.explicit_multiplicities = multiplicities
+      self.explicit_knots = knots
+      self.degree = degree
+      self.periodic = periodic
+    def multiplicities (self, num_poles):
+      if self.explicit_multiplicities is None:
+        return default_multiplicities(num_poles, self.degree, self.periodic)
+      return self.explicit_multiplicities
+    def knots(self, num_poles):
+      if self.explicit_knots is None:
+        return default_knots(num_poles)
+      return self.explicit_knots
+  
+  def make_BSplineSurface (original):
+    def derived(cls, poles, weights = None, u = BSplineDimension(), v = BSplineDimension()):
+      num_u = len (poles)
+      num_v = len (poles[0])
+      
+      if weights is None:
+        weights = [[1 for value in row] for row in poles]
+              
+      return original(
+        unwrap(Array2OfPnt(poles)),
+        unwrap(Array2OfReal(weights)),
+        unwrap(Array1OfReal(u.knots(num_u))),
+        unwrap(Array1OfReal(v.knots(num_v))),
+        unwrap(Array1OfInteger(u.multiplicities(num_u))),
+        unwrap(Array1OfInteger(v.multiplicities(num_v))),
+        u.degree,
+        v.degree,
+        u.periodic,
+        v.periodic,
+      )
+    
+    return classmethod(derived)
+    
+  override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
+  export_locals ("BSplineSurface, BSplineDimension")
+  
+  ################################################################
+  ####################  BRep Shape types  ########################
+  ################################################################
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_types_by_ShapeType = {}
   def handle_shape_type(typename):
@@ -66,11 +172,11 @@ def setup(wrap, export, override_attribute):
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
     #import pprint
-    print(c().wrapped_object.__class__ is c.wrapped_object)
+    #print(c().wrapped_object.__class__ is c.wrapped_object)
     #pprint.pprint({a:getattr(c().wrapped_object, a, None) for a in dir(c().wrapped_object)})
-    print(c.wrapped_object.__init__, c().wrapped_object.__init__)
-    print(c().write_brep)
-    print(type(c.wrapped_object))
+    #print(c.wrapped_object.__init__, c().wrapped_object.__init__)
+    #print(c().write_brep)
+    #print(type(c.wrapped_object))
     
     
   for typename in shape_typenames:
@@ -137,6 +243,8 @@ def setup(wrap, export, override_attribute):
     def derived(cls, *args, holes = []):
       if len(args) == 0:
         return original()
+      if len(args) == 1 and isinstance(args[0], Surface):
+        args = [args[0], default_tolerance]
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
       for hole in holes:
         builder.Add (hole)
@@ -182,8 +290,15 @@ def setup(wrap, export, override_attribute):
     return classmethod(derived)
   override_attribute(Solid, "__new__", make_Solid)
   
-  
-  for name in re.findall(r"[\w_]+", "vector, Vector, Point, Shape, is_shape, read_brep"):
-    export(name, locals()[name])
+  export_locals ("Shape, is_shape, read_brep")
   for name in shape_typenames:
     export(name, globals()[name])
+  
+  
+  ################################################################
+  #########################  Exports  ############################
+  ################################################################
+  for name in exported_locals:
+    export(name, locals()[name])
+  
+  
