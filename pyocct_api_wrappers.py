@@ -57,6 +57,17 @@ def setup(wrap, unwrap, export, override_attribute):
   Array2OfPnt = TColgp.TColgp_Array2OfPnt
   override_attribute(Array2OfPnt, "__new__", make_Array2)
   
+  
+  def make_List(original):
+    def derived(cls, values):
+      result = original()
+      for value in values:
+        result.Append(value)
+      return result
+    return classmethod(derived)
+  ListOfShape = TopoDS.TopoDS_ListOfShape
+  override_attribute(ListOfShape, "__new__", make_List)
+  
   ################################################################
   ######################  Vector/etc.  ###########################
   ################################################################
@@ -348,14 +359,11 @@ def setup(wrap, unwrap, export, override_attribute):
   
   def thicken_shell_or_face (shape, offset, join = JoinArc):
     print ("note: thicken_shell_or_face is actually broken")
-    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, TopoDS.TopoDS_ListOfShape(), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
     return builder.Shape()
     
   def thicken_solid (shape, removed_faces, offset, join = JoinArc):
-    removed_faces_los = TopoDS.TopoDS_ListOfShape()
-    for face in removed_faces:
-      removed_faces_los.Append(face)
-    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, removed_faces_los, offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(removed_faces), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
     return builder.Shape()
     
   export_locals ("thicken_shell_or_face, thicken_solid, JoinArc, JoinIntersection")
