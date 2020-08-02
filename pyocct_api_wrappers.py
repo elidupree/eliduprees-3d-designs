@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, ShapeUpgrade")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -54,6 +54,8 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Array2OfReal, "__new__", make_Array2)
   Array1OfInteger = TColStd.TColStd_Array1OfInteger
   override_attribute(Array1OfInteger, "__new__", make_Array1)
+  Array1OfPnt = TColgp.TColgp_Array1OfPnt
+  override_attribute(Array1OfPnt, "__new__", make_Array1)
   Array2OfPnt = TColgp.TColgp_Array2OfPnt
   override_attribute(Array2OfPnt, "__new__", make_Array2)
   
@@ -77,6 +79,8 @@ def setup(wrap, unwrap, export, override_attribute):
   Transform = gp.gp_Trsf
   Axis = gp.gp_Ax1
   Axes = gp.gp_Ax2
+
+  
   
   def vector(*args, **kwargs):
     return Vector (*args, **kwargs)
@@ -94,6 +98,8 @@ def setup(wrap, unwrap, export, override_attribute):
     return f"Vector({self.X()}, {self.Y()}, {self.Z()})"
   def Point_str(self):
     return f"Point({self.X()}, {self.Y()}, {self.Z()})"
+  def Direction_str(self):
+    return f"Direction({self.X()}, {self.Y()}, {self.Z()})"
   def Vector_index(self, index):
     if index == 0:
       return self.X()
@@ -105,10 +111,15 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override(Vector, "__str__", Vector_str)
   simple_override(Vector, "__repr__", Vector_str)
-  simple_override(Vector, "__getitem__", Vector_index)
-  simple_override(Point, "__getitem__", Vector_index)
   simple_override(Point, "__str__", Point_str)
   simple_override(Point, "__repr__", Point_str)
+  simple_override(Direction, "__str__", Direction_str)
+  simple_override(Direction, "__repr__", Direction_str)
+  
+  simple_override(Vector, "__getitem__", Vector_index)
+  simple_override(Point, "__getitem__", Vector_index)
+  simple_override(Direction, "__getitem__", Vector_index)
+  
   simple_override(Vector, "Translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
   
@@ -144,19 +155,31 @@ def setup(wrap, unwrap, export, override_attribute):
     transform = Transform()
     transform.SetMirror(argument)
     return transform
+    
+  def Translation (v):
+    return Transform (
+      vector(1,0,0),
+      vector(0,1,0),
+      vector(0,0,1),
+      v
+    )
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror")
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translation")
   
   ################################################################
   #####################  Other geometry  #########################
   ################################################################
   
+  
+  Circle = Geom.Geom_Circle
+  
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
+  BSplineCurve = Geom.Geom_BSplineCurve
   
   def default_multiplicities(num_poles, degree, periodic):
     if periodic:
-      return [1]*num_poles
+      return [1]*(num_poles+1)
     else:
       return [degree+1] + [1]*(num_poles - degree - 1) + [degree+1]
   
@@ -164,7 +187,7 @@ def setup(wrap, unwrap, export, override_attribute):
     return list(range(num_multiplicities))
   
   class BSplineDimension:
-    def __init__(self, num_poles = None, multiplicities = None, knots = None, degree = 3, periodic = False):
+    def __init__(self, *, num_poles = None, multiplicities = None, knots = None, degree = 3, periodic = False):
       self.explicit_multiplicities = multiplicities
       self.explicit_knots = knots
       self.degree = degree
@@ -179,13 +202,13 @@ def setup(wrap, unwrap, export, override_attribute):
       return self.explicit_knots
   
   def make_BSplineSurface (original):
-    def derived(cls, poles, weights = None, u = BSplineDimension(), v = BSplineDimension()):
+    def derived(cls, poles, u = BSplineDimension(), v = BSplineDimension(), *, weights = None):
       num_u = len (poles)
       num_v = len (poles[0])
       
       if weights is None:
         weights = [[1 for value in row] for row in poles]
-      print(num_u, u.knots(num_u), u.multiplicities(num_u))
+      #print(num_u, u.knots(num_u), u.multiplicities(num_u))
       return original(
         Array2OfPnt(poles),
         Array2OfReal(weights),
@@ -200,9 +223,29 @@ def setup(wrap, unwrap, export, override_attribute):
       )
     
     return classmethod(derived)
+  
+  def make_BSplineCurve (original):
+    def derived(cls, poles, u = BSplineDimension(), *, weights = None):
+      num_u = len (poles)
+      
+      if weights is None:
+        weights = [1 for value in poles]
+      print(num_u, len(u.knots(num_u)), len(u.multiplicities(num_u)))
+      return original(
+        Array1OfPnt(poles),
+        Array1OfReal(weights),
+        Array1OfReal(u.knots(num_u)),
+        Array1OfInteger(u.multiplicities(num_u)),
+        u.degree,
+        u.periodic,
+      )
+    
+    return classmethod(derived)
+
     
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
-  export_locals ("BSplineSurface, BSplineDimension")
+  override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
+  export_locals (" Circle, BSplineCurve, BSplineSurface, BSplineDimension")
   
   ################################################################
   ####################  BRep Shape types  ########################
@@ -230,6 +273,7 @@ def setup(wrap, unwrap, export, override_attribute):
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
     simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
+    simple_override(c, "__add__", lambda self, v: self @ Translation(v))
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural, lambda self: subshapes (self, subtype))
@@ -301,6 +345,8 @@ def setup(wrap, unwrap, export, override_attribute):
   def make_Wire(original):
     def derived(cls, edges_or_wires = []):
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
+      if type (edges_or_wires) is not list:
+        edges_or_wires = [edges_or_wires]
       for item in edges_or_wires:
         builder.Add (item)
       if not builder.IsDone():
@@ -337,6 +383,8 @@ def setup(wrap, unwrap, export, override_attribute):
       #print ("Shell made?")
       for face in faces:
         #print ("adding face", face)
+        if not isinstance(face, Face):
+          raise RuntimeError(f"adding non-face to shell: {face}")
         builder.Add (shell, face)
       #print ("done adding faces")
       if not shape_valid(shell):
@@ -390,17 +438,60 @@ def setup(wrap, unwrap, export, override_attribute):
   
   JoinArc = GeomAbs.GeomAbs_JoinType.GeomAbs_Arc
   JoinIntersection = GeomAbs.GeomAbs_JoinType.GeomAbs_Intersection
+  ModeSkin = BRepOffset.BRepOffset_Mode.BRepOffset_Skin
   
   def thicken_shell_or_face (shape, offset, join = JoinArc):
     print ("note: thicken_shell_or_face is actually broken")
-    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(), offset, default_tolerance, ModeSkin, False, False, join)
     return builder.Shape()
     
   def thicken_solid (shape, removed_faces, offset, join = JoinArc):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(removed_faces), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
     return builder.Shape()
     
-  export_locals ("thicken_shell_or_face, thicken_solid, JoinArc, JoinIntersection")
+  def Offset (shape, offset,*, tolerance = default_tolerance, mode = ModeSkin, join = JoinArc, fill = False):
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffsetShape()
+    builder.PerformByJoin (shape, offset, tolerance, mode, False, False, join)
+    result = builder.Shape()
+    if not fill:
+      return result
+      
+    image = builder.MakeOffset().OffsetEdgesFromShapes()
+    #faces = shape.Faces() + result.Faces()
+    shells = [shape, result]
+    free_check = ShapeAnalysis.ShapeAnalysis_FreeBoundsProperties (shape)
+    free_check.Perform()
+    for free_bound in free_check.ClosedFreeBounds():
+      #print("free bound")
+      free_wire = free_bound.FreeBound()
+      offset_wire = Wire ([image.Image (edge) for edge in free_wire.Edges()])
+      loft = Loft([free_wire, offset_wire])
+      #faces.extend(loft.Faces())
+      shells.append (loft)
+    #print (faces)
+    #shell = Shell (faces)
+    sewing = BRepBuilderAPI.BRepBuilderAPI_Sewing(tolerance)
+    for shell in shells:
+      sewing.Add(shell)
+    sewing.Perform()
+    complete_shell = sewing.SewedShape()
+    print (complete_shell)
+    return Solid (complete_shell)
+        
+      
+    
+    
+  def Loft (sections, *, solid = False, ruled = False):
+    builder = BRepOffsetAPI.BRepOffsetAPI_ThruSections(solid, ruled)
+    for section in sections:
+      if isinstance (section, Vertex):
+        builder.AddVertex (section)
+      else:
+        builder.AddWire (section)
+    builder.Build()
+    return builder.Shape()
+    
+  export_locals ("thicken_shell_or_face, thicken_solid, Loft, Offset, JoinArc, JoinIntersection")
   
   ################################################################
   #########################  Exports  ############################

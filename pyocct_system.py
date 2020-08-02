@@ -72,6 +72,8 @@ def _setup_wrappers():
         override = attribute_overrides.get((inner, "__new__"))
         if override is not None:
           to_call = apply_wrapper_override(self, True, lambda *args, **kwargs: inner(*args, **kwargs), override)
+          return watch_time(repr(inner), lambda: wrap(to_call(
+            *args, **kwargs)))
           
       return watch_time(repr(inner), lambda: wrap(to_call(
         *(unwrap (value) for value in args),
@@ -294,7 +296,7 @@ _cache_globals = None
 _cache_directory = None
 _cache_info_by_global_key = {}
 
-_cache_system_source = inspect.getsource (sys.modules [__name__])
+_cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
 def initialize_system (cache_globals, cache_directory):
