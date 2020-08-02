@@ -98,6 +98,7 @@ def strong_filter_output_solid():
   #solid = thicken_shell_or_face(shell, wall_thickness)
   
   solid = Solid(Shell(faces + [bottom_face, top_face]))
+  mirrored = solid @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
   #solid = union(solid, solid.Mir
   return thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   

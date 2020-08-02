@@ -73,6 +73,10 @@ def setup(wrap, unwrap, export, override_attribute):
   ################################################################
   Vector = gp.gp_Vec
   Point = gp.gp_Pnt
+  Direction = gp.gp_Dir
+  Transform = gp.gp_Trsf
+  Axis = gp.gp_Ax1
+  Axes = gp.gp_Ax2
   
   def vector(*args, **kwargs):
     return Vector (*args, **kwargs)
@@ -107,12 +111,41 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Point, "__repr__", Point_str)
   simple_override(Vector, "Translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
+  
     
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (other*-1))
+  
+  
+  def make_Transform(original):
+    def derived(cls, a=vector(1,0,0),b=vector(0,1,0),c=vector(0,0,1),d=vector(0,0,0)):
+      if isinstance(a, gp.gp_Trsf2d):
+        return original(a)
+        
+      result = original()
+      result.SetValues(
+        a[0], b[0], c[0], d[0],
+        a[1], b[1], c[1], d[1],
+        a[2], b[2], c[2], d[2],
+      )
+      return result
       
-  export_locals ("vector, Vector, Point")
+    return classmethod(derived)
+  override_attribute(Transform, "__new__", make_Transform)
+  override_attribute(Transform, "__matmul__", Transform.__mul__)
+  
+  for transformable in [Vector, Point]:
+    simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
+    
+  def Mirror(argument):
+    if isinstance (argument, Direction):
+      argument = Axes (Point(), argument)
+    transform = Transform()
+    transform.SetMirror(argument)
+    return transform
+  
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -196,6 +229,7 @@ def setup(wrap, unwrap, export, override_attribute):
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
+    simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural, lambda self: subshapes (self, subtype))
