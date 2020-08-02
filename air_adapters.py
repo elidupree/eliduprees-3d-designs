@@ -14,6 +14,58 @@ def elidupree_4in_to_CPAP_solid():
   + [CPAP_wire.translated (vector (0, 0, 95+index*4)) for index in range (5)], True, False, False, 5)
   
   show (adapter, "adapter")
+
+def elidupree_4in_under_door():
+  wall_thickness = 0.5
+  def elidupree_4in_wire(radius, index):
+    dirv = vector(-1.3, 0, 1).normalized()
+    start = vector(-100,0,18 -dirv[0]*radius)
+    return Part.Shape([Part.Circle (start + dirv*index*2.5, dirv, radius)]).to_wire()
+  
+  under_door_wire = FreeCAD_shape_builder().build([
+    start_at (-60, 0),
+    horizontal_to (60),
+    vertical_to (32 - wall_thickness*2),
+    horizontal_to(-60),
+    close()
+  ]).as_yz().to_wire()
+  
+  def half_shape(dir, radius):
+    k = "1" if dir == 1 else ""
+    e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
+    start = Part.makeLoft (e4ins
+    + [under_door_wire.translated (vector (40*(index-5)/10, 0, 0)) for index in range (6)]
+    #+ [elidupree_4in_wire(1, elidupree_4in_output_outer_radius - wall_thickness, index) for index in range (5)]
+    , )
+    #start.sewShape()
+    #print(start.fix(0.01, 0.005, 0.02))
+    
+    show (start, "start"+k, invisible = True)
+    outside = start.makeOffsetShape(-wall_thickness, 0.01)#, fill=True)
+    #show(start.Face6, "ver"+k)
+    #adapter = start.makeThickness([start.Face6], wall_thickness, 0.01)
+    
+    show (outside, "outside"+k, invisible = True)
+    
+    cover1 = Part.Face([under_door_wire.makeOffset2D(wall_thickness), under_door_wire])
+    show(cover1, "cover1"+k, invisible = True)
+    cover2 = Part.Face([e4ins[0].makeOffset2D(wall_thickness), e4ins[0]])
+    
+    solid = Part.Solid(Part.Shell(Part.Compound([
+      start, outside, cover1, cover2
+    ]).Faces))
+    if dir == 1:
+      solid = solid.mirror(vector(), vector(1,0,0))
+    show(solid, "solid"+k, invisible = True)
+    
+    import MeshPart
+    mesh = MeshPart.meshFromShape(solid, 0.01, 0.5)
+    Mesh.show(mesh, "mesh"+k)
+  
+  half_shape(-1, elidupree_4in_intake_inner_radius)
+  half_shape(1, elidupree_4in_output_outer_radius - wall_thickness)
+  
+  
   
 
 def CPAP_to_anemometer_solid():
@@ -63,7 +115,7 @@ def CPAP_to_CPAP():
 def run(g):
   for key, value in g.items():
     globals()[key] = value
-  fan_0802GS_to_CPAP_solid()
+  elidupree_4in_under_door()
   
   
   

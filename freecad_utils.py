@@ -127,6 +127,7 @@ operations_to_make_applied_version_of = [
   ("rotate", "rotated"),
   ("reverse", "reversed"),
 ]
+applied_operations = {}
 
 for operation_name, applied_name in operations_to_make_applied_version_of:
   def applied(operation_name, applied_name):
@@ -136,14 +137,14 @@ for operation_name, applied_name in operations_to_make_applied_version_of:
       getattr(result, operation_name) (*arguments)
       return result
     return applied
-  globals() [applied_name] = applied(operation_name, applied_name)
+  applied_operations [applied_name] = applied(operation_name, applied_name)
 
 def curse_freecad_types():
   for value in vars (Part).values():
     if inspect.isclass (value):
       part_class = value
       for operation_name, applied_name in operations_to_make_applied_version_of:
-        curse (part_class, applied_name, globals() [applied_name])
+        curse (part_class, applied_name, applied_operations [applied_name])
       curse (part_class, "to_face", lambda part: Part.Face (part))
       curse (part_class, "fancy_extrude", fancy_extrude)
       curse (part_class, "as_xz", lambda part: part.rotated(vector(), vector (1, 0, 0), 90))
