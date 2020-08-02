@@ -22,16 +22,25 @@ def elidupree_4in_under_door():
     start = vector(-100,0,18 -dirv[0]*radius)
     return Part.Shape([Part.Circle (start + dirv*index*2.5, dirv, radius)]).to_wire()
   
-  under_door_wire = FreeCAD_shape_builder().build([
-    start_at (-60, 0),
+  zigzag_depth = -3
+  curved_zigzag_offset = zigzag_depth/3
+  under_door_polygon = FreeCAD_shape_builder(zigzag_length_limit=6, zigzag_depth = zigzag_depth).build([
+    start_at (-60, curved_zigzag_offset),
     horizontal_to (60),
-    vertical_to (32 - wall_thickness*2),
+    vertical_to (32 - wall_thickness*2 - curved_zigzag_offset),
     horizontal_to(-60),
     close()
   ]).as_yz().to_wire()
   
-  def half_shape(dir, radius):
-    k = "1" if dir == 1 else ""
+  under_door_curve = Part.BSplineCurve()
+  under_door_curve.buildFromPolesMultsKnots(
+    [v.Point for v in under_door_polygon.Vertexes],
+    periodic = True,
+    degree = 3,
+  )
+  under_door_wire = under_door_curve.toShape().to_wire()
+  
+  def half_shape(k, dir, radius):
     e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
     start = Part.makeLoft (e4ins
     + [under_door_wire.translated (vector (40*(index-5)/10, 0, 0)) for index in range (6)]
@@ -59,11 +68,11 @@ def elidupree_4in_under_door():
     show(solid, "solid"+k, invisible = True)
     
     import MeshPart
-    mesh = MeshPart.meshFromShape(solid, 0.01, 0.5)
+    mesh = MeshPart.meshFromShape(solid, 0.005, 0.1)
     Mesh.show(mesh, "mesh"+k)
   
-  half_shape(-1, elidupree_4in_intake_inner_radius)
-  half_shape(1, elidupree_4in_output_outer_radius - wall_thickness)
+  half_shape("intake", -1, elidupree_4in_intake_inner_radius)
+  half_shape("output", 1, elidupree_4in_output_outer_radius - wall_thickness)
   
   
   
