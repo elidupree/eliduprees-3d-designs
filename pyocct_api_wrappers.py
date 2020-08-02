@@ -143,12 +143,12 @@ def setup(wrap, unwrap, export, override_attribute):
         weights = [[1 for value in row] for row in poles]
       print(num_u, u.knots(num_u), u.multiplicities(num_u))
       return original(
-        unwrap(Array2OfPnt(poles)),
-        unwrap(Array2OfReal(weights)),
-        unwrap(Array1OfReal(u.knots(num_u))),
-        unwrap(Array1OfReal(v.knots(num_v))),
-        unwrap(Array1OfInteger(u.multiplicities(num_u))),
-        unwrap(Array1OfInteger(v.multiplicities(num_v))),
+        Array2OfPnt(poles),
+        Array2OfReal(weights),
+        Array1OfReal(u.knots(num_u)),
+        Array1OfReal(v.knots(num_v)),
+        Array1OfInteger(u.multiplicities(num_u)),
+        Array1OfInteger(v.multiplicities(num_v)),
         u.degree,
         v.degree,
         u.periodic,
@@ -164,7 +164,7 @@ def setup(wrap, unwrap, export, override_attribute):
   ####################  BRep Shape types  ########################
   ################################################################
   def subshapes (shape, subshape_type):
-    explorer = TopExp.TopExp_Explorer(shape, wrap(subshape_type).ShapeEnum)
+    explorer = TopExp.TopExp_Explorer(shape, subshape_type.ShapeEnum)
     result = []
     while explorer.More():
       result.append (explorer.Current())
@@ -185,12 +185,7 @@ def setup(wrap, unwrap, export, override_attribute):
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
-    #import pprint
-    #print(c().wrapped_object.__class__ is c.wrapped_object)
-    #pprint.pprint({a:getattr(c().wrapped_object, a, None) for a in dir(c().wrapped_object)})
-    #print(c.wrapped_object.__init__, c().wrapped_object.__init__)
-    #print(c().write_brep)
-    #print(type(c.wrapped_object))
+
     def handle_subtype(subtype, plural):
       simple_override(c, plural, lambda self: subshapes (self, subtype))
     for (other_type, plural) in zip (shape_typenames, shape_typename_plurals):
@@ -203,7 +198,7 @@ def setup(wrap, unwrap, export, override_attribute):
     handle_shape_type(typename)
     
   simple_override(Vertex, "Point", lambda self: BRep.BRep_Tool.Pnt_(self))
-  simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(wrap(self).Point(), index))
+  simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.Point(), index))
   simple_override(Face, "OuterWire", BRepTools.BRepTools.OuterWire_)
   
   

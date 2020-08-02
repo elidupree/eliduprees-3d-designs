@@ -44,20 +44,36 @@ def _setup_wrappers():
     else:
       return "<object without recognized name attributes>"
 
-
-
+  def apply_wrapper_override(wrapper, on_class, unwrapped_original, override):
+    # Don't wrap override methods unless they were already wrapped;
+    # calls to those methods should act on the wrapped arguments
+    result = override(wrap(unwrapped_original))
+    was_wrapped = type(result) is Wrapper
+    unwrapped_result = unwrap(result)
+    if hasattr(unwrapped_result, "__get__"):
+      if on_class:
+        result = unwrapped_result.__get__(None, wrapper)
+      else:
+        result = unwrapped_result.__get__(wrapper, type(wrapper))
+        
+      if was_wrapped:
+        result = wrap(result)
+        
+    return result
+    
   class Wrapper:
     def __init__(self, wrapped_object):
       self.wrapped_object = wrapped_object
     def __call__(self, *args, **kwargs):
       inner = self.wrapped_object
+      to_call = inner
       #print(f"calling {inner}, {args}")
       if inspect.isclass(inner):
         override = attribute_overrides.get((inner, "__new__"))
         if override is not None:
-          inner = override(inner).__get__(None, inner)
+          to_call = apply_wrapper_override(self, True, lambda *args, **kwargs: inner(*args, **kwargs), override)
           
-      return watch_time(repr(inner), lambda: wrap(inner(
+      return watch_time(repr(inner), lambda: wrap(to_call(
         *(unwrap (value) for value in args),
         **{key: unwrap (value) for key, value in kwargs.items()}
       )))
@@ -79,41 +95,37 @@ def _setup_wrappers():
       
       #print (inner, name, override)
       if override is not None:
-        inner_attribute = unwrap (override(inner_attribute))
-        if hasattr(inner_attribute, "__get__"):
-          # hack - treat pybind11_type as type
-          if type(inner) is type or type(inner) is type(OCCT.TopoDS.TopoDS_Shape):
-            inner_attribute = inner_attribute.__get__(None, inner)
-          else:
-            inner_attribute = inner_attribute.__get__(inner, type(inner))
+        # hack - treat pybind11_type as type
+        on_class = type(inner) is type or type(inner) is type(OCCT.TopoDS.TopoDS_Shape)
+        return apply_wrapper_override(self, on_class, inner_attribute, override)
       return wrap(inner_attribute)
     
     # the catchall below SHOULD be able to handle format/str, but
     def __format__(self, format_arguments):
       attr = self.__getattr__("__format__")
-      if attr.wrapped_object is object.__format__:
+      if unwrap(attr) is object.__format__:
         return object.__format__(self.wrapped_object, format_arguments)
       else:
         return attr(format_arguments)
     def __str__(self):
       attr = self.__getattr__("__str__")
-      if attr.wrapped_object is object.__str__:
+      if unwrap(attr) is object.__str__:
         return object.__str__(self.wrapped_object)
       else:
         return attr()
     def __repr__(self):
+      if inspect.isclass(self.wrapped_object):
+        return object.__repr__(self.wrapped_object)
+      
       attr = self.__getattr__("__repr__")
-      if attr.wrapped_object is object.__repr__:
-        result = object.__repr__(self.wrapped_object)
-      else:
-        result = attr()
+      result = attr()
         
       c = getattr(self.wrapped_object, "__class__")
       if c is not None:
         if (c, "__repr__") in attribute_overrides:
           return result
         
-      return f"Wrapper({attr()} / {str(self)})"
+      return f"Wrapper({result} / {str(self)})"
       
     '''def __new__(cls, *args, **kwargs):
       attr = self.__getattr__("__new__")
