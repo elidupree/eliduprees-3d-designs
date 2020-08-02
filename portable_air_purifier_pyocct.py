@@ -75,15 +75,15 @@ def strong_filter_output_solid():
     Point (rect_max[0], rect_min[1], 0),
   ]
   pairs = loop_pairs(corners)
-  center = Point (strong_filter_center[0], strong_filter_center[1], 0)
+  CPAP_center = Point (strong_filter_center[0] - 20, strong_filter_center[1], 0)
   top_z = 30
   
   def face(pair):
     delta = pair[1] - pair[0]
     filter_poles = [[pos + vector(0,0,z) for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
-    hose_poles = [[center + vector(0,0,z) + (pos - center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, 15, top_z)]
+    CPAP_poles = [[CPAP_center + vector(0,0,z) + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, 15, top_z)]
     
-    return Face(BSplineSurface(filter_poles + hose_poles))
+    return Face(BSplineSurface(filter_poles + CPAP_poles))
   
   faces = [face(pair) for pair in pairs]
   bottom_face = Face (Wire ([Edge (*pair) for pair in pairs]))
@@ -98,6 +98,7 @@ def strong_filter_output_solid():
   #solid = thicken_shell_or_face(shell, wall_thickness)
   
   solid = Solid(Shell(faces + [bottom_face, top_face]))
+  #solid = union(solid, solid.Mir
   return thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   
   
