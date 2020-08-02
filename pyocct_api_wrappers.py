@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, gp, TopAbs, BRep, BRepBuilderAPI, BRepCheck, Geom, TColStd, TColgp, ShapeUpgrade")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, ShapeUpgrade")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -163,14 +163,25 @@ def setup(wrap, unwrap, export, override_attribute):
   ################################################################
   ####################  BRep Shape types  ########################
   ################################################################
+  def subshapes (shape, subshape_type):
+    explorer = TopExp.TopExp_Explorer(shape, wrap(subshape_type).ShapeEnum)
+    result = []
+    while explorer.More():
+      result.append (explorer.Current())
+      explorer.Next()
+    return result
+  
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
+  shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
   shape_types_by_ShapeType = {}
   def handle_shape_type(typename):
     c = getattr(TopoDS, f"TopoDS_{typename}")
     from_shape = getattr(TopoDS.TopoDS, f"{typename}_")
-    shape_types_by_ShapeType [getattr (TopAbs.TopAbs_ShapeEnum, "TopAbs_"+ typename.upper())] = c
+    enum_value = getattr (TopAbs.TopAbs_ShapeEnum, "TopAbs_"+ typename.upper())
+    shape_types_by_ShapeType [enum_value] = c
     globals() [typename] = c
     simple_override(c, "from_shape", from_shape)
+    simple_override(c, "ShapeEnum", enum_value)
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
@@ -180,10 +191,22 @@ def setup(wrap, unwrap, export, override_attribute):
     #print(c.wrapped_object.__init__, c().wrapped_object.__init__)
     #print(c().write_brep)
     #print(type(c.wrapped_object))
+    def handle_subtype(subtype, plural):
+      simple_override(c, plural, lambda self: subshapes (self, subtype))
+    for (other_type, plural) in zip (shape_typenames, shape_typename_plurals):
+      if other_type == typename:
+        break
+      handle_subtype(globals() [other_type], plural)
     
     
   for typename in shape_typenames:
     handle_shape_type(typename)
+    
+  simple_override(Vertex, "Point", lambda self: BRep.BRep_Tool.Pnt_(self))
+  simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(wrap(self).Point(), index))
+  simple_override(Face, "OuterWire", BRepTools.BRepTools.OuterWire_)
+  
+  
   
   Shape = TopoDS.TopoDS_Shape
   #simple_override(Shape, "read_brep", Exchange.ExchangeBasic.read_brep)
@@ -318,6 +341,29 @@ def setup(wrap, unwrap, export, override_attribute):
   for name in shape_typenames:
     export(name, globals()[name])
   
+  
+  ################################################################
+  #####################  BRep algorithms  ########################
+  ################################################################
+  
+  MakeThickSolid = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid
+  
+  JoinArc = GeomAbs.GeomAbs_JoinType.GeomAbs_Arc
+  JoinIntersection = GeomAbs.GeomAbs_JoinType.GeomAbs_Intersection
+  
+  def thicken_shell_or_face (shape, offset, join = JoinArc):
+    print ("note: thicken_shell_or_face is actually broken")
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, TopoDS.TopoDS_ListOfShape(), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
+    return builder.Shape()
+    
+  def thicken_solid (shape, removed_faces, offset, join = JoinArc):
+    removed_faces_los = TopoDS.TopoDS_ListOfShape()
+    for face in removed_faces:
+      removed_faces_los.Append(face)
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, removed_faces_los, offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
+    return builder.Shape()
+    
+  export_locals ("thicken_shell_or_face, thicken_solid, JoinArc, JoinIntersection")
   
   ################################################################
   #########################  Exports  ############################

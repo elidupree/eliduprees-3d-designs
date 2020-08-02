@@ -115,7 +115,7 @@ def cube():
   faces = [Face (wire) for wire in wires]
   shell = Shell (faces)
   solid = Solid (shell)
-  
+  offset = thicken_solid(solid, [faces[0]], 0.2)
   return {
     "vertices": vertices,
     "edges": edges,
@@ -123,6 +123,7 @@ def cube():
     "faces": faces,
     "shell": shell,
     "solid": solid,
+    "offset": offset,
   }
   
 print ("cube", cube)
@@ -146,8 +147,8 @@ view = False
 #view = True
 if view:
   from OCCT.Visualization.QtViewer import ViewerQt
-  viewed = cube["solid"]
-  viewed = surface_test
+  viewed = cube["offset"]
+  #viewed = surface_test
   v = ViewerQt(width=2000, height=1500)
   v.display_shape(unwrap(viewed))
   v.start()

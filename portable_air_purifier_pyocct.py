@@ -44,11 +44,19 @@ strong_filter_min = Point (0, 0, 0)
 strong_filter_max = strong_filter_min + strong_filter_size
 strong_filter_center = strong_filter_min + (strong_filter_size/2)
 
-hose_inner_radius = (38.1/2)-tight_leeway
+CPAP_outer_radius = (21.5/2)
+CPAP_inner_radius = CPAP_outer_radius-wall_thickness
 
 
 def loop_pairs(points):
   return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
+def all_equal(iterable):
+  i = iter(iterable)
+  try:
+    first = next(i)
+  except StopIteration:
+    return True
+  return all(v == first for v in i)
   
 def range_thing(increments, start, end):
   dist = end - start
@@ -68,25 +76,36 @@ def strong_filter_output_solid():
   ]
   pairs = loop_pairs(corners)
   center = Point (strong_filter_center[0], strong_filter_center[1], 0)
+  top_z = 30
   
   def face(pair):
     delta = pair[1] - pair[0]
     filter_poles = [[pos + vector(0,0,z) for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
-    hose_poles = [[center + vector(0,0,z) + (pos - center).Normalized()*(hose_inner_radius - wall_thickness) for pos in range_thing(10, *pair)] for z in range_thing(4, 15, 30)]
+    hose_poles = [[center + vector(0,0,z) + (pos - center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, 15, top_z)]
     
     return Face(BSplineSurface(filter_poles + hose_poles))
   
   faces = [face(pair) for pair in pairs]
+  bottom_face = Face (Wire ([Edge (*pair) for pair in pairs]))
+  top_face = Face (Wire ([
+    next(edge for edge in f.Edges() if all(
+      v[2] == top_z for v in edge.Vertices()
+    ))
+    for f in faces
+  ]))
   #return Compound(faces)
-  shell = Shell(faces)
-  return shell
+  #shell = Shell(faces)
+  #solid = thicken_shell_or_face(shell, wall_thickness)
+  
+  solid = Solid(Shell(faces + [bottom_face, top_face]))
+  return thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   
   
 
 
 final_shape = strong_filter_output_solid
 
-
+print (final_shape)
 view = False
 view = True
 if view:
