@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -159,7 +159,7 @@ def setup(wrap, unwrap, export, override_attribute):
     transform.SetMirror(argument)
     return transform
     
-  def Translation (v):
+  def Translate (v):
     return Transform (
       vector(1,0,0),
       vector(0,1,0),
@@ -167,7 +167,7 @@ def setup(wrap, unwrap, export, override_attribute):
       v
     )
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translation")
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -175,6 +175,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   
   Circle = Geom.Geom_Circle
+  Plane = Geom.Geom_Plane
   
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
@@ -248,7 +249,7 @@ def setup(wrap, unwrap, export, override_attribute):
     
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
-  export_locals (" Circle, BSplineCurve, BSplineSurface, BSplineDimension")
+  export_locals (" Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
   
   ################################################################
   ####################  BRep Shape types  ########################
@@ -276,7 +277,7 @@ def setup(wrap, unwrap, export, override_attribute):
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
     simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
-    simple_override(c, "__add__", lambda self, v: self @ Translation(v))
+    simple_override(c, "__add__", lambda self, v: self @ Translate(v))
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural, lambda self: subshapes (self, subtype))
@@ -518,10 +519,20 @@ def setup(wrap, unwrap, export, override_attribute):
     return finish_Boolean (builder)
   
   def Difference (first, second):
-    builder = BRepAlgoAPI.BRepAlgoAPI_Common(first, second)
+    builder = BRepAlgoAPI.BRepAlgoAPI_Cut(first, second)
     return finish_Boolean (builder)
+  
+  
+  def Box ():
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection")
+    return BRepPrimAPI.BRepPrimAPI_MakeBox ().Shape()
+  
+  def HalfSpace(point, direction):
+    plane = Plane (point, direction)
+    reference = point + Vector (direction)
+    return BRepPrimAPI.BRepPrimAPI_MakeHalfSpace(Face(plane), reference).Solid()
+    
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection")
   
   ################################################################
   #########################  Exports  ############################

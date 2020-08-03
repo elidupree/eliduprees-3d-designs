@@ -6,8 +6,9 @@ initialize_system (globals(), sys.argv[1])
 
 wall_thickness = 0.8
 
-# extra leeway in addition to the wall expansion, for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit
-tight_leeway = 0.15
+# extra leeway in addition to the wall expansion, for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit.
+# 0.15 is a good amount generically, but I happen to know that my diagonal printing process adds about 0.25 on each side as well
+tight_leeway = 0.15 + 0.25
 
 strong_filter_length = 151.9 + tight_leeway*2
 strong_filter_width = 101 + tight_leeway*2
@@ -76,12 +77,13 @@ def strong_filter_output_solid():
   ]
   pairs = loop_pairs(corners)
   CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
-  top_z = 30
+  CPAP_bottom_z = 15
+  top_z = CPAP_bottom_z + 25
   
   def face(pair):
     delta = pair[1] - pair[0]
     filter_poles = [[pos + vector(0,0,z) for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
-    CPAP_poles = [[CPAP_center + vector(0,0,z) + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, 15, top_z)]
+    CPAP_poles = [[CPAP_center + vector(0,0,z) + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, CPAP_bottom_z, top_z)]
     
     return Face(BSplineSurface(filter_poles + CPAP_poles))
   
@@ -99,9 +101,10 @@ def strong_filter_output_solid():
   
   solid = Solid(Shell(faces + [bottom_face, top_face]))
   thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
-  mirrored = solid @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
-  solid = Union(solid, mirrored)
-  return thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
+  half_thick = Intersection(thick, HalfSpace(strong_filter_center, Direction(-1, 0, 0)))
+  mirrored = half_thick @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
+  combined = Compound([half_thick, mirrored])
+  return combined
   
   
 
