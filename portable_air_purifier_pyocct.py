@@ -75,7 +75,7 @@ def strong_filter_output_solid():
     Point (rect_max[0], rect_min[1], 0),
   ]
   pairs = loop_pairs(corners)
-  CPAP_center = Point (strong_filter_center[0] - 20, strong_filter_center[1], 0)
+  CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
   top_z = 30
   
   def face(pair):
@@ -98,8 +98,9 @@ def strong_filter_output_solid():
   #solid = thicken_shell_or_face(shell, wall_thickness)
   
   solid = Solid(Shell(faces + [bottom_face, top_face]))
+  thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   mirrored = solid @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
-  #solid = union(solid, solid.Mir
+  solid = Union(solid, mirrored)
   return thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   
   

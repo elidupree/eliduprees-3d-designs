@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade")
+  modules = re.findall(r"[\w_]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -69,6 +69,9 @@ def setup(wrap, unwrap, export, override_attribute):
     return classmethod(derived)
   ListOfShape = TopoDS.TopoDS_ListOfShape
   override_attribute(ListOfShape, "__new__", make_List)
+  
+  
+  simple_override (Message.Message_Report, "Dump", lambda self, gravity: repr(list(set(alert.GetMessageKey() for alert in self.GetAlerts (gravity)))))
   
   ################################################################
   ######################  Vector/etc.  ###########################
@@ -491,7 +494,34 @@ def setup(wrap, unwrap, export, override_attribute):
     builder.Build()
     return builder.Shape()
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Loft, Offset, JoinArc, JoinIntersection")
+  
+  def recursive_flatten (arguments):
+    if type (arguments) is list:
+      return [value for argument in arguments for value in recursive_flatten (argument)]
+    return arguments
+  
+  def finish_Boolean (builder):
+    builder.Build()
+    if not builder.IsDone():
+      raise RuntimeError (f"Union failed {builder.GetReport().Dump (Message.Message_Gravity.Message_Fail)} {builder.GetReport().Dump (Message.Message_Gravity.Message_Alarm)} {builder.GetReport().Dump (Message.Message_Gravity.Message_Warning)}")
+    return builder.Shape()
+  
+  def Union (*shapes):
+    shapes = recursive_flatten (shapes)
+    builder = BRepAlgoAPI.BRepAlgoAPI_Fuse()
+    builder.SetArguments (ListOfShape (shapes [:1]))
+    builder.SetTools (ListOfShape (shapes [1:]))
+    return finish_Boolean (builder)
+    
+  def Intersection (first, second):
+    builder = BRepAlgoAPI.BRepAlgoAPI_Common(first, second)
+    return finish_Boolean (builder)
+  
+  def Difference (first, second):
+    builder = BRepAlgoAPI.BRepAlgoAPI_Common(first, second)
+    return finish_Boolean (builder)
+    
+  export_locals ("thicken_shell_or_face, thicken_solid, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection")
   
   ################################################################
   #########################  Exports  ############################
