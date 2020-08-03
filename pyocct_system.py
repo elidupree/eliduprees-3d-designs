@@ -436,7 +436,7 @@ def _get_cached(key, generate):
     _cache_info_by_global_key [key] = cache_info
     _save_cache (key, new_result, cache_info)
     finish_time = datetime.datetime.now()
-    print(f"…done! ({finish_time}, took {(finish_time - start_time)})")
+    print(f"…done with {key}! ({finish_time}, took {(finish_time - start_time)})")
     
   
   # note: always reload the cache instead of using the one that was just generated in memory,

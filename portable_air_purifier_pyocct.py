@@ -1,4 +1,5 @@
 import sys
+import math
 
 from pyocct_system import *
 initialize_system (globals(), sys.argv[1])
@@ -71,6 +72,8 @@ def range_thing(increments, start, end):
   dist = end - start
   factor = 1/(increments - 1)
   return (start + dist*i*factor for i in range(increments))
+  
+Origin = Point (0, 0, 0)
 
 @cached
 def strong_filter_to_CPAP_wall():
@@ -114,6 +117,12 @@ def strong_filter_to_CPAP_wall():
   combined = Compound(half_thick, mirrored)
   return combined@Translate (0, 0, strong_filter_max[2])
   
+strong_filter_output_part_bottom_corner = strong_filter_min + vector (
+      -wall_thickness,
+      -wall_thickness,
+      # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
+      strong_filter_depth_with_seal*2/3
+    )
 
 @cached
 def strong_filter_output_part():
@@ -124,12 +133,7 @@ def strong_filter_output_part():
   expansion = vector (wall_thickness, wall_thickness, 0)
   
   outer_box = Box (
-    strong_filter_min + vector (
-      -wall_thickness,
-      -wall_thickness,
-      # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
-      strong_filter_depth_with_seal*2/3
-    ),
+    strong_filter_output_part_bottom_corner,
     strong_filter_max + vector (
       wall_thickness,
       wall_thickness,
@@ -144,8 +148,44 @@ def strong_filter_output_part():
   
   return Compound (edge_walls, strong_filter_to_CPAP_wall)
 
+rotate_to_diagonal_radians = math.atan(math.sqrt(2))
+rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to_diagonal_radians)
+def project_to_build_plate(v):
+  return vector(v[0], v[1], 0)
 
-final_shape = strong_filter_output_part
+@cached
+def strong_filter_output_part_FDM_printable():
+  transform = Translate(Origin-strong_filter_output_part_bottom_corner) @ rotate_to_diagonal
+  result = strong_filter_output_part @ transform
+  
+  extra_wall_length = 60
+  extra_wall_vectors = [
+    (project_to_build_plate(vector(1,0,0) @ rotate_to_diagonal) * extra_wall_length, 1),
+    (project_to_build_plate(vector(0,1,0) @ rotate_to_diagonal) * extra_wall_length, -1),
+  ]
+  
+  # TODO: make this code less kludgy
+  '''inset = project_to_build_plate(vector (
+      wall_thickness,
+      wall_thickness,
+      0,
+  ) @ rotate_to_diagonal)'''
+  parts = [result]
+  exclusion = Box (
+      strong_filter_output_part_bottom_corner,
+      strong_filter_max + vector(0,0,lots)
+  ) @ transform
+  for offset, side in extra_wall_vectors:
+    perpendicular = offset@Rotate (Axis(Origin, Direction(0, 0, 1)), degrees = 90*side)
+    transform = Transform(offset.Normalized(), perpendicular.Normalized())
+    print(transform)
+    extra_wall = Box(offset.Magnitude(), wall_thickness, extra_wall_length)@transform
+    extra_wall = Difference(extra_wall, exclusion)
+    parts.append (extra_wall)
+  return Compound (parts)
+  
+
+final_shape = strong_filter_output_part_FDM_printable
 
 print (final_shape)
 view = False

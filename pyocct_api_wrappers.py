@@ -1,5 +1,5 @@
 import re
-
+import math
 import importlib
 
 
@@ -97,6 +97,8 @@ def setup(wrap, unwrap, export, override_attribute):
   def make_Vector(original):
     def derived(cls, *args):
       #if type(args[0]) is Point:
+      if len(args) == 1 and isinstance(args[0], Vector):
+        return args[0]
       if len(args) == 3:
         return original(*(float (value) for value in args))
       return original(*args)
@@ -153,7 +155,8 @@ def setup(wrap, unwrap, export, override_attribute):
       
     return classmethod(derived)
   override_attribute(Transform, "__new__", make_Transform)
-  override_attribute(Transform, "__matmul__", Transform.__mul__)
+  simple_override(Transform, "__matmul__", lambda self, other: other.Multiplied(self))
+  simple_override(Transform, "Inverse", Transform.Inverted)
   
   for transformable in [Vector, Point]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
@@ -172,8 +175,23 @@ def setup(wrap, unwrap, export, override_attribute):
       vector(0,0,1),
       vector(*args)
     )
+    
+  def Rotate(axis, *, radians=None, degrees=None):
+    if degrees:
+      radians = degrees * math.tau/360
+    transform = Transform()
+    transform.SetRotation(axis, radians)
+    return transform
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate")
+  def Transform_str (self):
+    return "Transform[\n"+"\n".join(
+      ", ".join(str(self.Value(row + 1, column + 1)) for column in range (4))
+    for row in range(3))+"]"
+  
+  simple_override(Transform, "__str__", Transform_str)
+  simple_override(Transform, "__repr__", Transform_str)
+  
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate")
   
   ################################################################
   #####################  Other geometry  #########################
