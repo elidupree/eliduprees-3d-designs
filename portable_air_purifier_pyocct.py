@@ -16,6 +16,7 @@ strong_filter_depth_without_seal = 14
 strong_filter_seal_depth_expanded = 2
 strong_filter_seal_squish_distance = 0.5
 strong_filter_seal_depth_squished = strong_filter_seal_depth_expanded - strong_filter_seal_squish_distance
+strong_filter_depth_with_seal = strong_filter_depth_without_seal + strong_filter_seal_depth_squished
  
 fan_thickness = 28 + tight_leeway*2
 fan_width = 79.7 + tight_leeway*2
@@ -38,12 +39,19 @@ battery_socket_length = 38.2
 fan_cord_socket_slit_width = 15
 fan_cord_socket_slit_length = 40
 
+lots = 500
+
 strong_filter_rim_inset = 6
 strong_filter_airspace_wall_inset = strong_filter_rim_inset
-strong_filter_size = Vector (strong_filter_length, strong_filter_width, strong_filter_seal_depth_squished)
+strong_filter_size = Vector (
+  strong_filter_length,
+  strong_filter_width,
+  strong_filter_depth_with_seal
+)
 strong_filter_min = Point (0, 0, 0)
 strong_filter_max = strong_filter_min + strong_filter_size
 strong_filter_center = strong_filter_min + (strong_filter_size/2)
+strong_filter_seal_bottom = strong_filter_max[2] - strong_filter_seal_depth_squished
 
 CPAP_outer_radius = (21.5/2)
 CPAP_inner_radius = CPAP_outer_radius-wall_thickness
@@ -65,7 +73,7 @@ def range_thing(increments, start, end):
   return (start + dist*i*factor for i in range(increments))
 
 @cached
-def strong_filter_output_solid():
+def strong_filter_to_CPAP_wall():
   inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
   rect_min = strong_filter_min + inset
   rect_max = strong_filter_max - inset
@@ -77,7 +85,7 @@ def strong_filter_output_solid():
   ]
   pairs = loop_pairs(corners)
   CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
-  CPAP_bottom_z = 15
+  CPAP_bottom_z = 15 - strong_filter_seal_depth_squished
   top_z = CPAP_bottom_z + 25
   
   def face(pair):
@@ -88,13 +96,13 @@ def strong_filter_output_solid():
     return Face(BSplineSurface(filter_poles + CPAP_poles))
   
   faces = [face(pair) for pair in pairs]
-  bottom_face = Face (Wire ([Edge (*pair) for pair in pairs]))
-  top_face = Face (Wire ([
+  bottom_face = Face (Wire (Edge (*pair) for pair in pairs))
+  top_face = Face (Wire (
     next(edge for edge in f.Edges() if all(
       v[2] == top_z for v in edge.Vertices()
     ))
     for f in faces
-  ]))
+  ))
   #return Compound(faces)
   #shell = Shell(faces)
   #solid = thicken_shell_or_face(shell, wall_thickness)
@@ -103,13 +111,41 @@ def strong_filter_output_solid():
   thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   half_thick = Intersection(thick, HalfSpace(strong_filter_center, Direction(-1, 0, 0)))
   mirrored = half_thick @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
-  combined = Compound([half_thick, mirrored])
-  return combined
-  
+  combined = Compound(half_thick, mirrored)
+  return combined@Translate (0, 0, strong_filter_max[2])
   
 
+@cached
+def strong_filter_output_part():
+  inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
+  rect_min = strong_filter_min + inset
+  rect_max = strong_filter_max - inset
+  
+  expansion = vector (wall_thickness, wall_thickness, 0)
+  
+  outer_box = Box (
+    strong_filter_min + vector (
+      -wall_thickness,
+      -wall_thickness,
+      # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
+      strong_filter_depth_with_seal*2/3
+    ),
+    strong_filter_max + vector (
+      wall_thickness,
+      wall_thickness,
+      wall_thickness,
+    )
+  )
+  
+  filter_cut_box = Box (strong_filter_min, strong_filter_max)
+  hole_cut_box = Box (rect_min, rect_max + vector(0,0,lots))
+  
+  edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])
+  
+  return Compound (edge_walls, strong_filter_to_CPAP_wall)
 
-final_shape = strong_filter_output_solid
+
+final_shape = strong_filter_output_part
 
 print (final_shape)
 view = False

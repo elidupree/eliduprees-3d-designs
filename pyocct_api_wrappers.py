@@ -69,7 +69,13 @@ def setup(wrap, unwrap, export, override_attribute):
     return classmethod(derived)
   ListOfShape = TopoDS.TopoDS_ListOfShape
   override_attribute(ListOfShape, "__new__", make_List)
-  
+      
+  # conveniently allow you to throw together nested lists of shapes
+  def recursive_flatten (arguments):
+    try:
+      return [value for argument in arguments for value in recursive_flatten (argument)]
+    except AttributeError:
+      return [arguments]
   
   simple_override (Message.Message_Report, "Dump", lambda self, gravity: repr(list(set(alert.GetMessageKey() for alert in self.GetAlerts (gravity)))))
   
@@ -159,12 +165,12 @@ def setup(wrap, unwrap, export, override_attribute):
     transform.SetMirror(argument)
     return transform
     
-  def Translate (v):
+  def Translate (*args):
     return Transform (
       vector(1,0,0),
       vector(0,1,0),
       vector(0,0,1),
-      v
+      vector(*args)
     )
   
   export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate")
@@ -277,7 +283,7 @@ def setup(wrap, unwrap, export, override_attribute):
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
     simple_override(c, "ShapeType", lambda self: c)
     simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
-    simple_override(c, "__add__", lambda self, v: self @ Translate(v))
+    #simple_override(c, "__add__", lambda self, v: self @ Translate(v))
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural, lambda self: subshapes (self, subtype))
@@ -347,10 +353,9 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Edge, "__new__", make_Edge)
   
   def make_Wire(original):
-    def derived(cls, edges_or_wires = []):
+    def derived(cls, *edges_or_wires):
+      edges_or_wires = recursive_flatten(edges_or_wires)
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
-      if type (edges_or_wires) is not list:
-        edges_or_wires = [edges_or_wires]
       for item in edges_or_wires:
         builder.Add (item)
       if not builder.IsDone():
@@ -379,7 +384,8 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Face, "__new__", make_Face)
   
   def make_Shell(original):
-    def derived(cls, faces = []):
+    def derived(cls, *faces):
+      faces = recursive_flatten(faces)
       shell = original()
       builder = BRep.BRep_Builder()
       #print ("builder created")
@@ -414,7 +420,8 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Solid, "__new__", make_Solid)
   
   def make_Compound(original):
-    def derived(cls, shapes = []):
+    def derived(cls, *shapes):
+      shapes = recursive_flatten(shapes)
       compound = original()
       builder = BRep.BRep_Builder()
       #print ("builder created")
@@ -468,8 +475,8 @@ def setup(wrap, unwrap, export, override_attribute):
     for free_bound in free_check.ClosedFreeBounds():
       #print("free bound")
       free_wire = free_bound.FreeBound()
-      offset_wire = Wire ([image.Image (edge) for edge in free_wire.Edges()])
-      loft = Loft([free_wire, offset_wire])
+      offset_wire = Wire (image.Image (edge) for edge in free_wire.Edges())
+      loft = Loft(free_wire, offset_wire)
       #faces.extend(loft.Faces())
       shells.append (loft)
     #print (faces)
@@ -485,7 +492,8 @@ def setup(wrap, unwrap, export, override_attribute):
       
     
     
-  def Loft (sections, *, solid = False, ruled = False):
+  def Loft (*sections, solid = False, ruled = False):
+    sections = recursive_flatten (sections)
     builder = BRepOffsetAPI.BRepOffsetAPI_ThruSections(solid, ruled)
     for section in sections:
       if isinstance (section, Vertex):
@@ -494,12 +502,7 @@ def setup(wrap, unwrap, export, override_attribute):
         builder.AddWire (section)
     builder.Build()
     return builder.Shape()
-    
-  
-  def recursive_flatten (arguments):
-    if type (arguments) is list:
-      return [value for argument in arguments for value in recursive_flatten (argument)]
-    return arguments
+
   
   def finish_Boolean (builder):
     builder.Build()
@@ -519,13 +522,14 @@ def setup(wrap, unwrap, export, override_attribute):
     return finish_Boolean (builder)
   
   def Difference (first, second):
-    builder = BRepAlgoAPI.BRepAlgoAPI_Cut(first, second)
+    builder = BRepAlgoAPI.BRepAlgoAPI_Cut()
+    builder.SetArguments (ListOfShape (recursive_flatten (first)))
+    builder.SetTools (ListOfShape (recursive_flatten (second)))
     return finish_Boolean (builder)
   
   
-  def Box ():
-    
-    return BRepPrimAPI.BRepPrimAPI_MakeBox ().Shape()
+  def Box (*args):
+    return BRepPrimAPI.BRepPrimAPI_MakeBox (*args).Shape()
   
   def HalfSpace(point, direction):
     plane = Plane (point, direction)

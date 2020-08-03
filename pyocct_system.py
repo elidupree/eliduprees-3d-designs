@@ -385,26 +385,26 @@ def _save_cache (key, value, info):
 
   
   
-def _cache_is_valid (key, source_hash):
+def _stored_cache_info_if_valid (key, source_hash):
   info_path = _info_path (key)
   try:
     with open(info_path) as file:
       stored = json.load(file)
       if stored["source_hash"] != source_hash:
-        return False
+        return None
       if stored["cache_system_source_hash"] != _cache_system_source_hash:
-        return False
+        return None
       for key2, value in stored["globals"].items():
         try: 
           if _output_hash (key2) != value:
-            return False
+            return None
         except OutputHashError:
-          return False
+          return None
         
   except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
-    return False
+    return None
     
-  return True
+  return stored
 
 def _get_cached(key, generate):
   print (f"### doing {key} ###")
@@ -418,8 +418,10 @@ def _get_cached(key, generate):
   hasher.update (code2.encode ("utf-8"))
   source_hash = hasher.hexdigest()
   
-  if _cache_is_valid (key, source_hash):
+  stored_info = _stored_cache_info_if_valid (key, source_hash)
+  if stored_info is not None:
     print(f"cached version seems valid, loading it")
+    _cache_info_by_global_key [key] = stored_info
   else:
     start_time = datetime.datetime.now()
     print(f"needs update, generating new version… ({start_time})")
@@ -431,7 +433,7 @@ def _get_cached(key, generate):
     }
     output_hash = hashlib.sha256 (json.dumps (cache_info).encode ("utf-8")).hexdigest()
     cache_info ["output_hash"] = output_hash
-    
+    _cache_info_by_global_key [key] = cache_info
     _save_cache (key, new_result, cache_info)
     finish_time = datetime.datetime.now()
     print(f"…done! ({finish_time}, took {(finish_time - start_time)})")
