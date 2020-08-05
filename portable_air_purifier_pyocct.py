@@ -92,8 +92,8 @@ def strong_filter_to_CPAP_wall():
   
   def face(pair):
     delta = pair[1] - pair[0]
-    filter_poles = [[pos + vector(0,0,z) for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
-    CPAP_poles = [[CPAP_center + vector(0,0,z) + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, CPAP_bottom_z, top_z)]
+    filter_poles = [[pos + Up*z for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
+    CPAP_poles = [[CPAP_center + Up*z + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, CPAP_bottom_z, top_z)]
     
     return Face(BSplineSurface(filter_poles + CPAP_poles))
   
@@ -111,8 +111,8 @@ def strong_filter_to_CPAP_wall():
   
   solid = Solid(Shell(faces + [bottom_face, top_face]))
   thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
-  half_thick = Intersection(thick, HalfSpace(strong_filter_center, Direction(-1, 0, 0)))
-  mirrored = half_thick @ Mirror(Axes(strong_filter_center, Direction(1,0,0)))
+  half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
+  mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
   combined = Compound(half_thick, mirrored)
   return combined@Translate (0, 0, strong_filter_max[2])
   
@@ -141,7 +141,7 @@ def strong_filter_output_part():
   )
   
   filter_cut_box = Box (strong_filter_min, strong_filter_max)
-  hole_cut_box = Box (rect_min, rect_max + vector(0,0,lots))
+  hole_cut_box = Box (rect_min, rect_max + Up*lots)
   
   edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])
   
@@ -159,8 +159,8 @@ def strong_filter_output_part_FDM_printable():
   
   extra_wall_length = 60
   extra_wall_vectors = [
-    (project_to_build_plate(vector(1,0,0) @ rotate_to_diagonal) * extra_wall_length, 1),
-    (project_to_build_plate(vector(0,1,0) @ rotate_to_diagonal) * extra_wall_length, -1),
+    (project_to_build_plate(Right @ rotate_to_diagonal) * extra_wall_length, 1),
+    (project_to_build_plate(Back @ rotate_to_diagonal) * extra_wall_length, -1),
   ]
   
   # TODO: make this code less kludgy
@@ -172,10 +172,10 @@ def strong_filter_output_part_FDM_printable():
   parts = [result]
   exclusion = Box (
       strong_filter_output_part_bottom_corner,
-      strong_filter_max + vector(0,0,lots)
+      strong_filter_max + Up*lots
   ) @ transform
   for offset, side in extra_wall_vectors:
-    perpendicular = offset@Rotate (Axis(Origin, Direction(0, 0, 1)), degrees = 90*side)
+    perpendicular = offset@Rotate (Axis(Origin, Up), degrees = 90*side)
     transform = Transform(offset.Normalized(), perpendicular.Normalized())
     print(transform)
     extra_wall = Box(offset.Magnitude(), wall_thickness, extra_wall_length)@transform

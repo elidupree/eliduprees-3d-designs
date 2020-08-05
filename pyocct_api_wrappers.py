@@ -134,6 +134,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Vector, "Translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
   
+  simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
     
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
@@ -160,6 +161,12 @@ def setup(wrap, unwrap, export, override_attribute):
   
   for transformable in [Vector, Point]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
+    
+  def transform_direction (self, transform):
+    if abs(transform.ScaleFactor()) != 1.0:
+      raise RuntimeError (f"Tried to transform a direction with {transform}, which has a non-unit scale factor of {transform.ScaleFactor()}. If this was intentional, either use Transformed explicitly (to get a Direction) or convert to Vector first (so the magnitude can be adjusted)")
+    return self.Transformed (transform)
+  simple_override(Direction, "__matmul__", transform_direction)
     
   def Mirror(argument):
     if isinstance (argument, Direction):
@@ -191,7 +198,14 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Transform, "__str__", Transform_str)
   simple_override(Transform, "__repr__", Transform_str)
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate")
+  Up = Direction (0, 0, 1)
+  Down = Direction (0, 0, -1)
+  Left = Direction (-1, 0, 0)
+  Right = Direction (1, 0, 0)
+  Front = Direction (0, -1, 0)
+  Back = Direction (0, 1, 0)
+  
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Up, Down, Left, Right, Front, Back")
   
   ################################################################
   #####################  Other geometry  #########################
