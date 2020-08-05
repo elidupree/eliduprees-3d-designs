@@ -78,6 +78,37 @@ def setup(wrap, unwrap, export, override_attribute):
       return [arguments]
   
   simple_override (Message.Message_Report, "Dump", lambda self, gravity: repr(list(set(alert.GetMessageKey() for alert in self.GetAlerts (gravity)))))
+    
+  ################################################################
+  ##################  Convenience functions  #####################
+  ################################################################
+  
+  def loop_pairs(points):
+    return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
+    
+  def all_equal(iterable):
+    i = iter(iterable)
+    try:
+      first = next(i)
+    except StopIteration:
+      return True
+    return all(v == first for v in i)
+  
+  def subdivisions (start, end, *, amount = None, max_length = None):
+    delta = end - start
+    
+    if max_length is not None:
+      distance = delta.Magnitude() if isinstance (delta, Vector) else abs (delta)
+      required = math.ceil (distance/max_length) + 1
+      amount = max ((amount or 0), required)
+    
+    if amount < 2:
+      raise RuntimeError (f"subdivisions() must have enough amount to include at least the start point and end point")
+      
+    factor = 1/(amount - 1)
+    return (start + delta*i*factor for i in range(amount))
+  
+  export_locals ("loop_pairs, all_equal, subdivisions")
   
   ################################################################
   ######################  Vector/etc.  ###########################
@@ -106,6 +137,14 @@ def setup(wrap, unwrap, export, override_attribute):
       return original(*args)
     return classmethod(derived)
   override_attribute(Vector, "__new__", make_Vector)
+  
+  def make_Direction(original):
+    def derived(cls, *args):
+      if len(args) == 2 and isinstance(args[0], Point) and isinstance(args[1], Point):
+        args = [Vector(*args)]
+      return original(*args)
+    return classmethod(derived)
+  override_attribute(Direction, "__new__", make_Direction)
   
   def Vector_str(self):
     return f"Vector({self.X()}, {self.Y()}, {self.Z()})"
@@ -411,7 +450,7 @@ def setup(wrap, unwrap, export, override_attribute):
       for item in edges_or_wires:
         builder.Add (item)
       if not builder.IsDone():
-        raise RuntimeError("Invalid wire (detected by builder)")
+        raise RuntimeError(f"Invalid wire (detected by builder): {edges_or_wires} => {builder.Error()}")
       result = builder.Wire()
       check_shape(result)
       return result
@@ -428,7 +467,7 @@ def setup(wrap, unwrap, export, override_attribute):
       for hole in holes:
         builder.Add (hole)
       if not builder.IsDone():
-        raise RuntimeError("Invalid face (detected by builder)")
+        raise RuntimeError(f"Invalid face (detected by builder) {args}, {holes} => {builder.Error()}")
       result = builder.Face()
       check_shape(result)
       return result
@@ -464,7 +503,7 @@ def setup(wrap, unwrap, export, override_attribute):
       for hole in holes:
         builder.Add (hole)
       if not builder.IsDone():
-        raise RuntimeError("Invalid solid (detected by builder)")
+        raise RuntimeError(f"Invalid solid (detected by builder) {args}, {holes} => {builder.Error()}")
       result = builder.Solid()
       check_shape(result)
       return result

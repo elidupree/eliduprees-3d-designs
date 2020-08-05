@@ -56,21 +56,6 @@ strong_filter_seal_bottom = strong_filter_max[2] - strong_filter_seal_depth_squi
 CPAP_outer_radius = (21.5/2)
 CPAP_inner_radius = CPAP_outer_radius-wall_thickness
 
-
-def loop_pairs(points):
-  return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
-def all_equal(iterable):
-  i = iter(iterable)
-  try:
-    first = next(i)
-  except StopIteration:
-    return True
-  return all(v == first for v in i)
-  
-def range_thing(increments, start, end):
-  dist = end - start
-  factor = 1/(increments - 1)
-  return (start + dist*i*factor for i in range(increments))
   
 Origin = Point (0, 0, 0)
 
@@ -92,8 +77,14 @@ def strong_filter_to_CPAP_wall():
   
   def face(pair):
     delta = pair[1] - pair[0]
-    filter_poles = [[pos + Up*z for pos in range_thing(10, *pair)] for z in range_thing(4, 0, 5)] 
-    CPAP_poles = [[CPAP_center + Up*z + (pos - CPAP_center).Normalized()*CPAP_inner_radius for pos in range_thing(10, *pair)] for z in range_thing(4, CPAP_bottom_z, top_z)]
+    filter_poles = [
+      [pos + Up*z for pos in subdivisions(*pair, amount = 10)]
+      for z in subdivisions(0, 5, amount = 4)
+    ] 
+    CPAP_poles = [
+      [CPAP_center + Up*z + Direction (CPAP_center, pos)*CPAP_inner_radius for pos in subdivisions(*pair, amount = 10)]
+      for z in subdivisions(CPAP_bottom_z, top_z, amount = 4)
+    ]
     
     return Face(BSplineSurface(filter_poles + CPAP_poles))
   
