@@ -299,7 +299,7 @@ _cache_info_by_global_key = {}
 _cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
-def initialize_system (cache_globals, cache_directory):
+def _initialize_cache_system (cache_globals, cache_directory):
   global _cache_globals
   global _cache_directory
   
@@ -449,4 +449,39 @@ def cached(generate):
   return _get_cached(key, generate)
 
 
-      
+        
+################################################################
+###########################  UI  ###############################
+################################################################
+
+import argparse
+
+def initialize_system (cache_globals, argument_parser = None):
+  if argument_parser is None:
+    argument_parser = argparse.ArgumentParser()
+  parser = argument_parser
+  parser.add_argument ("--cache-directory", type=str, required=True)
+  parser.add_argument ("--skip-previews", action="store_true")
+  parse_result = parser.parse_args()
+  
+  import __main__
+  main_name = os.path.splitext(os.path.basename (__main__.__file__))[0]
+  specific_cache_directory = os.path.join (parse_result.cache_directory, main_name)
+  
+  _initialize_cache_system(cache_globals, specific_cache_directory)
+  global skip_previews
+  skip_previews = parse_result.skip_previews
+
+  return parse_result
+
+  
+def preview(preview_shape, width=2000, height=1500):
+  if skip_previews:
+    print (f"Skipping preview of: {preview_shape}")
+  else:
+    print (f"Previewing: {preview_shape}")
+    from OCCT.Visualization.QtViewer import ViewerQt
+    v = ViewerQt(width=width, height=height)
+    v.display_shape(unwrap(preview_shape))
+    v.start()
+  

@@ -1,8 +1,7 @@
-import sys
 import math
 
 from pyocct_system import *
-initialize_system (globals(), sys.argv[1])
+initialize_system (globals())
 
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
@@ -76,13 +75,4 @@ def output_half():
 
 
 
-final_shape = intake_half ["offset"]
-
-print (final_shape)
-view = False
-view = True
-if view:
-  from OCCT.Visualization.QtViewer import ViewerQt
-  v = ViewerQt(width=2000, height=1500)
-  v.display_shape(unwrap(final_shape))
-  v.start()
+preview(intake_half ["offset"])

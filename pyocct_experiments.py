@@ -1,5 +1,4 @@
 import pprint
-import sys
 import OCCT.BOPAlgo
 import OCCT.BRepAlgoAPI
 import OCCT.BRepBuilderAPI
@@ -37,7 +36,7 @@ print (type (globals()))
 import pyocct_system
 from pyocct_system import *
 print (sys.argv)
-initialize_system (globals(), sys.argv[1])
+initialize_system (globals())
 
 def dependency_function():
   transitive_dependency
@@ -139,16 +138,9 @@ def surface_test():
   
   return Face(surface)
 
+
 print(surface_test)
 
-
-
-view = False
-#view = True
-if view:
-  from OCCT.Visualization.QtViewer import ViewerQt
-  viewed = cube["offset"]
-  #viewed = surface_test
-  v = ViewerQt(width=2000, height=1500)
-  v.display_shape(unwrap(viewed))
-  v.start()
+viewed = cube["offset"]
+#viewed = surface_test
+preview (viewed)

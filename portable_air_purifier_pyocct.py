@@ -1,8 +1,7 @@
-import sys
 import math
 
 from pyocct_system import *
-initialize_system (globals(), sys.argv[1])
+initialize_system (globals())
 
 
 wall_thickness = 0.8
@@ -185,13 +184,4 @@ def strong_filter_output_part_FDM_printable():
   return Compound (parts)
   
 
-final_shape = strong_filter_output_part_FDM_printable
-
-print (final_shape)
-view = False
-view = True
-if view:
-  from OCCT.Visualization.QtViewer import ViewerQt
-  v = ViewerQt(width=2000, height=1500)
-  v.display_shape(unwrap(final_shape))
-  v.start()
+preview(strong_filter_output_part_FDM_printable)
