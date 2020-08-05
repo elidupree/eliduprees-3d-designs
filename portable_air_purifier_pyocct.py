@@ -137,11 +137,8 @@ def strong_filter_output_part():
 
 
 
-
 rotate_to_diagonal_radians = math.atan(math.sqrt(2))
 rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to_diagonal_radians)
-def project_to_build_plate(v):
-  return vector(v[0], v[1], 0)
 
 @cached
 def strong_filter_output_part_FDM_printable():
@@ -150,16 +147,16 @@ def strong_filter_output_part_FDM_printable():
   
   extra_wall_length = 60
   extra_wall_vectors = [
-    (project_to_build_plate(Right @ rotate_to_diagonal) * extra_wall_length, 1),
-    (project_to_build_plate(Back @ rotate_to_diagonal) * extra_wall_length, -1),
+    (vector (Right @ rotate_to_diagonal).projected_perpendicular (Up) * extra_wall_length, 1),
+    (vector (Back @ rotate_to_diagonal).projected_perpendicular (Up) * extra_wall_length, -1),
   ]
   
   # TODO: make this code less kludgy
-  '''inset = project_to_build_plate(vector (
+  '''inset = (vector (
       wall_thickness,
       wall_thickness,
       0,
-  ) @ rotate_to_diagonal)'''
+  ) @ rotate_to_diagonal).projected_perpendicular (Up)'''
   parts = [result]
   exclusion = Box (
       strong_filter_output_part_bottom_corner,

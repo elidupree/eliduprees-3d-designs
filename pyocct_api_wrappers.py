@@ -179,6 +179,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override(Vector, "Translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
+  override_attribute (Vector, "Dot", lambda original: lambda self, other: original (vector_if_direction (other)))
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
   
@@ -199,6 +200,18 @@ def setup(wrap, unwrap, export, override_attribute):
     return direction * self.Dot(direction)
   simple_override(Vector, "projected", vector_projected)
   simple_override(Vector, "projected_perpendicular", lambda self, direction: self - self.projected (direction))
+  
+  def point_projected (self, onto, by = None):
+    if isinstance (onto, Plane):
+      normal = onto.normal() 
+      if by is None:
+        by = normal
+      distance = Vector (self, onto.Location()).Magnitude()
+      
+      return self + (by/by.Dot(normal))*distance
+    raise RuntimeError (f"don't know how to project point onto {onto}")
+      
+  simple_override(Point, "projected", point_projected)
   
   def make_Transform(original):
     def derived(cls, a=vector(1,0,0),b=vector(0,1,0),c=vector(0,0,1),d=vector(0,0,0)):
@@ -279,6 +292,8 @@ def setup(wrap, unwrap, export, override_attribute):
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
+  
+  simple_override(Plane, "normal", lambda self: self.Axis().Direction())
   
   def default_multiplicities(num_poles, degree, periodic):
     if periodic:
