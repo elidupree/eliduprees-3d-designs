@@ -163,7 +163,7 @@ def strong_filter_output_part_FDM_printable():
       strong_filter_max + Up*lots
   ) @ transform
   for offset, side in extra_wall_vectors:
-    perpendicular = offset@Rotate (Axis(Origin, Up), degrees = 90*side)
+    perpendicular = offset.Cross(Down)*side
     transform = Transform(offset.Normalized(), perpendicular.Normalized())
     print(transform)
     extra_wall = Box(offset.Magnitude(), wall_thickness, extra_wall_length)@transform

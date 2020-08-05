@@ -180,8 +180,10 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Vector, "Translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
   override_attribute (Vector, "Dot", lambda original: lambda self, other: original (vector_if_direction (other)))
+  simple_override(Vector, "Cross", lambda self, other: self.Crossed(vector_if_direction (other)))
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
+  simple_override(Direction, "Cross", lambda self, other: self.Crossed(other))
   
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
