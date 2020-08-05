@@ -133,11 +133,7 @@ def strong_filter_output_part():
   
   outer_box = Box (
     strong_filter_output_part_bottom_corner,
-    strong_filter_max + vector (
-      wall_thickness,
-      wall_thickness,
-      wall_thickness,
-    )
+    strong_filter_max + vector (all = wall_thickness)
   )
   
   filter_cut_box = Box (strong_filter_min, strong_filter_max)
@@ -147,6 +143,10 @@ def strong_filter_output_part():
   
   return Compound (edge_walls, strong_filter_to_CPAP_wall)
 
+
+
+
+
 rotate_to_diagonal_radians = math.atan(math.sqrt(2))
 rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to_diagonal_radians)
 def project_to_build_plate(v):
@@ -154,7 +154,7 @@ def project_to_build_plate(v):
 
 @cached
 def strong_filter_output_part_FDM_printable():
-  transform = Translate(Origin-strong_filter_output_part_bottom_corner) @ rotate_to_diagonal
+  transform = Translate(strong_filter_output_part_bottom_corner, Origin) @ rotate_to_diagonal
   result = strong_filter_output_part @ transform
   
   extra_wall_length = 60

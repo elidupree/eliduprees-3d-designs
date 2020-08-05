@@ -95,10 +95,12 @@ def setup(wrap, unwrap, export, override_attribute):
     return Vector (*args, **kwargs)
 
   def make_Vector(original):
-    def derived(cls, *args):
+    def derived(cls, *args, all=None):
       #if type(args[0]) is Point:
       if len(args) == 1 and isinstance(args[0], Vector):
         return args[0]
+      if all is not None:
+        args = [all, all, all]
       if len(args) == 3:
         return original(*(float (value) for value in args))
       return original(*args)
@@ -119,6 +121,11 @@ def setup(wrap, unwrap, export, override_attribute):
     if index == 2:
       return self.Z()
     raise IndexError("point/vector can only be indexed with 0-2")
+    
+  def vector_if_direction (value):
+    if isinstance (value, Direction):
+      return Vector (value)
+    return value
   
   simple_override(Vector, "__str__", Vector_str)
   simple_override(Vector, "__repr__", Vector_str)
@@ -135,11 +142,24 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Vector, "__neg__", lambda self: self * -1)
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
-    
+  
     
   simple_override(Point, "__add__", lambda self, other: self.Translated (other))
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (other*-1))
   
+  simple_override(Direction, "__add__", lambda self, other: Vector(self) + vector_if_direction (other))
+  simple_override(Direction, "__sub__", lambda self, other: Vector(self) - vector_if_direction (other))
+  simple_override(Direction, "__neg__", lambda self: Direction(-self[0], -self[1], -self[2]))
+  
+  def require_instance (value, t):
+    if not isinstance(value, t):
+      raise TypeError (f"Value must be an instance of {t}, but was {value}")
+      
+  def vector_projected(self, direction):
+    require_instance (direction, Direction)
+    return direction * self.Dot(direction)
+  simple_override(Vector, "projected", vector_projected)
+  simple_override(Vector, "projected_perpendicular", lambda self, direction: self - self.projected (direction))
   
   def make_Transform(original):
     def derived(cls, a=vector(1,0,0),b=vector(0,1,0),c=vector(0,0,1),d=vector(0,0,0)):
