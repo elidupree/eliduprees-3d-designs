@@ -264,7 +264,9 @@ def setup(wrap, unwrap, export, override_attribute):
   Front = Direction (0, -1, 0)
   Back = Direction (0, 1, 0)
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Up, Down, Left, Right, Front, Back")
+  Origin = Point (0, 0, 0)
+  
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Up, Down, Left, Right, Front, Back, Origin")
   
   ################################################################
   #####################  Other geometry  #########################

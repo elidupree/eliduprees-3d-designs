@@ -57,7 +57,7 @@ CPAP_outer_radius = (21.5/2)
 CPAP_inner_radius = CPAP_outer_radius-wall_thickness
 
   
-Origin = Point (0, 0, 0)
+
 
 @cached
 def strong_filter_to_CPAP_wall():
