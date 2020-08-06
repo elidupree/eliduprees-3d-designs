@@ -72,7 +72,7 @@ def approximate_edges(edges):
   result = []
   for edge in edges:
     curve, start, finish = edge.Curve()
-    for parameter in subdivisions (start, finish, amount = 8)[1:]:
+    for parameter in subdivisions (start, finish, amount = 9)[1:]:
       result.append (curve.Value (parameter))
   return result
 
@@ -86,7 +86,7 @@ def strong_filter_to_CPAP_wall():
   base_point = strong_filter_center.projected(Plane(Origin, Up))
   upstep = 5
   
-  flat_before_upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 6, 0, 6)
+  flat_before_upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 6, 0, 7)
   upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 1, 0, 5)
   inset_vertex = Vertex (-strong_filter_airspace_wall_inset, 0, 0)
   corner_vertex = Vertex (-0.2, 0, 0)
@@ -99,7 +99,7 @@ def strong_filter_to_CPAP_wall():
     (corner_vertex, wall_inner_radius),
     (cover_vertex, 3),
     skirt_vertex,
-  ]))
+  ])[1:])
   
   corners = [
     Mirror(Origin),
@@ -117,16 +117,24 @@ def strong_filter_to_CPAP_wall():
   ], loop = True))
   #preview(Wire((Vertex(a) for a in rim)))
   
+  
+  right_index = next (index for index, rim_point in enumerate (rim) if abs ((rim_point - base_point) [1]) < 0.01)
   CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
   CPAP_bottom_z = 15 - strong_filter_seal_depth_squished
   CPAP_top_z = CPAP_bottom_z + 25
-  CPAP_directions = [Right@Rotate (Axis (Origin, Up), radians = radians - math.tau*3/8) for radians in subdivisions (0, math.tau, amount = len (rim) + 1) [: -1]]
+  CPAP_directions = [Right@Rotate (Axis (Origin, Up), radians = radians) for radians in subdivisions (0, math.tau, amount = len (rim) + 1) [: -1]]
+  CPAP_directions = CPAP_directions[-right_index:] + CPAP_directions[:-right_index]
+  
+  CPAP_profile = approximate_edges(FilletedEdges([
+    Vertex (CPAP_inner_radius + 10, 0, CPAP_bottom_z-2),
+    (Vertex (CPAP_inner_radius+0.5, 0, CPAP_bottom_z), 10),
+    Vertex (CPAP_inner_radius, 0, CPAP_top_z),
+  ])[1:])
   
   def CPAP_column (direction):
     result = []
-    for z in subdivisions (CPAP_bottom_z, CPAP_top_z, amount = 4):
-      down_amount = CPAP_top_z - z
-      result.append(CPAP_center + Up*z + direction*(CPAP_inner_radius + down_amount/50))
+    for point in CPAP_profile:
+      result.append(CPAP_center + direction*point[0] + Up*point[2])
     
     return result
   
@@ -137,9 +145,12 @@ def strong_filter_to_CPAP_wall():
   columns = []
   
   for rim_point, inset_point, CPAP_direction in zip (rim, inset_rim, CPAP_directions):
+    profile_part = [placed_profile_point (rim_point, inset_point, profile_point) for profile_point in reversed(profile)]
+    CPAP_part = CPAP_column (CPAP_direction)
     columns.append (
-      [placed_profile_point (rim_point, inset_point, profile_point) for profile_point in reversed(profile)]
-      + CPAP_column (CPAP_direction)
+      profile_part
+      + [profile_part[-1] + (CPAP_part[0]-profile_part[-1])/2]
+      + CPAP_part
     )
   print ([column [0] for column in columns])
   face = Face(BSplineSurface(columns, u = BSplineDimension (periodic = True)))
@@ -148,6 +159,8 @@ def strong_filter_to_CPAP_wall():
   #solid = Solid (Shell ([face] + extra_faces))
   #preview (solid)
   #preview(Offset(face, wall_thickness, tolerance = 0.01))
+  
+  preview (face)
   
   #thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).Complemented()
