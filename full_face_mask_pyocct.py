@@ -184,12 +184,10 @@ save ("shield_source_points", Compound ([Vertex (point) for point in shield_sour
 
 
 
-class ShieldCurveInPlane:
+class ShieldCurveInPlane(SerializeAsVars):
   def __init__(self, plane):
     self.plane = plane
-    self.curve = shield_surface.intersect(
-          plane
-        )[0]
+    self.curve = shield_surface.intersections (plane)[0]
     
   def __getattr__(self, name):
     return getattr(self.curve, name)
@@ -201,71 +199,55 @@ side_curve_source_points = [
   (shield_back, -64),
   (-80, -156)
 ]
-side_curve_source_surface = Part.BSplineSurface()
-side_curve_source_surface.buildFromPolesMultsKnots([
-  [vector(100, y, z) for y,z in side_curve_source_points],
-  [vector(-100, y, z) for y,z in side_curve_source_points],
-],
-      [2,2],
-      [2] + [1]*(len(side_curve_source_points) - 1 - 1) + [2],
-      udegree = 1,
-      vdegree = 1,
-    )
-    
-upper_side_curve_source_surface = Part.BSplineSurface()
-upper_side_curve_source_surface.buildFromPolesMultsKnots([
-  [vector(100, y, z) for y,z in side_curve_source_points[0:2]],
-  [vector(0, y, z) for y,z in side_curve_source_points[0:2]],
-],
-      [2,2],
-      [2,2],
-      udegree = 1,
-      vdegree = 1,
-    )
-lower_side_curve_source_surface = Part.BSplineSurface()
-lower_side_curve_source_surface.buildFromPolesMultsKnots([
-  [vector(100, y, z) for y,z in side_curve_source_points[1:3]],
-  [vector(-100, y, z) for y,z in side_curve_source_points[1:3]],
-],
-      [2,2],
-      [2,2],
-      udegree = 1,
-      vdegree = 1,
-    )
-    
+save ("side_curve_source_surface", BSplineSurface([
+    [Point (100, y, z) for y,z in side_curve_source_points],
+    [Point (-100, y, z) for y,z in side_curve_source_points],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 1),
+))
+
+save ("upper_side_curve_source_surface", BSplineSurface([
+    [Point (100, y, z) for y,z in side_curve_source_points[0:2]],
+    [Point (0, y, z) for y,z in side_curve_source_points[0:2]],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 1),
+))
+
+save ("lower_side_curve_source_surface", BSplineSurface([
+    [Point (100, y, z) for y,z in side_curve_source_points[1:3]],
+    [Point (-100, y, z) for y,z in side_curve_source_points[1:3]],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 1),
+))
 
 
-show_transformed(side_curve_source_surface.toShape(), "side_curve_source_surface", invisible = True)
-show_transformed(upper_side_curve_source_surface.toShape(), "upper_side_curve_source_surface", invisible = True)
-show_transformed(lower_side_curve_source_surface.toShape(), "lower_side_curve_source_surface", invisible = True)
-shield_side_curve = shield_surface.intersect(
-          side_curve_source_surface
-        )[0]
-shield_upper_side_curve = ShieldCurveInPlane(upper_side_curve_source_surface)
-shield_lower_side_curve = ShieldCurveInPlane(lower_side_curve_source_surface)
+
+save ("shield_side_curve", shield_surface.intersections (
+  side_curve_source_surface
+)[0])
+save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
+save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
 shield_side_curve_length = shield_side_curve.length()
-show_transformed(shield_side_curve.toShape(), "shield_side_curve", invisible = True)
-show_transformed(shield_upper_side_curve.toShape(), "shield_upper_side_curve", invisible = True)
-show_transformed(shield_lower_side_curve.toShape(), "shield_lower_side_curve", invisible = True)
-upper_side_curve_source_surface.exchangeUV()
-lower_side_curve_source_surface.exchangeUV()
 
-shield_top_curve = ShieldCurveInPlane(Part.Plane(vector(0,0,shield_glue_face_width), vector(0,0,1)))
+save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
 shield_top_curve_length = shield_top_curve.length()
-show_transformed(shield_top_curve.toShape(), "shield_top_curve", invisible = True)
-print(shield_top_curve.NbPoles)
+
+'''print(shield_top_curve.NbPoles())
 for index in range(100):
   foo = index / 100
   a = shield_top_curve.value(foo)
   p = shield_surface.parameter(a)
   b = shield_surface.value(*p)
-  #print((a-b).Length)
+  #print((a-b).Length)'''
 
 
 glasses_point = forehead_point + vector (66, 0, -10)
-show_transformed(Part.Point(glasses_point).toShape(), "glasses_point", invisible = True)
-diff = (glasses_point - shield_focal_point).normalized()
-show_transformed(Part.LineSegment(glasses_point + diff*180, glasses_point - diff*180).toShape(), "glasses_line", invisible = True)
+save ("glasses_vertex", Vertex (glasses_point))
+diff = Direction (glasses_point - shield_focal_point)
+save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
 
 
 
@@ -331,15 +313,18 @@ def curve_samples(curve, num, start_distance, end_distance):
   return (point(index) for index in range (num))
 
 
-shield_top_full_wire = Part.Shape([shield_top_curve.curve, Part.LineSegment(shield_top_curve.EndPoint, shield_top_curve.StartPoint)]).to_wire()
-shield_box = box(centered (500), bounds (shield_back, 500), bounds (-180, 0))
-shield_cross_section = shield_top_full_wire.to_face()
-shield_cross_sections = []
-for offset_distance in (20.0*x for x in range(10)):
-  offset_fraction = offset_distance / -shield_focal_point[2]
-  shield_cross_sections.append(shield_cross_section.scaled (1.0 - offset_fraction).translated (shield_focal_point*offset_fraction).common(shield_box))
-  
-show_transformed (Part.Compound (shield_cross_sections), "shield_cross_sections", invisible=True)
+@run_if_changed
+def make_shield_cross_sections():
+  shield_top_full_wire = Wire (Edge (shield_top_curve.curve), Edge (shield_top_curve.EndPoint(), shield_top_curve.StartPoint()))
+  shield_region = HalfSpace (Point (0, shield_back, 0), Front)
+  shield_cross_section = Face (shield_top_full_wire)
+  shield_cross_sections = []
+  for offset_distance in (20.0*x for x in range(10)):
+    offset_fraction = offset_distance / -shield_focal_point[2]
+    full_section = shield_cross_section@Scale (1.0 - offset_fraction)@Translate (Vector(Origin,shield_focal_point)*offset_fraction)
+    shield_cross_sections.append(Intersection(full_section, shield_region))
+    
+  save ("shield_cross_sections", Compound (shield_cross_sections))
 
 
 
@@ -347,37 +332,35 @@ show_transformed (Part.Compound (shield_cross_sections), "shield_cross_sections"
 ########  Forehead/headband/top rim  #######
 ########################################################################
 
-forehead_points = [
-  vector (0, 0),
-  vector (15, 0),
-  vector (25, -2.5),
-  vector (35, -7),
-  vector (45, -14),
-  vector (55, -27),
-  vector (62, -37),
-  vector (71, -53),
-  vector (79, -90),
-  vector (81, -107),
-  vector (81, -130),
-  vector (60, -180),
-  vector (15, -195),
-  vector (0, -195),
-]
+forehead_points = [vector (a,b,0) for a,b in [
+  (0, 0),
+  (15, 0),
+  (25, -2.5),
+  (35, -7),
+  (45, -14),
+  (55, -27),
+  (62, -37),
+  (71, -53),
+  (79, -90),
+  (81, -107),
+  (81, -130),
+  (60, -180),
+  (15, -195),
+  (0, -195),
+]]
 degree = 3
-forehead_poles = [forehead_point + vector (-a[0], a[1]) for a in reversed(forehead_points[1:])] + [forehead_point + a for a in forehead_points[:-1]]
-forehead_curve = Part.BSplineCurve()
-forehead_curve.buildFromPolesMultsKnots(
+forehead_poles = [forehead_point + a@Mirror (Right) for a in reversed(forehead_points[1:])] + [forehead_point + a for a in forehead_points[:-1]]
+save ("forehead_curve", BSplineCurve(
   forehead_poles,
-  degree = degree,
-  periodic = True,
-)
-show_transformed (forehead_curve.toShape(), "forehead_curve", invisible=True)
+  BSplineDimension (periodic = True),
+))
 print(f"Forehead circumference: {forehead_curve.length()}")
 
-headband_cut_box = box(centered (50), bounds (-500, forehead_point[1]-100), centered(500))
-headband_interior_2D = forehead_curve.toShape().to_wire().to_face()
-show_transformed (headband_interior_2D , "headband_interior_2D", invisible=True)
-headband_2D = forehead_curve.toShape().makeOffset2D (headband_thickness, fill = True).cut(headband_cut_box)
+#headband_cut_box = Box (centered (50), bounds (-500, forehead_point[1]-100), centered(500))
+save ("headband_interior_2D", Face (Wire (Edge (forehead_curve))))
+
+save ("headband_2D", Offset2D(Wire (Edge (forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
+)
 
 headband = headband_2D.fancy_extrude (vector (0, 0, 1), bounds(-500, headband_width))
 

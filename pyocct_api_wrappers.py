@@ -19,7 +19,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -35,6 +35,11 @@ def setup(wrap, unwrap, export, override_attribute):
   ################################################################
   #######################  Type utils  ###########################
   ################################################################
+  
+  class ArbitraryFields():
+    def __init__(self, **kwargs):
+      for key, value in kwargs.items():
+        setattr(self, key, value)
   
   def make_Array1(original):
     def derived(cls, values):
@@ -132,7 +137,15 @@ def setup(wrap, unwrap, export, override_attribute):
   Axis = gp.gp_Ax1
   Axes = gp.gp_Ax2
 
+    
+  Up = Direction (0, 0, 1)
+  Down = Direction (0, 0, -1)
+  Left = Direction (-1, 0, 0)
+  Right = Direction (1, 0, 0)
+  Front = Direction (0, -1, 0)
+  Back = Direction (0, 1, 0)
   
+  Origin = Point (0, 0, 0)
   
   def vector(*args, **kwargs):
     return Vector (*args, **kwargs)
@@ -282,6 +295,11 @@ def setup(wrap, unwrap, export, override_attribute):
     transform = Transform()
     transform.SetRotation(axis, radians)
     return transform
+    
+  def Scale(ratio,*, center =Origin):
+    transform = Transform()
+    transform.SetScale (center, ratio)
+    return transform
   
   def Transform_str (self):
     return "Transform[\n"+"\n".join(
@@ -290,17 +308,9 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override(Transform, "__str__", Transform_str)
   simple_override(Transform, "__repr__", Transform_str)
+
   
-  Up = Direction (0, 0, 1)
-  Down = Direction (0, 0, -1)
-  Left = Direction (-1, 0, 0)
-  Right = Direction (1, 0, 0)
-  Front = Direction (0, -1, 0)
-  Back = Direction (0, 1, 0)
-  
-  Origin = Point (0, 0, 0)
-  
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Up, Down, Left, Right, Front, Back, Origin")
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -406,6 +416,24 @@ def setup(wrap, unwrap, export, override_attribute):
       return GCPnts.GCPnts_AbscissaPoint (adapter, distance, from_parameter).Parameter()
   simple_override (Curve, "length", curve_length)
   simple_override (Curve, "parameter", curve_parameter)
+  
+  class CurveSurfaceIntersections (ArbitraryFields):
+    pass
+      
+  def surface_intersections (self, other, tolerance = default_tolerance):
+    if isinstance (other, Curve):
+      builder = GeomAPI.GeomAPI_IntCS (self, other, tolerance)
+      
+      return CurveSurfaceIntersections (
+        points = [builder.Point (index + 1) for index in range ( builder.NbPoints())],
+        segments = [builder.Segment (index + 1) for index in range ( builder.NbSegments())],
+      )
+    if isinstance (other, Surface):
+      builder = GeomAPI.GeomAPI_IntSS (self, other, tolerance)
+      return [builder.Line (index + 1) for index in range ( builder.NbLines())]
+
+  simple_override (Surface, "intersections", surface_intersections)
+
   export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
   
   ################################################################
@@ -429,6 +457,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Shape, "bounds", shape_bounds)
   simple_override(Shape, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
   simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
+  simple_override(Shape, "clone", lambda self: BRepBuilderAPI.BRepBuilderAPI_Copy (self).Shape())
   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
@@ -494,12 +523,12 @@ def setup(wrap, unwrap, export, override_attribute):
       raise RuntimeError(f'Invalid shape (detected by analyzer) {[str(b).replace("BRepCheck_Status.BRepCheck_", "") for b in a.Result(shape).Status()]}')
   
   def make_Vertex (original):
-    def derived(cls, *args, **kwargs):
+    def derived(cls, *args):
       if len(args) == 0:
         return original()
       if len (args) == 3:
         args = [Point (*args)]
-      return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args, **kwargs).Vertex()
+      return BRepBuilderAPI.BRepBuilderAPI_MakeVertex(*args).Vertex()
     return classmethod(derived)
   override_attribute(Vertex, "__new__", make_Vertex)
   
@@ -627,13 +656,31 @@ def setup(wrap, unwrap, export, override_attribute):
   def thicken_solid (shape, removed_faces, offset, join = JoinArc):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(removed_faces), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
     return builder.Shape()
-    
+  
   def ClosedFreeWires(shape):
     free_check = ShapeAnalysis.ShapeAnalysis_FreeBoundsProperties (shape)
     free_check.Perform()
     return [free_bound.FreeBound() for free_bound in free_check.ClosedFreeBounds()]
     
-  def Offset (shape, offset,*, tolerance = default_tolerance, mode = ModeSkin, join = JoinArc, fill = False):
+  def FindSurface(shape, *, tolerance = -1, only_plane = False, only_closed = False):
+    result = BRepLib.BRepLib_FindSurface (shape, tolerance, only_plane, only_closed).Surface()
+    if only_plane:
+      return GeomAdaptor.GeomAdaptor_Surface (shared_surface).Plane()
+    
+  def Offset2D (spine, offset, *, join = JoinArc, fill = False):
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffset (spine, join)
+    builder.Perform (offset)
+    result = builder.Shape()
+    if fill:
+      if offset > 0:
+        return Face (result, holes = [spine.Complemented()])
+      else:
+        return Face (spine.Complemented(), holes = [result])
+    return result
+    
+    
+    
+  def Offset (shape, offset, *, tolerance = default_tolerance, mode = ModeSkin, join = JoinArc, fill = False):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffsetShape()
     builder.PerformByJoin (shape, offset, tolerance, mode, False, False, join)
     result = builder.Shape()
@@ -717,6 +764,8 @@ def setup(wrap, unwrap, export, override_attribute):
       
     return result
   
+  
+  
   def finish_Boolean (builder):
     builder.Build()
     if not builder.IsDone():
@@ -765,7 +814,7 @@ def setup(wrap, unwrap, export, override_attribute):
     StlAPI.StlAPI.Write_ (shape, path)
   
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL Extrude ")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL Extrude ")
   
 
   

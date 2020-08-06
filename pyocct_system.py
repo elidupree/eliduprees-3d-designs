@@ -218,11 +218,15 @@ _setup_wrappers()
 ##################   De/serialization   ##################
 ##########################################################
 
+class SerializeAsVars:
+  pass
+  
 def _setup_serialization():
   # just a casual 128 bits of random data so there's no way it would occur by accident
   unique_placeholder = "PLACEHOLDER_d43e642cf620e3fa21378b00c24dd6b4"
   brep_placeholder = "BREP"
   geometry_placeholder = "Geometry"
+  vars_placeholder = "vars"
   
   def placeholder (name, data):
     return [unique_placeholder, name, data]
@@ -263,6 +267,9 @@ def _setup_serialization():
         Face (value).write_brep (file_path)  
         return placeholder (geometry_placeholder, relative_path)
       
+      if isinstance (value, SerializeAsVars):
+        return placeholder (vars_placeholder, (value.__class__.__name__, self.serialized (vars (value))))
+      
       if type (value) in [str, int, float, type (None)]:
         return value
         
@@ -286,17 +293,25 @@ def _setup_serialization():
         return {key: self.deserialized (inner_value) for key, inner_value in value.items()}
         
       if type (value) is list:
-        name, relative_path = placeholder_info (value)
+        name, data = placeholder_info (value)
         if name == brep_placeholder:
-          return self.read_brep (relative_path)
+          return self.read_brep (data)
           
         if name == geometry_placeholder:
-          brep = self.read_brep (relative_path)
+          brep = self.read_brep (data)
           if isinstance (brep, Edge):
             return brep.curve() [0]
           if isinstance (brep, Face):
             return brep.surface()
           raise RuntimeError ("unrecognized geometry in cache") 
+        
+        if name == vars_placeholder:
+          class_name, data = data
+          c = _cache_globals [class_name]
+          result = c.__new__(c)
+          for key, value in self.deserialized (data).items():
+            setattr (result, key, value)
+          return result
           
         return [self.deserialized (inner_value) for inner_value in value]
       
@@ -451,7 +466,7 @@ def _load_cache (key):
 def run_if_changed (function):
   function_name = function.__name__
   
-  print (f"### doing {function_name} ###")
+  print (f"### doing {function_name}() ###")
   code = dis.Bytecode(function).dis()
   code2 = inspect.getsource (function)
   #print (code)
@@ -501,7 +516,7 @@ def run_if_changed (function):
     _atomic_write_json (info_path, cache_info)
     
     finish_time = datetime.datetime.now()
-    print(f"…done with {function_name}! ({finish_time}, took {(finish_time - start_time)})")
+    print(f"…done with {function_name}()! ({finish_time}, took {(finish_time - start_time)})")
 
 def save (key, value):
   _serialize (_path_base (key), value)
@@ -539,6 +554,12 @@ def initialize_system (cache_globals, argument_parser = None):
   _initialize_cache_system(cache_globals, specific_cache_directory)
   global skip_previews
   skip_previews = parse_result.skip_previews
+  
+  announcement =f"####### doing {main_name} #######"
+  extra = "#"*len (announcement)
+  print (extra)
+  print (announcement)
+  print (extra)
 
   return parse_result
 
