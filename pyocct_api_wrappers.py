@@ -556,9 +556,8 @@ def setup(wrap, unwrap, export, override_attribute):
       builder.MakeCompound(compound)
       #print ("Compound made?")
       for shape in shapes:
-        #print ("adding shape", face)
+        #print ("adding shape", shape)
         builder.Add (compound, shape)
-      #print ("done adding faces")
       check_shape(compound)
       return compound
     return classmethod(derived)
@@ -588,6 +587,11 @@ def setup(wrap, unwrap, export, override_attribute):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeThickSolid(shape, ListOfShape(removed_faces), offset, default_tolerance, BRepOffset.BRepOffset_Mode.BRepOffset_Skin, False, False, join)
     return builder.Shape()
     
+  def ClosedFreeWires(shape):
+    free_check = ShapeAnalysis.ShapeAnalysis_FreeBoundsProperties (shape)
+    free_check.Perform()
+    return [free_bound.FreeBound() for free_bound in free_check.ClosedFreeBounds()]
+    
   def Offset (shape, offset,*, tolerance = default_tolerance, mode = ModeSkin, join = JoinArc, fill = False):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffsetShape()
     builder.PerformByJoin (shape, offset, tolerance, mode, False, False, join)
@@ -598,11 +602,8 @@ def setup(wrap, unwrap, export, override_attribute):
     image = builder.MakeOffset().OffsetEdgesFromShapes()
     #faces = shape.Faces() + result.Faces()
     shells = [shape, result]
-    free_check = ShapeAnalysis.ShapeAnalysis_FreeBoundsProperties (shape)
-    free_check.Perform()
-    for free_bound in free_check.ClosedFreeBounds():
+    for free_wire in ClosedFreeWires(shape):
       #print("free bound")
-      free_wire = free_bound.FreeBound()
       offset_wire = Wire (image.Image (edge) for edge in free_wire.Edges())
       loft = Loft(free_wire, offset_wire)
       #faces.extend(loft.Faces())
@@ -614,7 +615,8 @@ def setup(wrap, unwrap, export, override_attribute):
       sewing.Add(shell)
     sewing.Perform()
     complete_shell = sewing.SewedShape()
-    print (complete_shell)
+    check_shape(complete_shell)
+    #print (complete_shell)
     return Solid (complete_shell)
         
       
@@ -706,7 +708,7 @@ def setup(wrap, unwrap, export, override_attribute):
     reference = point + Vector (direction)
     return BRepPrimAPI.BRepPrimAPI_MakeHalfSpace(Face(plane), reference).Solid()
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires")
   
 
   

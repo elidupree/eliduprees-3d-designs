@@ -86,16 +86,18 @@ def strong_filter_to_CPAP_wall():
   base_point = strong_filter_center.projected(Plane(Origin, Up))
   upstep = 5
   
+  flat_before_upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 6, 0, 6)
   upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 1, 0, 5)
   inset_vertex = Vertex (-strong_filter_airspace_wall_inset, 0, 0)
   corner_vertex = Vertex (-0.2, 0, 0)
   cover_vertex = Vertex (0.8, 0, -strong_filter_cover_depth)
   skirt_vertex = Vertex (5, 0, -strong_filter_depth_with_seal)
   profile = approximate_edges(FilletedEdges([
-    upstep_vertex,
+    flat_before_upstep_vertex,
+    (upstep_vertex, 3),
     (inset_vertex, wall_outer_radius),
     (corner_vertex, wall_inner_radius),
-    (cover_vertex, wall_outer_radius),
+    (cover_vertex, 3),
     skirt_vertex,
   ]))
   
@@ -118,12 +120,13 @@ def strong_filter_to_CPAP_wall():
   CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
   CPAP_bottom_z = 15 - strong_filter_seal_depth_squished
   CPAP_top_z = CPAP_bottom_z + 25
+  CPAP_directions = [Right@Rotate (Axis (Origin, Up), radians = radians - math.tau*3/8) for radians in subdivisions (0, math.tau, amount = len (rim) + 1) [: -1]]
   
   def CPAP_column (direction):
     result = []
     for z in subdivisions (CPAP_bottom_z, CPAP_top_z, amount = 4):
       down_amount = CPAP_top_z - z
-      result.append(CPAP_center + Up*z + direction*(CPAP_outer_radius + down_amount/50))
+      result.append(CPAP_center + Up*z + direction*(CPAP_inner_radius + down_amount/50))
     
     return result
   
@@ -133,18 +136,25 @@ def strong_filter_to_CPAP_wall():
   
   columns = []
   
-  for rim_point, inset_point in zip (rim, inset_rim):
+  for rim_point, inset_point, CPAP_direction in zip (rim, inset_rim, CPAP_directions):
     columns.append (
       [placed_profile_point (rim_point, inset_point, profile_point) for profile_point in reversed(profile)]
-      + CPAP_column (Direction (CPAP_center, inset_point))
+      + CPAP_column (CPAP_direction)
     )
   print ([column [0] for column in columns])
   face = Face(BSplineSurface(columns, u = BSplineDimension (periodic = True)))
+  #extra_faces = [Face (wire).Complemented() for wire in ClosedFreeWires (face)]
+  #preview (Shell ([face] + extra_faces))
+  #solid = Solid (Shell ([face] + extra_faces))
+  #preview (solid)
+  #preview(Offset(face, wall_thickness, tolerance = 0.01))
   
-  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True)
+  #thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
+  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).Complemented()
   half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
   mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
-  preview (thick )
+  preview (thick)
+  preview (half_thick)
   combined = Compound(half_thick, mirrored)
   return combined@Translate (0, 0, strong_filter_max[2])
 preview(strong_filter_to_CPAP_wall)
