@@ -63,11 +63,12 @@ def _setup_wrappers():
   
   def get_override(inner, name):
     if inspect.isclass(inner):
-      return attribute_overrides.get((inner, name))
+      result = attribute_overrides.get((inner, name))
+      if result is None and inner.__base__ is not None:
+        return get_override (inner.__base__, name)
+      return result
     else:
-      c = getattr(inner, "__class__")
-      if c is not None:
-        return attribute_overrides.get((c, name))
+      return get_override (inner.__class__, name)
         
   def get_maybe_capitalized(inner, name, *args):
     try:

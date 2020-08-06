@@ -50,7 +50,7 @@ def under_door_wire():
 def half_shape(dir, radius):
   e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
   loft = Loft (e4ins
-    + [under_door_wire + vector (40*(index-5)/10, 0, 0) for index in range (6)]
+    + [under_door_wire@Translate (40*(index-5)/10, 0, 0) for index in range (6)]
     #, solid=True
     )
   #hollow = thicken_solid (solid, solid.Faces()[-2:], wall_thickness)

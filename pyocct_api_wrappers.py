@@ -19,7 +19,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -275,6 +275,8 @@ def setup(wrap, unwrap, export, override_attribute):
     )
     
   def Rotate(axis, *, radians=None, degrees=None):
+    if isinstance (axis, Direction):
+      axis = Axis (Origin, axis)
     if degrees:
       radians = degrees * math.tau/360
     transform = Transform()
@@ -309,6 +311,7 @@ def setup(wrap, unwrap, export, override_attribute):
   Plane = Geom.Geom_Plane
   Bounds =Bnd.Bnd_Box
   
+  Curve = Geom.Geom_Curve
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
@@ -390,6 +393,8 @@ def setup(wrap, unwrap, export, override_attribute):
   ################################################################
   ####################  BRep Shape types  ########################
   ################################################################
+  Shape = TopoDS.TopoDS_Shape
+  
   def subshapes (shape, subshape_type):
     explorer = TopExp.TopExp_Explorer(shape, subshape_type.ShapeEnum)
     result = []
@@ -403,6 +408,10 @@ def setup(wrap, unwrap, export, override_attribute):
     BRepBndLib.BRepBndLib.Add_(self, result)
     return result
   
+  simple_override(Shape, "bounds", shape_bounds)
+  simple_override(Shape, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
+  simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
+  
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
   shape_types_by_ShapeType = {}
@@ -415,11 +424,10 @@ def setup(wrap, unwrap, export, override_attribute):
     simple_override(c, "from_shape", from_shape)
     simple_override(c, "ShapeEnum", enum_value)
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
-    simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
+    
     #simple_override(c, "ShapeType", lambda self: c)
-    simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
+    
     #simple_override(c, "__add__", lambda self, v: self @ Translate(v))
-    simple_override(c, "bounds", shape_bounds)
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural.lower(), lambda self: subshapes (self, subtype))
@@ -437,11 +445,6 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
   simple_override(Face, "outer_wire", BRepTools.BRepTools.OuterWire_)
   
-  
-  
-  Shape = TopoDS.TopoDS_Shape
-  #simple_override(Shape, "read_brep", Exchange.ExchangeBasic.read_brep)
-  simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
   
   def is_shape(obj):
     return isinstance(obj, Shape)
