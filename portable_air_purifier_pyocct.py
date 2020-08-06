@@ -4,7 +4,7 @@ from pyocct_system import *
 initialize_system (globals())
 
 
-wall_thickness = 0.8
+wall_thickness = 0.6
 
 # extra leeway in addition to the wall expansion, for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit.
 # 0.15 is a good amount generically, but I happen to know that my diagonal printing process adds about 0.25 on each side as well
@@ -59,13 +59,6 @@ CPAP_inner_radius = CPAP_outer_radius-wall_thickness
 
 # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
 strong_filter_cover_depth = strong_filter_depth_with_seal/3
-  
-strong_filter_output_part_bottom_corner = strong_filter_min + vector (
-      -wall_thickness,
-      -wall_thickness,
-      
-      strong_filter_depth_with_seal - strong_filter_cover_depth
-    )
 
 
 def approximate_edges(edges):
@@ -170,11 +163,11 @@ def strong_filter_to_CPAP_wall():
   #preview (half_thick)
   combined = Compound(half_thick, mirrored)
   return combined@Translate (0, 0, strong_filter_max[2])
-preview(strong_filter_to_CPAP_wall)
+#preview(strong_filter_to_CPAP_wall)
 
 @cached
 def strong_filter_output_part():
-  inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
+  '''inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
   rect_min = strong_filter_min + inset
   rect_max = strong_filter_max - inset
   
@@ -188,45 +181,36 @@ def strong_filter_output_part():
   filter_cut_box = Box (strong_filter_min, strong_filter_max)
   hole_cut_box = Box (rect_min, rect_max + Up*lots)
   
-  edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])
+  edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])'''
   
-  return Compound (edge_walls, strong_filter_to_CPAP_wall)
+  return strong_filter_to_CPAP_wall
 
-
-
+'''@cached_STL
+def strong_filter_output_part_mesh():
+  return strong_filter_output_part
+'''
 
 rotate_to_diagonal_radians = math.atan(math.sqrt(2))
 rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to_diagonal_radians)
 
 @cached
 def strong_filter_output_part_FDM_printable():
-  transform = Translate(strong_filter_output_part_bottom_corner, Origin) @ rotate_to_diagonal
-  result = strong_filter_output_part @ transform
+  bottom_faces = [face for face in strong_filter_to_CPAP_wall.faces() if face.bounds().max() [2] < 1]
+  bottom_corner = strong_filter_output_part.bounds().min()
+  transform = Translate(bottom_corner, Origin) @ rotate_to_diagonal
+  part = strong_filter_output_part @ transform
   
   extra_wall_length = 60
-  extra_wall_vectors = [
-    (vector (Right @ rotate_to_diagonal).projected_perpendicular (Up) * extra_wall_length, 1),
-    (vector (Back @ rotate_to_diagonal).projected_perpendicular (Up) * extra_wall_length, -1),
-  ]
-  
-  # TODO: make this code less kludgy
-  '''inset = (vector (
-      wall_thickness,
-      wall_thickness,
-      0,
-  ) @ rotate_to_diagonal).projected_perpendicular (Up)'''
-  parts = [result]
-  exclusion = Box (
-      strong_filter_output_part_bottom_corner,
-      strong_filter_max + Up*lots
-  ) @ transform
-  for offset, side in extra_wall_vectors:
-    perpendicular = offset.cross(Down)*side
-    transform = Transform(offset.normalized(), perpendicular.normalized())
-    print(transform)
-    extra_wall = Box(offset.magnitude(), wall_thickness, extra_wall_length)@transform
-    extra_wall = Difference(extra_wall, exclusion)
-    parts.append (extra_wall)
+
+  parts = [part]
+  for bottom_face in bottom_faces:
+    print(bottom_face.bounds().min(), bottom_face.bounds().max())
+    support = Extrude (bottom_face@transform, Down*lots)
+    support = Intersection (support, Box(
+      Point(-extra_wall_length, -extra_wall_length, 0),
+      Point(extra_wall_length, extra_wall_length, lots),
+    ))
+    parts.append(support)
   return Compound (parts)
   
 

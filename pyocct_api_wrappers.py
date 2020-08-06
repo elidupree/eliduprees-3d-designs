@@ -19,7 +19,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -307,12 +307,15 @@ def setup(wrap, unwrap, export, override_attribute):
   
   Circle = Geom.Geom_Circle
   Plane = Geom.Geom_Plane
+  Bounds =Bnd.Bnd_Box
   
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
   
   simple_override(Plane, "normal", lambda self: self.Axis().Direction())
+  simple_override (Bounds, "max", lambda self: self.CornerMax())
+  simple_override (Bounds, "min", lambda self: self.CornerMin())
   
   def default_multiplicities(num_poles, degree, periodic):
     if periodic:
@@ -395,6 +398,11 @@ def setup(wrap, unwrap, export, override_attribute):
       explorer.Next()
     return result
   
+  def shape_bounds (self):
+    result = Bounds()
+    BRepBndLib.BRepBndLib.Add_(self, result)
+    return result
+  
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
   shape_types_by_ShapeType = {}
@@ -411,6 +419,7 @@ def setup(wrap, unwrap, export, override_attribute):
     #simple_override(c, "ShapeType", lambda self: c)
     simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
     #simple_override(c, "__add__", lambda self, v: self @ Translate(v))
+    simple_override(c, "bounds", shape_bounds)
 
     def handle_subtype(subtype, plural):
       simple_override(c, plural.lower(), lambda self: subshapes (self, subtype))
@@ -709,6 +718,13 @@ def setup(wrap, unwrap, export, override_attribute):
     builder.SetTools (ListOfShape (recursive_flatten (second)))
     return finish_Boolean (builder)
   
+  def Extrude (first, direction,*, infinite_both_ways = False):
+    if isinstance (direction, Direction):
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction, infinite_both_ways)
+    else:
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction)
+    return builder.Shape()
+    
   
   def Box (*args):
     return BRepPrimAPI.BRepPrimAPI_MakeBox (*args).Shape()
@@ -718,7 +734,16 @@ def setup(wrap, unwrap, export, override_attribute):
     reference = point + Vector (direction)
     return BRepPrimAPI.BRepPrimAPI_MakeHalfSpace(Face(plane), reference).Solid()
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires")
+    
+  def BuildMesh (shape):
+    builder = BRepMesh.BRepMesh_IncrementalMesh (shape, 0.01, False, 0.1, True)
+    builder.Perform()
+  
+  def SaveSTL (path, shape):
+    StlAPI.StlAPI.Write_ (shape, path)
+  
+    
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL Extrude ")
   
 
   

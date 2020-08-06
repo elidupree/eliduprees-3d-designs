@@ -380,11 +380,11 @@ def _info_path (key):
   return path + ".cache_info"
 
 
-def _load_cache (key):
+def _load_cache (key, load):
   path = os.path.join (_cache_directory, key)
-  return deserialize (path)
+  return load (path)
 
-def _save_cache (key, value, info):
+def _save_cache (key, save, info):
   path = os.path.join (_cache_directory, key)
   info_path = _info_path (key)
   
@@ -397,7 +397,7 @@ def _save_cache (key, value, info):
   except FileNotFoundError:
     pass
     
-  serialize (path, value)
+  save(path)
   atomic_write_json (info_path, info)
 
   
@@ -423,7 +423,7 @@ def _stored_cache_info_if_valid (key, source_hash):
     
   return stored
 
-def _get_cached(key, generate):
+def _get_cached(key, generate, save, load):
   print (f"### doing {key} ###")
   code = dis.Bytecode(generate).dis()
   code2 = inspect.getsource (generate)
@@ -451,21 +451,27 @@ def _get_cached(key, generate):
     output_hash = hashlib.sha256 (json.dumps (cache_info).encode ("utf-8")).hexdigest()
     cache_info ["output_hash"] = output_hash
     _cache_info_by_global_key [key] = cache_info
-    _save_cache (key, new_result, cache_info)
+    _save_cache (key, lambda path: save (path, new_result), cache_info)
     finish_time = datetime.datetime.now()
     print(f"…done with {key}! ({finish_time}, took {(finish_time - start_time)})")
     
   
   # note: always reload the cache instead of using the one that was just generated in memory,
   # to make sure it is properly canonicalized
-  return _load_cache (key)
+  return _load_cache (key, load)
     
     
 def cached(generate):
   key = generate.__name__
-  return _get_cached(key, generate)
+  return _get_cached(key, generate, serialize, deserialize)
 
-
+def cached_STL (generate):
+  key = generate.__name__
+  def do():
+    shape = generate()
+    BuildMesh (shape)
+    return shape
+  _get_cached(key, do, lambda path_base, shape: SaveSTL (path_base + ".stl", shape), lambda path: None)
         
 ################################################################
 ###########################  UI  ###############################
