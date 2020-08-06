@@ -10,8 +10,8 @@ wall_thickness = 0.8
 # 0.15 is a good amount generically, but I happen to know that my diagonal printing process adds about 0.25 on each side as well
 tight_leeway = 0.15 + 0.25
 
-strong_filter_length = 151.9 + tight_leeway*2
-strong_filter_width = 101 + tight_leeway*2
+strong_filter_length = 151.9
+strong_filter_width = 101
 strong_filter_depth_without_seal = 14
 strong_filter_seal_depth_expanded = 2
 strong_filter_seal_squish_distance = 0.5
@@ -53,66 +53,101 @@ strong_filter_max = strong_filter_min + strong_filter_size
 strong_filter_center = strong_filter_min + (strong_filter_size/2)
 strong_filter_seal_bottom = strong_filter_max[2] - strong_filter_seal_depth_squished
 
-CPAP_outer_radius = (21.5/2)
+CPAP_outer_radius = (22/2)
 CPAP_inner_radius = CPAP_outer_radius-wall_thickness
 
-  
 
-
-@cached
-def strong_filter_to_CPAP_wall():
-  inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
-  rect_min = strong_filter_min + inset
-  rect_max = strong_filter_max - inset
-  corners = [
-    Point (rect_min[0], rect_min[1], 0),
-    Point (rect_min[0], rect_max[1], 0),
-    Point (rect_max[0], rect_max[1], 0),
-    Point (rect_max[0], rect_min[1], 0),
-  ]
-  pairs = loop_pairs(corners)
-  CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
-  CPAP_bottom_z = 15 - strong_filter_seal_depth_squished
-  top_z = CPAP_bottom_z + 25
-  
-  def face(pair):
-    delta = pair[1] - pair[0]
-    filter_poles = [
-      [pos + Up*z for pos in subdivisions(*pair, amount = 10)]
-      for z in subdivisions(0, 5, amount = 4)
-    ] 
-    CPAP_poles = [
-      [CPAP_center + Up*z + Direction (CPAP_center, pos)*CPAP_inner_radius for pos in subdivisions(*pair, amount = 10)]
-      for z in subdivisions(CPAP_bottom_z, top_z, amount = 4)
-    ]
-    
-    return Face(BSplineSurface(filter_poles + CPAP_poles))
-  
-  faces = [face(pair) for pair in pairs]
-  bottom_face = Face (Wire (Edge (*pair) for pair in pairs))
-  top_face = Face (Wire (
-    next(edge for edge in f.Edges() if all(
-      v[2] == top_z for v in edge.Vertices()
-    ))
-    for f in faces
-  ))
-  #return Compound(faces)
-  #shell = Shell(faces)
-  #solid = thicken_shell_or_face(shell, wall_thickness)
-  
-  solid = Solid(Shell(faces + [bottom_face, top_face]))
-  thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
-  half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
-  mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
-  combined = Compound(half_thick, mirrored)
-  return combined@Translate (0, 0, strong_filter_max[2])
+# only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
+strong_filter_cover_depth = strong_filter_depth_with_seal/3
   
 strong_filter_output_part_bottom_corner = strong_filter_min + vector (
       -wall_thickness,
       -wall_thickness,
-      # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
-      strong_filter_depth_with_seal*2/3
+      
+      strong_filter_depth_with_seal - strong_filter_cover_depth
     )
+
+
+def approximate_edges(edges):
+  result = []
+  for edge in edges:
+    curve, start, finish = edge.Curve()
+    for parameter in subdivisions (start, finish, amount = 8)[1:]:
+      result.append (curve.Value (parameter))
+  return result
+
+@cached
+def strong_filter_to_CPAP_wall():
+  wall_inner_radius = wall_thickness*0.5
+  wall_outer_radius = wall_thickness*1.5
+  filter_inset = vector(all = strong_filter_airspace_wall_inset).projected_perpendicular (Up)
+  center_to_corner = (strong_filter_size).projected_perpendicular (Up)/2
+  center_to_inset = center_to_corner - filter_inset
+  base_point = strong_filter_center.projected(Plane(Origin, Up))
+  upstep = 5
+  
+  upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 1, 0, 5)
+  inset_vertex = Vertex (-strong_filter_airspace_wall_inset, 0, 0)
+  corner_vertex = Vertex (-0.2, 0, 0)
+  cover_vertex = Vertex (0.8, 0, -strong_filter_cover_depth)
+  skirt_vertex = Vertex (5, 0, -strong_filter_depth_with_seal)
+  profile = approximate_edges(FilletedEdges([
+    upstep_vertex,
+    (inset_vertex, wall_outer_radius),
+    (corner_vertex, wall_inner_radius),
+    (cover_vertex, wall_outer_radius),
+    skirt_vertex,
+  ]))
+  
+  corners = [
+    Mirror(Origin),
+    Mirror(Back),
+    Transform(),
+    Mirror(Right),
+  ]
+  rim = approximate_edges(FilletedEdges([
+    (base_point + center_to_corner@corner_trans, wall_inner_radius)
+    for corner_trans in corners
+  ], loop = True))
+  inset_rim = approximate_edges(FilletedEdges([
+    (base_point + center_to_inset@corner_trans, wall_inner_radius)
+    for corner_trans in corners
+  ], loop = True))
+  #preview(Wire((Vertex(a) for a in rim)))
+  
+  CPAP_center = Point (strong_filter_center[0] - 30, strong_filter_center[1], 0)
+  CPAP_bottom_z = 15 - strong_filter_seal_depth_squished
+  CPAP_top_z = CPAP_bottom_z + 25
+  
+  def CPAP_column (direction):
+    result = []
+    for z in subdivisions (CPAP_bottom_z, CPAP_top_z, amount = 4):
+      down_amount = CPAP_top_z - z
+      result.append(CPAP_center + Up*z + direction*(CPAP_outer_radius + down_amount/50))
+    
+    return result
+  
+  def placed_profile_point(rim_point, inset_point, profile_point):
+    towards_rim = Vector (inset_point, rim_point)/strong_filter_airspace_wall_inset
+    return rim_point + towards_rim*profile_point[0] + Up*profile_point[2]
+  
+  columns = []
+  
+  for rim_point, inset_point in zip (rim, inset_rim):
+    columns.append (
+      [placed_profile_point (rim_point, inset_point, profile_point) for profile_point in reversed(profile)]
+      + CPAP_column (Direction (CPAP_center, inset_point))
+    )
+  print ([column [0] for column in columns])
+  face = Face(BSplineSurface(columns, u = BSplineDimension (periodic = True)))
+  
+  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True)
+  half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
+  mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
+  preview (thick )
+  combined = Compound(half_thick, mirrored)
+  return combined@Translate (0, 0, strong_filter_max[2])
+preview(strong_filter_to_CPAP_wall)
 
 @cached
 def strong_filter_output_part():

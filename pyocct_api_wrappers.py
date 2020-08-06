@@ -9,7 +9,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, Geom, GeomAbs, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -83,8 +83,10 @@ def setup(wrap, unwrap, export, override_attribute):
   ##################  Convenience functions  #####################
   ################################################################
   
-  def loop_pairs(points):
-    return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
+  def pairs(points, loop=False):
+    if loop:
+      points = points + points[:1]
+    return [(a,b) for a,b in zip(points[:-1], points[1:])]
     
   def all_equal(iterable):
     i = iter(iterable)
@@ -106,9 +108,9 @@ def setup(wrap, unwrap, export, override_attribute):
       raise RuntimeError (f"subdivisions() must have enough amount to include at least the start point and end point")
       
     factor = 1/(amount - 1)
-    return (start + delta*i*factor for i in range(amount))
+    return [start + delta*i*factor for i in range(amount)]
   
-  export_locals ("loop_pairs, all_equal, subdivisions")
+  export_locals ("pairs, all_equal, subdivisions")
   
   ################################################################
   ######################  Vector/etc.  ###########################
@@ -183,6 +185,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Vector, "Cross", lambda self, other: self.Crossed(vector_if_direction (other)))
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
+  simple_override(Direction, "__truediv__", lambda self, other: Vector(self) / other)
   simple_override(Direction, "Cross", lambda self, other: self.Crossed(other))
   
     
@@ -208,7 +211,7 @@ def setup(wrap, unwrap, export, override_attribute):
       normal = onto.normal() 
       if by is None:
         by = normal
-      distance = Vector (self, onto.Location()).Magnitude()
+      distance = Vector (self, onto.Location()).Dot(normal)
       
       return self + (by/by.Dot(normal))*distance
     raise RuntimeError (f"don't know how to project point onto {onto}")
@@ -221,11 +224,15 @@ def setup(wrap, unwrap, export, override_attribute):
         return original(a)
         
       result = original()
-      result.SetValues(
+      values = [
         a[0], b[0], c[0], d[0],
         a[1], b[1], c[1], d[1],
         a[2], b[2], c[2], d[2],
-      )
+      ]
+      result.SetValues(*values)
+      result_values = [result.Value(row + 1, column + 1) for row in range(3) for column in range (4)]
+      if result_values != values:
+        raise RuntimeError (f"it's no good use Transform when it automatically adjusts the values (original: {values}, adjusted: {result_values})")
       return result
       
     return classmethod(derived)
@@ -408,6 +415,7 @@ def setup(wrap, unwrap, export, override_attribute):
     
   simple_override(Vertex, "Point", lambda self: BRep.BRep_Tool.Pnt_(self))
   simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.Point(), index))
+  simple_override(Edge, "Curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
   simple_override(Face, "OuterWire", BRepTools.BRepTools.OuterWire_)
   
   
@@ -458,18 +466,28 @@ def setup(wrap, unwrap, export, override_attribute):
     def derived(cls, *args):
       if len(args) == 0:
         return original()
-      return BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args).Edge()
+      builder = BRepBuilderAPI.BRepBuilderAPI_MakeEdge(*args)
+      if not builder.IsDone():
+        raise RuntimeError(f"Invalid edge (detected by builder): {args} => {builder.Error()}")
+      return builder .Edge()
     return classmethod(derived)
   override_attribute(Edge, "__new__", make_Edge)
   
   def make_Wire(original):
-    def derived(cls, *edges_or_wires):
-      edges_or_wires = recursive_flatten(edges_or_wires)
+    def derived(cls, *inputs):
+      inputs = recursive_flatten(inputs)
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
-      for item in edges_or_wires:
-        builder.Add (item)
+      last_vertex = None
+      for index, item in enumerate (inputs):
+        if isinstance (item, Vertex):
+          if last_vertex is not None:
+            builder.Add (Edge (last_vertex, item))
+          last_vertex = item
+        else:
+          builder.Add (item)
+          last_vertex = builder.Vertex()
       if not builder.IsDone():
-        raise RuntimeError(f"Invalid wire (detected by builder): {edges_or_wires} => {builder.Error()}")
+        raise RuntimeError(f"Invalid wire (detected by builder): {inputs} => {builder.Error()}")
       result = builder.Wire()
       check_shape(result)
       return result
@@ -614,6 +632,48 @@ def setup(wrap, unwrap, export, override_attribute):
     return builder.Shape()
 
   
+  
+  def FilletedEdges(input, loop = False):
+    previous_edge = None
+    result = []
+    def digest (item):
+      if type (item) is tuple:
+        return item
+      return (item, None)
+    if loop:
+      previous_edge = Edge (digest (input [-1]) [0], digest (input [0]) [0])
+    
+    def handle_pair (first, second, append_edges = True):
+      nonlocal previous_edge
+      first, radius = digest (first)
+      second, _ = digest (second)
+      new_edge = Edge (first, second)
+      
+      if radius is not None:
+        # hack – doesn't accommodate edges whose endpoints are collinear but they curve off to the side
+        v0 = previous_edge.Vertices()
+        v1 = new_edge.Vertices()
+        arbitrary_point = v0[1].Point()
+        plane_normal = Direction(v0[1].Point() - v0[0].Point()).Cross(Direction(v1[1].Point() - v1[0].Point()))
+        builder = ChFi2d.ChFi2d_FilletAlgo (previous_edge, new_edge, Plane(arbitrary_point, plane_normal).Pln())
+        builder.Perform(radius)
+        new_joiner = builder.Result (arbitrary_point, previous_edge, new_edge)
+        if append_edges:
+          result.append (new_joiner)
+      if append_edges:
+        result.append (new_edge)
+      previous_edge = new_edge
+    
+    
+    for pair in pairs (input):
+      handle_pair (*pair)
+    
+    if loop:
+      handle_pair (input [-1], input [0])
+      handle_pair (input [0], input [1], False)
+      
+    return result
+  
   def finish_Boolean (builder):
     builder.Build()
     if not builder.IsDone():
@@ -646,7 +706,7 @@ def setup(wrap, unwrap, export, override_attribute):
     reference = point + Vector (direction)
     return BRepPrimAPI.BRepPrimAPI_MakeHalfSpace(Face(plane), reference).Solid()
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges")
   
 
   
