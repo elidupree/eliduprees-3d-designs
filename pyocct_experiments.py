@@ -141,6 +141,27 @@ def surface_test():
 
 print(surface)
 
+@run_if_changed
+def flex_but_dont_twist_test():
+  curve = BSplineCurve ([Origin, Point (20, 50, 0), Point (0, 100, 0)], BSplineDimension (degree = 2))
+  length = curve.length()
+  vertices = []
+  for index, distance in enumerate (subdivisions (0, length, amount = 21)):
+    parameter = curve.parameter (distance = distance)
+    derivatives = curve.derivatives (parameter)
+    offset = 0 if index % 2 == 0 else 5
+    print(vars (derivatives))
+    vertices.append (Vertex (derivatives.position - derivatives.normal*offset))
+  
+  zigzag_wire = Wire (vertices)
+  radius = 0.25
+  zigzag = Face (Offset2D (zigzag_wire, radius))
+  curve_face = Face (Offset2D (Wire (Edge (curve)), radius))
+  result = Union (zigzag, curve_face).extrude (Up*10)
+  save ("flex_but_dont_twist", result)
+  save_STL("flex_but_dont_twist_mesh", result)
+  preview (result)
+
 viewed = cube["offset"]
 #viewed = surface_test
 preview (viewed)

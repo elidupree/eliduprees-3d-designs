@@ -209,7 +209,12 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
   simple_override(Direction, "__truediv__", lambda self, other: Vector(self) / other)
-  simple_override(Direction, "cross", lambda self, other: self.Crossed(other))
+  def Direction_cross(self, other):
+    if isinstance (other, Direction) and self.dot (other) == 0:
+      return self.Crossed(other)
+    else:
+      return Vector(self).Crossed(vector_if_direction (other))
+  simple_override(Direction, "cross", Direction_cross)
   
     
   simple_override(Point, "__add__", lambda self, other: self.translated (other))
@@ -433,6 +438,22 @@ def setup(wrap, unwrap, export, override_attribute):
       return [builder.Line (index + 1) for index in range ( builder.NbLines())]
 
   simple_override (Surface, "intersections", surface_intersections)
+  
+  class CurveDerivatives:
+    def __init__(self, curve, parameter, *, derivatives = 2):
+      self.position = curve.value (parameter)
+      if derivatives > 0:
+        self.velocity = curve.DN(parameter, 1)
+        self.tangent = Direction (self.velocity)
+      if derivatives > 1:
+        self.acceleration = curve.DN(parameter, 2)
+        putative_normal = self.tangent.cross (self.acceleration).cross (self.tangent)
+        if putative_normal.magnitude() > default_tolerance:
+          self.normal = Direction(putative_normal)
+        else:
+          self.normal = None
+  
+  simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
 
   export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
   
@@ -458,6 +479,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Shape, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
   simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
   simple_override(Shape, "clone", lambda self: BRepBuilderAPI.BRepBuilderAPI_Copy (self).Shape())
+  simple_override(Shape, "extrude", lambda self, *args, **kwargs: Extrude (self, *args, **kwargs))
   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
@@ -810,11 +832,11 @@ def setup(wrap, unwrap, export, override_attribute):
     builder = BRepMesh.BRepMesh_IncrementalMesh (shape, 0.01, False, 0.1, True)
     builder.Perform()
   
-  def SaveSTL (path, shape):
+  def SaveSTL_raw (path, shape):
     StlAPI.StlAPI.Write_ (shape, path)
   
     
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL Extrude ")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude ")
   
 
   
