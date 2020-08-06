@@ -384,11 +384,29 @@ def setup(wrap, unwrap, export, override_attribute):
       )
     
     return classmethod(derived)
-
     
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
-  export_locals (" Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
+  
+  def curve_length (curve, first = None, last = None):
+    if first is None: first = curve.FirstParameter()
+    if last is None: last = curve.LastParameter()
+    adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
+    return GCPnts.GCPnts_AbscissaPoint.Length_(adapter, first, last)
+  def curve_parameter (curve,*, distance = None, from_parameter = 0, closest = None):
+    if closest is not None:
+      return GeomAPI.GeomAPI_ProjectPointOnCurve (closest, curve).LowerDistanceParameter()
+      if False: #exceptions not handled
+        return min ([
+          curve.FirstParameter(), curve.LastParameter()
+        ], key = lambda parameter: curve.value (parameter).distance (closest))
+      
+    if distance is not None:
+      adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
+      return GCPnts.GCPnts_AbscissaPoint (adapter, distance, from_parameter).Parameter()
+  simple_override (Curve, "length", curve_length)
+  simple_override (Curve, "parameter", curve_parameter)
+  export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
   
   ################################################################
   ####################  BRep Shape types  ########################
@@ -444,6 +462,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.Point(), index))
   simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
   simple_override(Face, "outer_wire", BRepTools.BRepTools.OuterWire_)
+  simple_override(Face, "surface", lambda self: BRep.BRep_Tool.Surface_(self))
   
   
   def is_shape(obj):

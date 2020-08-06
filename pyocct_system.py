@@ -222,6 +222,7 @@ def _setup_serialization():
   # just a casual 128 bits of random data so there's no way it would occur by accident
   unique_placeholder = "PLACEHOLDER_d43e642cf620e3fa21378b00c24dd6b4"
   brep_placeholder = "BREP"
+  geometry_placeholder = "Geometry"
   
   def placeholder (name, data):
     return [unique_placeholder, name, data]
@@ -235,6 +236,10 @@ def _setup_serialization():
     def __init__(self, path_base):
       self.path_base = path_base
     
+    def relative_path (self, key_path):
+      if any ("." in key for key in key_path):
+        raise RuntimeError (f"We don't support serializing non-JSON values inside objects with keys that contain `.`, because we use the dot-separated key path as the file path and need it to be unique (Tried to serialize {value} at key path {key_path})")
+      return ".".join (key_path)
     def serialized(self, value, key_path = []):
       value = unwrap (value)
       
@@ -244,15 +249,19 @@ def _setup_serialization():
       if type (value) is list:
         return [self.serialized (inner_value, key_path + [str(key)]) for key, inner_value in enumerate (value)]
       
+      relative_path = self.relative_path (key_path + ["brep"])
+      file_path = self.path_base + "." + relative_path
       if is_shape (value):
-        value = wrap (value)
-        if any ("." in key for key in key_path):
-          raise RuntimeError (f"We don't support serializing shapes inside objects with keys that contain `.`, because we use the dot-separated key path as the file path and need it to be unique (Tried to serialize {value} at key path {key_path})")
-        file_path = ".".join ([self.path_base] + key_path) + ".brep"
-        temp_path = file_path + ".temp"
-        value.write_brep (temp_path)
-        os.replace (temp_path, file_path)
-        return placeholder (brep_placeholder, file_path)
+        wrap(value).write_brep (file_path)
+        return placeholder (brep_placeholder, relative_path)
+      
+      if isinstance (value, Curve):
+        Edge (value).write_brep (file_path)
+        return placeholder (geometry_placeholder, relative_path)
+      
+      if isinstance (value, Surface):
+        Face (value).write_brep (file_path)  
+        return placeholder (geometry_placeholder, relative_path)
       
       if type (value) in [str, int, float, type (None)]:
         return value
@@ -264,6 +273,12 @@ def _setup_serialization():
       self.path_base = path_base
       self.hasher = hasher
     
+    def read_brep (self, relative_path):
+      file_path = self.path_base + "." + relative_path
+      with open (file_path, "rb") as file:
+        self.hasher.update (file.read())
+      return read_brep (file_path)
+    
     def deserialized(self, value):
       value = unwrap (value)
       
@@ -271,12 +286,18 @@ def _setup_serialization():
         return {key: self.deserialized (inner_value) for key, inner_value in value.items()}
         
       if type (value) is list:
-        name, path = placeholder_info (value)
+        name, relative_path = placeholder_info (value)
         if name == brep_placeholder:
-          result = read_brep (path)
-          with open (path, "rb") as file:
-            self.hasher.update (file.read())
-          return result
+          return self.read_brep (relative_path)
+          
+        if name == geometry_placeholder:
+          brep = self.read_brep (relative_path)
+          if isinstance (brep, Edge):
+            return brep.curve() [0]
+          if isinstance (brep, Face):
+            return brep.surface()
+          raise RuntimeError ("unrecognized geometry in cache") 
+          
         return [self.deserialized (inner_value) for inner_value in value]
       
       if type (value) in [str, int, float, type (None)]:
