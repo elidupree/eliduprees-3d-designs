@@ -260,8 +260,9 @@ def _setup_serialization():
       raise RuntimeError(f"Couldn't serialize {value} ({type(value)})")
   
   class Deserializer:
-    def __init__(self, path_base):
+    def __init__(self, path_base, hasher):
       self.path_base = path_base
+      self.hasher = hasher
     
     def deserialized(self, value):
       value = unwrap (value)
@@ -270,9 +271,12 @@ def _setup_serialization():
         return {key: self.deserialized (inner_value) for key, inner_value in value.items()}
         
       if type (value) is list:
-        name, data = placeholder_info (value)
+        name, path = placeholder_info (value)
         if name == brep_placeholder:
-          return read_brep (data)
+          result = read_brep (path)
+          with open (path, "rb") as file:
+            self.hasher.update (file.read())
+          return result
         return [self.deserialized (inner_value) for inner_value in value]
       
       if type (value) in [str, int, float, type (None)]:
@@ -294,12 +298,18 @@ def _setup_serialization():
     atomic_write_json (path_base + ".json", with_placeholders)
   
   def deserialize(path_base):
-    with open(path_base + ".json") as file:
+    hasher = hashlib.sha256()
+    path = path_base + ".json"
+    with open(path) as file:
       with_placeholders = json.load(file)
-    return Deserializer (path_base).deserialized (with_placeholders)
+    with open(path, "rb") as file:
+      hasher.update (file.read())
+      
+    result = Deserializer (path_base, hasher).deserialized (with_placeholders)
+    return result, hasher.hexdigest()
     
   for export in re.findall(r"[\w_]+", "serialize, deserialize, atomic_write_json"):
-    globals() [export] = locals() [export]
+    globals() ["_" + export] = locals() [export]
     
 
 _setup_serialization()
@@ -348,6 +358,8 @@ def _output_hash (key):
   if in_memory is _Recursive:
     raise OutputHashError("the system currently can't handle recursive functions")
   if in_memory is not None:
+    if "output_hash" not in in_memory:
+      raise OutputHashError("tried to get output hash of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
     return in_memory ["output_hash"]
   
   _cache_info_by_global_key [key] = _Recursive
@@ -376,30 +388,10 @@ def _output_hash (key):
   _cache_info_by_global_key [key] = {"output_hash": result}
   return result
 
+def _path_base (key):
+  return os.path.join (_cache_directory, key)
 def _info_path (key):
-  path = os.path.join (_cache_directory, key)
-  return path + ".cache_info"
-
-
-def _load_cache (key, load):
-  path = os.path.join (_cache_directory, key)
-  return load (path)
-
-def _save_cache (key, save, info):
-  path = os.path.join (_cache_directory, key)
-  info_path = _info_path (key)
-  
-  # remove the inputs record first so that, in case of the process being terminated, we don't
-  #   leave the new mismatched values alongside the old valid inputs;
-  # then put the inputs back last so we can't leave the new valid inputs alongside
-  #   a broken value
-  try:
-    os.remove (info_path)
-  except FileNotFoundError:
-    pass
-    
-  save(path)
-  atomic_write_json (info_path, info)
+  return _path_base (key) + ".cache_info"
 
   
   
@@ -412,7 +404,7 @@ def _stored_cache_info_if_valid (key, source_hash):
         return None
       if stored["cache_system_source_hash"] != _cache_system_source_hash:
         return None
-      for key2, value in stored["globals"].items():
+      for key2, value in stored["accessed_globals"].items():
         try: 
           if _output_hash (key2) != value:
             return None
@@ -424,55 +416,86 @@ def _stored_cache_info_if_valid (key, source_hash):
     
   return stored
 
-def _get_cached(key, generate, save, load):
-  print (f"### doing {key} ###")
-  code = dis.Bytecode(generate).dis()
-  code2 = inspect.getsource (generate)
+
+
+_generating_function_context = None
+
+def _load_cache (key):
+  path = os.path.join (_cache_directory, key)
+  
+  value, hash = _deserialize(path)
+  _cache_info_by_global_key [key] = {"output_hash": hash}
+  _cache_globals [key] = value
+  
+def run_if_changed (function):
+  function_name = function.__name__
+  
+  print (f"### doing {function_name} ###")
+  code = dis.Bytecode(function).dis()
+  code2 = inspect.getsource (function)
   #print (code)
   #print(list(_globals_in_code(code)))
   #print (code2)
   hasher = hashlib.sha256()
-  #hasher.update (code.encode ("utf-8"))
+  #hasher.update (code.encode ("utf-8")) #note: not included because it includes line numbers
   hasher.update (code2.encode ("utf-8"))
   source_hash = hasher.hexdigest()
+
+  stored_info = _stored_cache_info_if_valid (function_name, source_hash)
   
-  stored_info = _stored_cache_info_if_valid (key, source_hash)
   if stored_info is not None:
     print(f"cached version seems valid, loading it")
-    _cache_info_by_global_key [key] = stored_info
+    _cache_info_by_global_key [function_name] = stored_info
+    for key in stored_info ["saved_globals"]:
+      _load_cache (key)
   else:
     start_time = datetime.datetime.now()
-    print(f"needs update, generating new version… ({start_time})")
-    new_result = generate()
+    print(f"needs update, rerunning… ({start_time})")
+    global _generating_function_context
+    if _generating_function_context is not None:
+      raise RuntimeError ("cache functions cannot call other ones")
     cache_info = {
       "source_hash": source_hash,
       "cache_system_source_hash": _cache_system_source_hash,
-      "globals": {key2: _output_hash(key2) for key2 in _globals_in_code(code)},
+      "accessed_globals": {key: _output_hash(key) for key in _globals_in_code(code)},
+      "saved_globals": []
     }
-    output_hash = hashlib.sha256 (json.dumps (cache_info).encode ("utf-8")).hexdigest()
-    cache_info ["output_hash"] = output_hash
-    _cache_info_by_global_key [key] = cache_info
-    _save_cache (key, lambda path: save (path, new_result), cache_info)
-    finish_time = datetime.datetime.now()
-    print(f"…done with {key}! ({finish_time}, took {(finish_time - start_time)})")
+    _generating_function_context = cache_info
+    info_path = _info_path (function_name)
+  
+    # remove the inputs record first so that, in case of the process being terminated, we don't
+    #   leave the new mismatched values alongside the old valid inputs;
+    # then put the inputs back last so we can't leave the new valid inputs alongside
+    #   a broken value
+    try:
+      os.remove (info_path)
+    except FileNotFoundError:
+      pass
+      
+    ##do the main action!
+    function()
     
+    _generating_function_context = None
+    _cache_info_by_global_key [function_name] = cache_info
+    _atomic_write_json (info_path, cache_info)
+    
+    finish_time = datetime.datetime.now()
+    print(f"…done with {function_name}! ({finish_time}, took {(finish_time - start_time)})")
+
+def save (key, value):
+  _serialize (_path_base (key), value)
+  if _generating_function_context is not None:
+    _generating_function_context["saved_globals"].append (key)
   
   # note: always reload the cache instead of using the one that was just generated in memory,
   # to make sure it is properly canonicalized
-  return _load_cache (key, load)
-    
-    
-def cached(generate):
-  key = generate.__name__
-  return _get_cached(key, generate, serialize, deserialize)
-
-def cached_STL (generate):
-  key = generate.__name__
-  def do():
-    shape = generate()
-    BuildMesh (shape)
-    return shape
-  _get_cached(key, do, lambda path_base, shape: SaveSTL (path_base + ".stl", shape), lambda path: None)
+  _load_cache (key)
+  
+  
+def save_STL (key, shape):
+  BuildMesh (shape)
+  SaveSTL (path_base + ".stl", shape)
+  # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
         
 ################################################################
 ###########################  UI  ###############################

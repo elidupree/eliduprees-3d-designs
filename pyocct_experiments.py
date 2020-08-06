@@ -42,11 +42,11 @@ def dependency_function():
   transitive_dependency
   pass
 
-@cached
+@run_if_changed
 def test():
   dependency_function()
-  return g
-print (test)
+  save ("test_result", g)
+print (test_result)
 
 v1 = vector(1,2,3)
 v2 = vector(4,5,6)
@@ -54,17 +54,17 @@ print("vectors added", v1 + v2)
 
 import OCCT.BRepBuilderAPI
 import OCCT.gp
-@cached
+@run_if_changed
 def test2():
   result = Vertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0))
   print ("before caching", repr (result))
-  return result
+  save ("test2_result", result)
 
 
-print("after caching", repr(test2))
-print(dir(test2))
-print(test2.ShapeType())
-print (isinstance((test2), (Shape)), unwrap(Shape))
+print("after caching", repr(test2_result))
+print(dir(test2_result))
+print(test2_result.ShapeType())
+print (isinstance((test2_result), (Shape)), unwrap(Shape))
 print("uhhh")
 s=Shape()
 print("uhhh")
@@ -75,8 +75,8 @@ from OCCT.BRep import BRep_Builder
 import io
 wrap(BRepTools).Read_(Shape(), io.BytesIO(b""), BRep_Builder())'''
 
-@cached
-def cube():
+@run_if_changed
+def cube_test():
   vertices = [
     Vertex (0, 0, 0),
     Vertex (0, 0, 1),
@@ -115,7 +115,7 @@ def cube():
   shell = Shell (faces)
   solid = Solid (shell)
   offset = thicken_solid(solid, [faces[0]], 0.2)
-  return {
+  save ("cube", {
     "vertices": vertices,
     "edges": edges,
     "wires": wires,
@@ -123,11 +123,11 @@ def cube():
     "shell": shell,
     "solid": solid,
     "offset": offset,
-  }
+  })
   
 print ("cube", cube)
 
-@cached
+@run_if_changed
 def surface_test():
   surface = BSplineSurface(
     [[Point(0,0,0), Point(1,0,0)], [Point(0,1,0), Point(1,1,1)]],
@@ -136,10 +136,10 @@ def surface_test():
     weights = [[1,1], [1,1]]
   )
   
-  return Face(surface)
+  save ("surface", Face(surface))
 
 
-print(surface_test)
+print(surface)
 
 viewed = cube["offset"]
 #viewed = surface_test

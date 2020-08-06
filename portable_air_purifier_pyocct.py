@@ -69,8 +69,8 @@ def approximate_edges(edges):
       result.append (curve.value (parameter))
   return result
 
-@cached
-def strong_filter_to_CPAP_wall():
+@run_if_changed
+def make_strong_filter_to_CPAP_wall():
   wall_inner_radius = wall_thickness*0.5
   wall_outer_radius = wall_thickness*1.5
   filter_inset = vector(all = strong_filter_airspace_wall_inset).projected_perpendicular (Up)
@@ -162,11 +162,11 @@ def strong_filter_to_CPAP_wall():
   #preview (thick)
   #preview (half_thick)
   combined = Compound(half_thick, mirrored)
-  return combined@Translate (0, 0, strong_filter_max[2])
+  save ("strong_filter_to_CPAP_wall", combined@Translate (0, 0, strong_filter_max[2]))
 #preview(strong_filter_to_CPAP_wall)
 
-@cached
-def strong_filter_output_part():
+@run_if_changed
+def make_strong_filter_output_part():
   '''inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
   rect_min = strong_filter_min + inset
   rect_max = strong_filter_max - inset
@@ -183,7 +183,7 @@ def strong_filter_output_part():
   
   edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])'''
   
-  return strong_filter_to_CPAP_wall
+  save ("strong_filter_output_part", strong_filter_to_CPAP_wall)
 
 '''@cached_STL
 def strong_filter_output_part_mesh():
@@ -193,8 +193,8 @@ def strong_filter_output_part_mesh():
 rotate_to_diagonal_radians = math.atan(math.sqrt(2))
 rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to_diagonal_radians)
 
-@cached
-def strong_filter_output_part_FDM_printable():
+@run_if_changed
+def make_strong_filter_output_part_FDM_printable():
   bottom_faces = [face for face in strong_filter_to_CPAP_wall.faces() if face.bounds().max() [2] < 1]
   bottom_corner = strong_filter_output_part.bounds().min()
   transform = Translate(bottom_corner, Origin) @ rotate_to_diagonal
@@ -211,7 +211,7 @@ def strong_filter_output_part_FDM_printable():
       Point(extra_wall_length, extra_wall_length, lots),
     ))
     parts.append(support)
-  return Compound (parts)
+  save("strong_filter_output_part_FDM_printable", Compound (parts))
   
 
 preview(strong_filter_output_part_FDM_printable)

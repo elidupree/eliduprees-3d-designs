@@ -32,8 +32,8 @@ corners = [
   Point (0, -under_door_half_width, top),
 ]
 
-@cached
-def under_door_wire():
+@run_if_changed
+def make_under_door_wire():
   points = []
   for a,b in loop_pairs (corners):
     delta = (b - a)
@@ -45,7 +45,7 @@ def under_door_wire():
       offset = 0 if index % 2 == 0 else zigzag_depth
       if index != 0:
         points.append (position + perpendicular*offset)
-  return Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True))))
+  save ("under_door_wire", Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True)))))
   
 def half_shape(dir, radius):
   e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
@@ -64,14 +64,14 @@ def half_shape(dir, radius):
   }
 
 
-@cached
-def intake_half():
-  return half_shape (-1, elidupree_4in_intake_inner_radius)
+@run_if_changed
+def make_intake_half():
+  save("intake_half", half_shape (-1, elidupree_4in_intake_inner_radius))
 
 
-@cached
-def output_half():
-  return half_shape (1, elidupree_4in_output_outer_radius - wall_thickness)
+@run_if_changed
+def make_output_half():
+  save("output_half", half_shape (1, elidupree_4in_output_outer_radius - wall_thickness))
 
 
 
