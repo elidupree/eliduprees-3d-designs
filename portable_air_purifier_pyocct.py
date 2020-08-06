@@ -94,10 +94,10 @@ def strong_filter_to_CPAP_wall():
   skirt_vertex = Vertex (5, 0, -strong_filter_depth_with_seal)
   profile = approximate_edges(FilletedEdges([
     flat_before_upstep_vertex,
-    (upstep_vertex, 3),
-    (inset_vertex, wall_outer_radius),
+    (upstep_vertex, wall_inner_radius + 3),
+    (inset_vertex, wall_outer_radius + 1),
     (corner_vertex, wall_inner_radius),
-    (cover_vertex, 3),
+    (cover_vertex, wall_outer_radius + 10),
     skirt_vertex,
   ])[1:])
   
@@ -160,14 +160,14 @@ def strong_filter_to_CPAP_wall():
   #preview (solid)
   #preview(Offset(face, wall_thickness, tolerance = 0.01))
   
-  preview (face)
+  #preview (face)
   
   #thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
   thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).Complemented()
   half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
   mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
-  preview (thick)
-  preview (half_thick)
+  #preview (thick)
+  #preview (half_thick)
   combined = Compound(half_thick, mirrored)
   return combined@Translate (0, 0, strong_filter_max[2])
 preview(strong_filter_to_CPAP_wall)
