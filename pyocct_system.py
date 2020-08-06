@@ -60,6 +60,23 @@ def _setup_wrappers():
         result = wrap(result)
         
     return result
+  
+  def get_override(inner, name):
+    if inspect.isclass(inner):
+      return attribute_overrides.get((inner, name))
+    else:
+      c = getattr(inner, "__class__")
+      if c is not None:
+        return attribute_overrides.get((c, name))
+        
+  def get_maybe_capitalized(inner, name, *args):
+    try:
+      return getattr(inner, name)
+    except AttributeError as e:
+      try:
+        return getattr(inner, name.capitalize(), *args)
+      except AttributeError:
+        raise e
     
   class Wrapper:
     def __init__(self, wrapped_object):
@@ -81,18 +98,18 @@ def _setup_wrappers():
       )))
     def __getattr__(self, name):
       inner = self.wrapped_object
-      if inspect.isclass(inner):
-        override = attribute_overrides.get((inner, name))
-      else:
-        c = getattr(inner, "__class__")
-        if c is not None:
-          override = attribute_overrides.get((c, name))
+      override = get_override(inner, name)
           
-      #print("in getattr", inner, name, override)
+      #print("in getattr", inner, name, getattr(inner, name, None), override)
       if override is None:
-        inner_attribute = getattr(inner, name)
+        if name.islower():
+          inner_attribute = get_maybe_capitalized(inner, name)
+        else:
+          if get_override(inner, name.lower()) is not None:
+            raise RuntimeError("No using lowercase-overridden attributes by their capitalized names")
+          inner_attribute = getattr(inner, name)
       else:
-        inner_attribute = getattr(inner, name, None)
+        inner_attribute = get_maybe_capitalized(inner, name, None)
       #print("in getattr", inner, name, inner_attribute, override)
       
       #print (inner, name, override)

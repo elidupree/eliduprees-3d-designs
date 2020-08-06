@@ -1,3 +1,13 @@
+'''
+
+Capitalization convention:
+– because I use Dragon, capitalizing things is extra work. Thus, single-word methods should normally be used lowercase.
+– The types and functions from this module are uppercase, because I use a glob import and I don't want to have collisions with variables, and "cap X" is easier to say than "API dot X". One exception is "vector" because it is extremely commonly used
+– in this file, by convention, methods which are not intended to be used in other files – only used as an implementation detail for wrappers – may be written in their original uppercase
+
+'''
+
+
 import re
 import math
 import importlib
@@ -64,7 +74,7 @@ def setup(wrap, unwrap, export, override_attribute):
     def derived(cls, values):
       result = original()
       for value in values:
-        result.Append(value)
+        result.append(value)
       return result
     return classmethod(derived)
   ListOfShape = TopoDS.TopoDS_ListOfShape
@@ -77,7 +87,7 @@ def setup(wrap, unwrap, export, override_attribute):
     except AttributeError:
       return [arguments]
   
-  simple_override (Message.Message_Report, "Dump", lambda self, gravity: repr(list(set(alert.GetMessageKey() for alert in self.GetAlerts (gravity)))))
+  simple_override (Message.Message_Report, "dump", lambda self, gravity: repr(list(set(alert.GetMessageKey() for alert in self.GetAlerts (gravity)))))
     
   ################################################################
   ##################  Convenience functions  #####################
@@ -100,7 +110,7 @@ def setup(wrap, unwrap, export, override_attribute):
     delta = end - start
     
     if max_length is not None:
-      distance = delta.Magnitude() if isinstance (delta, Vector) else abs (delta)
+      distance = delta.magnitude() if isinstance (delta, Vector) else abs (delta)
       required = math.ceil (distance/max_length) + 1
       amount = max ((amount or 0), required)
     
@@ -179,18 +189,18 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Point, "__getitem__", Vector_index)
   simple_override(Direction, "__getitem__", Vector_index)
   
-  simple_override(Vector, "Translated", lambda self, other: self + other)
+  simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
-  override_attribute (Vector, "Dot", lambda original: lambda self, other: original (vector_if_direction (other)))
-  simple_override(Vector, "Cross", lambda self, other: self.Crossed(vector_if_direction (other)))
+  override_attribute (Vector, "dot", lambda original: lambda self, other: original (vector_if_direction (other)))
+  simple_override(Vector, "cross", lambda self, other: self.Crossed(vector_if_direction (other)))
   
   simple_override(Direction, "__mul__", lambda self, other: Vector(self) * other)
   simple_override(Direction, "__truediv__", lambda self, other: Vector(self) / other)
-  simple_override(Direction, "Cross", lambda self, other: self.Crossed(other))
+  simple_override(Direction, "cross", lambda self, other: self.Crossed(other))
   
     
-  simple_override(Point, "__add__", lambda self, other: self.Translated (other))
-  simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.Translated (other*-1))
+  simple_override(Point, "__add__", lambda self, other: self.translated (other))
+  simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.translated (other*-1))
   
   simple_override(Direction, "__add__", lambda self, other: Vector(self) + vector_if_direction (other))
   simple_override(Direction, "__sub__", lambda self, other: Vector(self) - vector_if_direction (other))
@@ -202,7 +212,7 @@ def setup(wrap, unwrap, export, override_attribute):
       
   def vector_projected(self, direction):
     require_instance (direction, Direction)
-    return direction * self.Dot(direction)
+    return direction * self.dot (direction)
   simple_override(Vector, "projected", vector_projected)
   simple_override(Vector, "projected_perpendicular", lambda self, direction: self - self.projected (direction))
   
@@ -211,9 +221,9 @@ def setup(wrap, unwrap, export, override_attribute):
       normal = onto.normal() 
       if by is None:
         by = normal
-      distance = Vector (self, onto.Location()).Dot(normal)
+      distance = Vector (self, onto.location()).dot (normal)
       
-      return self + (by/by.Dot(normal))*distance
+      return self + (by/by.dot (normal))*distance
     raise RuntimeError (f"don't know how to project point onto {onto}")
       
   simple_override(Point, "projected", point_projected)
@@ -230,7 +240,7 @@ def setup(wrap, unwrap, export, override_attribute):
         a[2], b[2], c[2], d[2],
       ]
       result.SetValues(*values)
-      result_values = [result.Value(row + 1, column + 1) for row in range(3) for column in range (4)]
+      result_values = [result.value(row + 1, column + 1) for row in range(3) for column in range (4)]
       if result_values != values:
         raise RuntimeError (f"it's no good use Transform when it automatically adjusts the values (original: {values}, adjusted: {result_values})")
       return result
@@ -238,7 +248,7 @@ def setup(wrap, unwrap, export, override_attribute):
     return classmethod(derived)
   override_attribute(Transform, "__new__", make_Transform)
   simple_override(Transform, "__matmul__", lambda self, other: other.Multiplied(self))
-  simple_override(Transform, "Inverse", Transform.Inverted)
+  simple_override(Transform, "inverse", Transform.Inverted)
   
   for transformable in [Vector, Point]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
@@ -273,7 +283,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   def Transform_str (self):
     return "Transform[\n"+"\n".join(
-      ", ".join(str(self.Value(row + 1, column + 1)) for column in range (4))
+      ", ".join(str(self.value (row + 1, column + 1)) for column in range (4))
     for row in range(3))+"]"
   
   simple_override(Transform, "__str__", Transform_str)
@@ -398,12 +408,12 @@ def setup(wrap, unwrap, export, override_attribute):
     simple_override(c, "ShapeEnum", enum_value)
     #simple_override(c, "read_brep", lambda path: from_shape(Shape.read_brep (path)))
     simple_override(c, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
-    simple_override(c, "ShapeType", lambda self: c)
+    #simple_override(c, "ShapeType", lambda self: c)
     simple_override(c, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
     #simple_override(c, "__add__", lambda self, v: self @ Translate(v))
 
     def handle_subtype(subtype, plural):
-      simple_override(c, plural, lambda self: subshapes (self, subtype))
+      simple_override(c, plural.lower(), lambda self: subshapes (self, subtype))
     for (other_type, plural) in zip (shape_typenames, shape_typename_plurals):
       if other_type == typename:
         break
@@ -413,10 +423,10 @@ def setup(wrap, unwrap, export, override_attribute):
   for typename in shape_typenames:
     handle_shape_type(typename)
     
-  simple_override(Vertex, "Point", lambda self: BRep.BRep_Tool.Pnt_(self))
+  simple_override(Vertex, "point", lambda self: BRep.BRep_Tool.Pnt_(self))
   simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.Point(), index))
-  simple_override(Edge, "Curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
-  simple_override(Face, "OuterWire", BRepTools.BRepTools.OuterWire_)
+  simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
+  simple_override(Face, "outer_wire", BRepTools.BRepTools.OuterWire_)
   
   
   
@@ -442,7 +452,7 @@ def setup(wrap, unwrap, export, override_attribute):
     #print("downcasting", repr(shape), shapetype)
     return shapetype.from_shape (shape)
   
-  override_attribute (Shape, "ShapeType", lambda original: lambda self: shape_type(original, shape))
+  #override_attribute (Shape, "ShapeType", lambda original: lambda self: shape_type(original, shape))
   simple_override(Shape, "__wrap__", downcast_shape)
   
   def shape_valid(shape):
@@ -604,9 +614,9 @@ def setup(wrap, unwrap, export, override_attribute):
     shells = [shape, result]
     for free_wire in ClosedFreeWires(shape):
       #print("free bound")
-      offset_wire = Wire (image.Image (edge) for edge in free_wire.Edges())
+      offset_wire = Wire (image.Image (edge) for edge in free_wire.edges())
       loft = Loft(free_wire, offset_wire)
-      #faces.extend(loft.Faces())
+      #faces.extend(loft.faces())
       shells.append (loft)
     #print (faces)
     #shell = Shell (faces)
@@ -653,10 +663,10 @@ def setup(wrap, unwrap, export, override_attribute):
       
       if radius is not None:
         # hack – doesn't accommodate edges whose endpoints are collinear but they curve off to the side
-        v0 = previous_edge.Vertices()
-        v1 = new_edge.Vertices()
-        arbitrary_point = v0[1].Point()
-        plane_normal = Direction(v0[1].Point() - v0[0].Point()).Cross(Direction(v1[1].Point() - v1[0].Point()))
+        v0 = previous_edge.vertices()
+        v1 = new_edge.vertices()
+        arbitrary_point = v0[1].point()
+        plane_normal = Direction(v0[1].point() - v0[0].point()).cross (Direction(v1[1].point() - v1[0].point()))
         builder = ChFi2d.ChFi2d_FilletAlgo (previous_edge, new_edge, Plane(arbitrary_point, plane_normal).Pln())
         builder.Perform(radius)
         new_joiner = builder.Result (arbitrary_point, previous_edge, new_edge)

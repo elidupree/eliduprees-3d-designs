@@ -71,9 +71,9 @@ strong_filter_output_part_bottom_corner = strong_filter_min + vector (
 def approximate_edges(edges):
   result = []
   for edge in edges:
-    curve, start, finish = edge.Curve()
+    curve, start, finish = edge.curve()
     for parameter in subdivisions (start, finish, amount = 9)[1:]:
-      result.append (curve.Value (parameter))
+      result.append (curve.value (parameter))
   return result
 
 @cached
@@ -154,7 +154,7 @@ def strong_filter_to_CPAP_wall():
     )
   print ([column [0] for column in columns])
   face = Face(BSplineSurface(columns, u = BSplineDimension (periodic = True)))
-  #extra_faces = [Face (wire).Complemented() for wire in ClosedFreeWires (face)]
+  #extra_faces = [Face (wire).complemented() for wire in ClosedFreeWires (face)]
   #preview (Shell ([face] + extra_faces))
   #solid = Solid (Shell ([face] + extra_faces))
   #preview (solid)
@@ -162,8 +162,8 @@ def strong_filter_to_CPAP_wall():
   
   #preview (face)
   
-  #thick = thicken_solid(solid, [f for f in solid.Faces() if all_equal(v[2] for v in f.Vertices())], wall_thickness)
-  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).Complemented()
+  #thick = thicken_solid(solid, [f for f in solid.faces() if all_equal(v[2] for v in f.vertices())], wall_thickness)
+  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).complemented()
   half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
   mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
   #preview (thick)
@@ -221,10 +221,10 @@ def strong_filter_output_part_FDM_printable():
       strong_filter_max + Up*lots
   ) @ transform
   for offset, side in extra_wall_vectors:
-    perpendicular = offset.Cross(Down)*side
-    transform = Transform(offset.Normalized(), perpendicular.Normalized())
+    perpendicular = offset.cross(Down)*side
+    transform = Transform(offset.normalized(), perpendicular.normalized())
     print(transform)
-    extra_wall = Box(offset.Magnitude(), wall_thickness, extra_wall_length)@transform
+    extra_wall = Box(offset.magnitude(), wall_thickness, extra_wall_length)@transform
     extra_wall = Difference(extra_wall, exclusion)
     parts.append (extra_wall)
   return Compound (parts)

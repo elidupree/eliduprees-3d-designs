@@ -104,12 +104,12 @@ def cube():
   ]
   # note that the latter edges don't need to be complemented; it seems like MakeWire forces the later edge orientations to match the first edge.
   wires = [
-    Wire ([edges [0], edges [3], edges [5].Complemented(), edges [1].Complemented()]),
-    Wire ([edges [8], edges [10], edges [11].Complemented(), edges [9].Complemented()]).Complemented(),
-    Wire ([edges [0], edges [4], edges [8].Complemented(), edges [2].Complemented()]).Complemented(),
-    Wire ([edges [5], edges [7], edges [11].Complemented(), edges [6].Complemented()]),
-    Wire ([edges [1], edges [6], edges [9].Complemented(), edges [2].Complemented()]),
-    Wire ([edges [3], edges [7], edges [10].Complemented(), edges [4].Complemented()]).Complemented(),
+    Wire ([edges [0], edges [3], edges [5].complemented(), edges [1].complemented()]),
+    Wire ([edges [8], edges [10], edges [11].complemented(), edges [9].complemented()]).complemented(),
+    Wire ([edges [0], edges [4], edges [8].complemented(), edges [2].complemented()]).complemented(),
+    Wire ([edges [5], edges [7], edges [11].complemented(), edges [6].complemented()]),
+    Wire ([edges [1], edges [6], edges [9].complemented(), edges [2].complemented()]),
+    Wire ([edges [3], edges [7], edges [10].complemented(), edges [4].complemented()]).complemented(),
   ]
   faces = [Face (wire) for wire in wires]
   shell = Shell (faces)
