@@ -145,19 +145,31 @@ print(surface)
 def flex_but_dont_twist_test():
   curve = BSplineCurve ([Origin, Point (20, 50, 0), Point (0, 100, 0)], BSplineDimension (degree = 2))
   length = curve.length()
-  vertices = []
-  for index, distance in enumerate (subdivisions (0, length, amount = 21)):
+  controls = []
+  struts = []
+  amount = 21
+  radius = 0.25
+  for index, distance in enumerate (subdivisions (0, length, amount = amount)):
+    steps_from_terminus = min(index, (amount-1)-index)
     parameter = curve.parameter (distance = distance)
     derivatives = curve.derivatives (parameter)
-    offset = 0 if index % 2 == 0 else 5
+    offset = 0 if index % 2 == 0 else 10
     print(vars (derivatives))
-    vertices.append (Vertex (derivatives.position - derivatives.normal*offset))
+    controls.append (derivatives.position - derivatives.normal*offset)
+    if index % 2 == 0 and steps_from_terminus != 0:
+      struts.append(Edge(derivatives.position, derivatives.position - derivatives.normal*10).extrude(derivatives.tangent*radius*2, centered=True))  
   
-  zigzag_wire = Wire (vertices)
-  radius = 0.25
+  zigzag_wire = Wire (Edge (BSplineCurve (controls)))
+  curve_wire = Wire (Edge (curve))
+  interior = Face (Wire (curve_wire, zigzag_wire)).extrude (Up*10)
+  struts = [Intersection (interior, strut) for strut in struts]
+  #struts = [Offset2D (Wire (strut), radius) for strut in struts]
+  #print(struts)
+  #preview (struts[5])
+ 
   zigzag = Face (Offset2D (zigzag_wire, radius))
-  curve_face = Face (Offset2D (Wire (Edge (curve)), radius))
-  result = Union (zigzag, curve_face).extrude (Up*10)
+  curve_face = Face (Offset2D (curve_wire, radius))
+  result = Compound(zigzag, curve_face, struts).extrude (Up*10)
   save ("flex_but_dont_twist", result)
   save_STL("flex_but_dont_twist_mesh", result)
   preview (result)

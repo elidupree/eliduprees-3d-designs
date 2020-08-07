@@ -791,7 +791,7 @@ def setup(wrap, unwrap, export, override_attribute):
   def finish_Boolean (builder):
     builder.Build()
     if not builder.IsDone():
-      raise RuntimeError (f"Union failed {builder.GetReport().Dump (Message.Message_Gravity.Message_Fail)} {builder.GetReport().Dump (Message.Message_Gravity.Message_Alarm)} {builder.GetReport().Dump (Message.Message_Gravity.Message_Warning)}")
+      raise RuntimeError (f"Union failed {builder.GetReport().dump (Message.Message_Gravity.Message_Fail)} {builder.GetReport().dump (Message.Message_Gravity.Message_Alarm)} {builder.GetReport().dump (Message.Message_Gravity.Message_Warning)}")
     return builder.Shape()
   
   def Union (*shapes):
@@ -811,12 +811,16 @@ def setup(wrap, unwrap, export, override_attribute):
     builder.SetTools (ListOfShape (recursive_flatten (second)))
     return finish_Boolean (builder)
   
-  def Extrude (first, direction,*, infinite_both_ways = False):
-    if isinstance (direction, Direction):
-      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction, infinite_both_ways)
+  def Extrude (first, direction,*, centered = False):
+    infinite = isinstance (direction, Direction)
+    if infinite:
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction, centered)
     else:
       builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction)
-    return builder.Shape()
+    result = builder.Shape()
+    if centered and not infinite:
+      result = result@Translate (- direction*0.5)
+    return result
     
   
   def Box (*args):
