@@ -264,7 +264,9 @@ save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
 
 
 class ShieldSample:
-  def __init__(self, parameter = None, closest = None):
+  def __init__(self, parameter = None, closest = None, intersecting = None, which = 0):
+    if intersecting is not None:
+      closest = shield_surface.intersections (intersecting).points [which]
     if closest is not None:
       self.shield_parameter = shield_surface.parameter(closest)
     elif parameter is not None:
@@ -277,25 +279,20 @@ class ShieldSample:
 
 
 class CurveSample (ShieldSample):
-  def __init__(self, curve, distance = None, closest = None, y = None, z = None, which = 0):
+  def __init__(self, curve, distance = None, closest = None, y = None, z = None, which = 0, intersecting = None):
+    if y is not None:
+      intersecting = Plane (Point(0,y,0), Front)
+    if z is not None:
+      intersecting = Plane (Point(0,0,z), Up)
+    if intersecting is not None:
+      closest = curve.intersections (intersecting).points [which]
+    
     self.curve = curve
     if distance is not None:
       self.curve_distance = distance
       self.curve_parameter = curve.parameter(distance = distance)
     elif closest is not None:
       self.curve_parameter = curve.parameter(closest = closest)
-      self.curve_distance = curve.length(0, self.curve_parameter)
-    elif y is not None:
-      position = curve.intersections (
-            Plane (Point(0,y,0), Front)
-          ).points [which]
-      self.curve_parameter = curve.parameter(closest = position)
-      self.curve_distance = curve.length(0, self.curve_parameter)
-    elif z is not None:
-      position = curve.intersections (
-            Plane (Point(0,0,z), Up)
-          ).points [which]
-      self.curve_parameter = curve.parameter(closest = position)
       self.curve_distance = curve.length(0, self.curve_parameter)
     else:
       assert(false)
@@ -337,7 +334,27 @@ def make_shield_cross_sections():
     shield_cross_sections.append(Intersection(full_section, shield_region))
     
   save ("shield_cross_sections", Compound (shield_cross_sections))
+  
+  
+########################################################################
+########  Eye lasers  #######
+########################################################################
 
+
+def eye_laser(direction):
+  try: 
+    sample = ShieldSample(intersecting = TrimmedCurve(Line (putative_eyeball, direction), 0, lots))
+    further_direction = direction@Reflect (sample.normal)
+    return Wire (putative_eyeball, sample.position, sample.position + further_direction*200)
+  except IndexError:
+    return Wire (putative_eyeball, putative_eyeball + direction*200)
+    
+  
+save ("eye_lasers", Compound ([
+  eye_laser(Direction (x, 1, z))
+  for x in subdivisions (-2, 2, amount = 10)
+  for z in subdivisions (-2, 2, amount = 10)
+]))
 
 ########################################################################
 ########  Forehead/headband/top rim  #######
@@ -744,7 +761,7 @@ preview(
   Edge(shield_source_curve),
   Edge(shield_top_curve.curve),
   shield_source_points,
-  lower_side_rim, upper_side_rim, top_rim, headband,
+  lower_side_rim, upper_side_rim, top_rim, headband,eye_lasers
 )
 
 ########################################################################

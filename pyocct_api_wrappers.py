@@ -353,6 +353,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
+  TrimmedCurve = Geom.Geom_TrimmedCurve
   
   simple_override(Plane, "normal", lambda self, *args: self.Axis().Direction())
   simple_override (Bounds, "max", lambda self: self.CornerMax())
@@ -516,7 +517,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
 
-  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate")
+  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
   ################################################################
   ####################  BRep Shape types  ########################
