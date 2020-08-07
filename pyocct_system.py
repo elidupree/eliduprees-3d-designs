@@ -401,7 +401,7 @@ def _output_hash (key):
   _cache_info_by_global_key [key] = _Recursive
   
   if key not in _cache_globals:
-    raise OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet. Current globals: {_cache_globals}")  
+    raise OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")  
   value = _cache_globals [key]
   
   try:

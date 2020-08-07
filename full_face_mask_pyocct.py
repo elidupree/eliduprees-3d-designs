@@ -193,14 +193,13 @@ class ShieldCurveInPlane(SerializeAsVars):
     
   def __getattr__(self, name):
     return getattr(self.curve, name)
-    
-    
-    
+
 side_curve_source_points = [
   (shield_back, shield_glue_face_width),
   (shield_back, -64),
-  (-80, -156)
+  (forehead_point[1]-22, -156)
 ]
+
 save ("side_curve_source_surface", BSplineSurface([
     [Point (100, y, z) for y,z in side_curve_source_points],
     [Point (-100, y, z) for y,z in side_curve_source_points],
@@ -225,16 +224,18 @@ save ("lower_side_curve_source_surface", BSplineSurface([
   BSplineDimension (degree = 1),
 ))
 
-
-
-save ("shield_side_curve", shield_surface.intersections (
-  side_curve_source_surface
-)[0])
-save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
-save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
+@run_if_changed
+def make_shield_curves():
+  save ("shield_side_curve", shield_surface.intersections (
+    side_curve_source_surface
+  )[0])
+  save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
+  save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
+  save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
+  
 shield_side_curve_length = shield_side_curve.length()
+#preview (Compound (Face (shield_surface), Face (side_curve_source_surface)))
 
-save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
 shield_top_curve_length = shield_top_curve.length()
 
 '''print(shield_top_curve.NbPoles())
@@ -295,10 +296,11 @@ class CurveSample (ShieldSample):
     super().__init__(closest = derivatives.position)
     
     self.curve_tangent = derivatives.tangent
+    self.curve_normal = derivatives.normal
     self.curve_in_surface_normal = self.curve_tangent.cross (self.normal)
     
     if isinstance(self.curve, ShieldCurveInPlane):
-      self.plane_normal = self.curve.plane.normal()
+      self.plane_normal = self.curve.plane.normal(0,0) # note: even though it's a plane, it becomes a BSplineSurface when it gets reloaded, so we need to give the parameters
       self.normal_in_plane = -self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
@@ -308,7 +310,10 @@ class CurveSample (ShieldSample):
     # self.moving_frame = Transform(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
 
 
-def curve_samples(curve, start_distance, end_distance, **kwargs):
+def curve_samples(curve, start_distance = None, end_distance = None, **kwargs):
+  if start_distance is None:
+    start_distance = 0
+    end_distance = curve.length()
   return (CurveSample(curve, distance=distance) for distance in subdivisions(start_distance, end_distance, **kwargs))
 
 
@@ -562,21 +567,20 @@ lower_side_rim_hoops = []
 #side_plate_hoops = []
 elastic_holder_hoops = []
 elastic_tension_hoops = []
-for sample in curve_samples(shield_side_curve, 79, 0, shield_side_curve_length):
-  position = sample.position          
-  curve_normal = vector (*shield_side_curve.normal(sample.curve_parameter))
-  elastic_tension_matrix = matrix_from_columns(-curve_normal, -curve_normal.cross(sample.curve_tangent), sample.curve_tangent, position)
-  elastic_tension_shape = elastic_tension_wire.copy()
-  elastic_tension_shape.transformShape (elastic_tension_matrix)
-  elastic_tension_hoops.append(elastic_tension_shape)
+for sample in curve_samples(shield_side_curve, amount = 79):
+  elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
+
+save("elastic_tension", Compound (elastic_tension_hoops))
 
 def upper_side_lip_tip(sample):
   return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
-for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width):
+
+print(shield_upper_side_curve.plane)
+for sample in curve_samples(shield_upper_side_curve, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width, amount = 20):
   upper_side_cloth_lip.append (upper_side_lip_tip(sample))
   
-for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_curve.length()):
-  upper_side_rim_hoops.append(polygon([
+for sample in curve_samples(shield_upper_side_curve, amount = 20):
+  upper_side_rim_hoops.append(Wire([
     sample.position,
     sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
     sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
@@ -584,7 +588,7 @@ for sample in curve_samples(shield_upper_side_curve, 20, 0, shield_upper_side_cu
     sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
     upper_side_lip_tip(sample),
     sample.position + sample.normal_in_plane*min_wall_thickness,
-  ]))
+  ], loop = True))
   
 def augment_lower_curve_sample(sample):
   sample.lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
@@ -592,7 +596,7 @@ def augment_lower_curve_sample(sample):
   sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).Length
   sample.lip_tip = sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip + sample.lip_direction_unit_height_from_shield*min_wall_thickness
   
-for sample in curve_samples(shield_lower_side_curve, 40, 0, shield_lower_side_curve.length()):
+for sample in curve_samples(shield_lower_side_curve, amount = 40):
   augment_lower_curve_sample(sample)
   lower_side_rim_hoops.append(polygon([
     sample.position,
