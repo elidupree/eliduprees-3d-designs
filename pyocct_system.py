@@ -8,6 +8,7 @@ import sys
 import os
 import os.path
 import json
+import traceback
 from OCCT.BOPAlgo import BOPAlgo_Options
 import OCCT.Exchange
 import OCCT.TopoDS
@@ -28,7 +29,16 @@ def _setup_wrappers():
     duration = finish - start
     seconds = duration.total_seconds()
     if seconds > 0.01:
-      print(f"operation {name} took {seconds} seconds")
+      def short_frame(frame):
+        file,line,_,_ = frame
+        file = os.path.basename(file)
+        return f"{file}:{line}"
+      relevant_frame = []
+      for frame in traceback.extract_stack():
+        if "pyocct_system.py" in frame[0] or "pyocct_api_wrappers.py" in frame[0]:
+          break
+        relevant_frame = frame
+      print(f"operation {name} took {seconds} seconds ({short_frame(relevant_frame)})")
     return result
 
 
