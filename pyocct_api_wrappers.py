@@ -425,6 +425,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
     
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
+  override_attribute(BSplineCurve, "knots", lambda original: lambda self: [a for a in original()])
+  override_attribute(BSplineCurve, "multiplicities", lambda original: lambda self: [a for a in original()])
   
   def Interpolate (points,*, periodic = False, tolerance = default_tolerance, parameters = None, tangents = None):
     points = HArray1OfPnt (points)
