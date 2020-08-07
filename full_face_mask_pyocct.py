@@ -130,6 +130,7 @@ headphones_front = forehead_point[1]-75
 #shield_back = headphones_front + side_plate_width - shield_glue_face_width
 shield_back = headphones_front + min_wall_thickness
 back_edge = forehead_point[1] - 96
+putative_chin = Point(0, 0, -120)
 
 temple_radians = (math.tau/4) * 0.6
 shield_focal_slope = 2
@@ -146,7 +147,6 @@ temple_direction = Right@Rotate (Up, radians = temple_radians)
 temple = Point (77, shield_back, 0)
 
 shield_focal_y = temple[1] - (temple[0] * temple_direction[1] / temple_direction[0])
-shield_focal_point = Point (0, shield_focal_y, shield_focal_y * shield_focal_slope)
 
 shield_source_curve_points = [
   temple + vector(0,0,shield_glue_face_width),
@@ -165,6 +165,9 @@ shield_source_curve_points.reverse()
 save ("shield_source_curve", BSplineCurve(shield_source_curve_points))
 
 shield_source_curve_length = shield_source_curve.length()
+shield_source_curve_peak = shield_source_curve.intersections (Plane (Origin, Right)).point()
+
+shield_focal_point = Point (0, shield_focal_y, shield_source_curve_peak[2] + (shield_focal_y - shield_source_curve_peak[1]) * shield_focal_slope)
 
 def scaled_shield_source_curve_points (zmin=None, zmax=None):
   if zmin is not None:
@@ -182,7 +185,7 @@ u = BSplineDimension (degree = 1)
     
 save ("shield_source_points", Compound ([Vertex (point) for point in shield_source_curve_points]))
 
-
+print (f"Shield position directly in front of chin: {shield_surface.intersections (Line(putative_chin, Back)).point()}")
 
 
 
@@ -234,7 +237,6 @@ def make_shield_curves():
   save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
   
 shield_side_curve_length = shield_side_curve.length()
-#preview (Compound (Face (shield_surface), Face (side_curve_source_surface)))
 
 shield_top_curve_length = shield_top_curve.length()
 
@@ -930,7 +932,7 @@ def make_intake():
   )).complemented())
 
 
-preview (upper_side_rim, lower_side_rim, intake_solid)
+preview (top_rim, headband, upper_side_rim, lower_side_rim, intake_solid, shield_cross_sections)
 
 ########################################################################
 ########  SVG bureaucracy  #######

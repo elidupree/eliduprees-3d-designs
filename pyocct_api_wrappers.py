@@ -200,12 +200,13 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return Vector (value)
     return value
   
-  simple_override(Vector, "__str__", Vector_str)
-  simple_override(Vector, "__repr__", Vector_str)
-  simple_override(Point, "__str__", Point_str)
-  simple_override(Point, "__repr__", Point_str)
-  simple_override(Direction, "__str__", Direction_str)
-  simple_override(Direction, "__repr__", Direction_str)
+  def represent (whatever, function):
+    simple_override(whatever, "__str__", function)
+    simple_override(whatever, "__repr__", function)
+    simple_override(whatever, "__format__", lambda self, _: function(self))
+  represent (Vector, Vector_str)
+  represent (Point, Point_str)
+  represent (Direction, Direction_str)
   
   for whatever in [Vector, Point, Direction, Vector2, Point2]:
     simple_override(whatever, "__getitem__", Vector_index)
@@ -338,6 +339,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   Circle = Geom.Geom_Circle
   Plane = Geom.Geom_Plane
+  Line = Geom.Geom_Line
   Bounds =Bnd.Bnd_Box
   
   Curve = Geom.Geom_Curve
@@ -447,7 +449,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override (Curve, "parameter", curve_parameter)
   
   class CurveSurfaceIntersections (ArbitraryFields):
-    pass
+    def point(self):
+      if len (self.points) != 1:
+        raise RuntimeError (f"assumed that curve surface intersection had exactly one point, but it actually had {self.points}")
+      return self.points [0]
   
   
   def curve_intersections (self, other, tolerance = default_tolerance):
@@ -497,7 +502,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
 
-  export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate")
+  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate")
   
   ################################################################
   ####################  BRep Shape types  ########################
