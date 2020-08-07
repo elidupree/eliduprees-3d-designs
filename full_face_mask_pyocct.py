@@ -559,63 +559,66 @@ save ("lower_rim_cut", Vertex(
 save ("upper_rim_cut", HalfSpace(Point(0,0,0-contact_leeway), Up))
 
 
-
-upper_side_cloth_lip = []
-upper_side_rim_hoops = []
-lower_side_rim_hoops = []
-#side_plate_hoops = []
-elastic_holder_hoops = []
-elastic_tension_hoops = []
-for sample in curve_samples(shield_side_curve, amount = 79):
-  elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
-
-save("elastic_tension", Compound (elastic_tension_hoops))
-
 def upper_side_lip_tip(sample):
   return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
-
+  
 print(shield_upper_side_curve.plane)
+  
+@run_if_changed
+def make_upper_side_rim():
+  upper_side_rim_hoops = []
+  for sample in curve_samples(shield_upper_side_curve, amount = 20):
+    upper_side_rim_hoops.append(Wire([
+      sample.position,
+      sample.position - shield_glue_face_width*sample.curve_in_surface_normal,
+      sample.position - shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
+      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
+      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
+      upper_side_lip_tip(sample),
+      sample.position + sample.normal_in_plane*min_wall_thickness,
+    ], loop = True))
+  upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
+  upper_side_rim = Difference(upper_side_rim, upper_rim_cut)
+  save ("upper_side_rim", upper_side_rim)
+
+
+upper_side_cloth_lip = []
 for sample in curve_samples(shield_upper_side_curve, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width, amount = 20):
   upper_side_cloth_lip.append (upper_side_lip_tip(sample))
-  
-for sample in curve_samples(shield_upper_side_curve, amount = 20):
-  upper_side_rim_hoops.append(Wire([
-    sample.position,
-    sample.position - shield_glue_face_width*sample.curve_in_surface_normal,
-    sample.position - shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
-    sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-    sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
-    upper_side_lip_tip(sample),
-    sample.position + sample.normal_in_plane*min_wall_thickness,
-  ], loop = True))
   
 def augment_lower_curve_sample(sample):
   sample.lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
   sample.lip_direction_unit_height_from_shield = sample.lip_direction/sample.lip_direction.dot(sample.normal)
   sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).length()
   sample.lip_tip = sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip + sample.lip_direction_unit_height_from_shield*min_wall_thickness
-  
-for sample in curve_samples(shield_lower_side_curve, amount = 40):
-  augment_lower_curve_sample(sample)
-  lower_side_rim_hoops.append(Wire([
-    sample.position,
-    sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane,
-    sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-    sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
-    sample.lip_tip,
-    sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
-  ], loop = True))
+
+@run_if_changed
+def make_lower_side_rim():
+  lower_side_rim_hoops = []
+  for sample in curve_samples(shield_lower_side_curve, amount = 40):
+    augment_lower_curve_sample(sample)
+    lower_side_rim_hoops.append(Wire([
+      sample.position,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane,
+      sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
+      sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
+      sample.lip_tip,
+      sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
+    ], loop = True))
+  lower_side_rim = Loft (lower_side_rim_hoops, solid = True)
+  lower_side_rim = Difference(lower_side_rim, lower_rim_cut)
+  save ("lower_side_rim", lower_side_rim)
 
 
-upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
-upper_side_rim = Difference(upper_side_rim, upper_rim_cut)
-save ("upper_side_rim", upper_side_rim)
-lower_side_rim = Loft (lower_side_rim_hoops, solid = True)
-lower_side_rim = Difference(lower_side_rim, lower_rim_cut)
-save ("lower_side_rim", lower_side_rim)
-#side_elastic_holder = Loft (elastic_holder_hoops, solid = True)
-#side_plate = Part.makeLoft (side_plate_hoops, True)
-#show_transformed (side_plate, "side_plate")
+#side_plate_hoops = []
+elastic_tension_hoops = []
+for sample in curve_samples(shield_side_curve, amount = 79):
+  elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
+
+save("elastic_tension", Compound (elastic_tension_hoops))
+
+
+
 
 '''
 side_joint_peg_flat = polygon([
@@ -740,201 +743,194 @@ intake_flat_subdivisions = 10
 intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
 
 
-intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=1)
-augment_lower_curve_sample(intake_middle)
-#intake_skew_factor = 0.8
-#intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
-CPAP_back_center = Point(-85, headphones_front - 40, -110)
-intake_flat_back_center_approx = intake_middle.lip_tip - (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
-CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
 
-lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
-augment_lower_curve_sample(lower_side_center_sample)
 
-lower_side_cloth_lip = []
-lower_side_extra_lip_hoops = []
-intake_edges = ([], [], [], [])
-for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, 0, amount = 200):
-  augment_lower_curve_sample(sample)
-  offset = sample.curve_distance - intake_middle.curve_distance
-  relative_offset = 2*offset / intake_flat_width
-  outer_edge_from_air = min_wall_thickness+cloth_with_elastic_space
-  if abs(relative_offset) < 1:
-    # to make the thing continuous, we need that when this is zero, the END of the air is at the outer lip, so we need to add space to compensate
-    air_thickness = (intake_flat_air_thickness_base + outer_edge_from_air) * math.e * math.exp(1/(relative_offset**2 - 1))
-    air_thickness_derivative = (2 / intake_flat_width) * 2*relative_offset*air_thickness / ((relative_offset**2 - 1)**2)
-  else:
-    air_thickness = 0
-    air_thickness_derivative = 0
-  beyond_air_angle = math.atan2(air_thickness_derivative, 1)
+@run_if_changed
+def make_intake():
+  intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=1)
+  augment_lower_curve_sample(intake_middle)
+  #intake_skew_factor = 0.8
+  #intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
+  CPAP_back_center = Point(-85, headphones_front - 40, -110)
+  intake_flat_back_center_approx = intake_middle.lip_tip - (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
+  CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
+
+  lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
+  augment_lower_curve_sample(lower_side_center_sample)
   
-  edge_distances = [(min_wall_thickness,0),
-    (min_wall_thickness*2,0),
-    (air_thickness, -outer_edge_from_air+0),
-    (air_thickness, -outer_edge_from_air+min_wall_thickness),
-    (air_thickness, -outer_edge_from_air+min_wall_thickness+cloth_with_elastic_space),
-    (air_thickness, -outer_edge_from_air+min_wall_thickness*2+cloth_with_elastic_space),
-  ]
-  
-  intake_edge_offsets = []
-  for before_air, beyond_air in edge_distances:
-    x = before_air + beyond_air * math.cos(beyond_air_angle)
-    y = beyond_air * math.sin(beyond_air_angle)
+  lower_side_cloth_lip = []
+  lower_side_extra_lip_hoops = []
+  intake_edges = ([], [], [], [])
+  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, 0, amount = 200):
+    augment_lower_curve_sample(sample)
+    offset = sample.curve_distance - intake_middle.curve_distance
+    relative_offset = 2*offset / intake_flat_width
+    outer_edge_from_air = min_wall_thickness+cloth_with_elastic_space
+    if abs(relative_offset) < 1:
+      # to make the thing continuous, we need that when this is zero, the END of the air is at the outer lip, so we need to add space to compensate
+      air_thickness = (intake_flat_air_thickness_base + outer_edge_from_air) * math.e * math.exp(1/(relative_offset**2 - 1))
+      air_thickness_derivative = (2 / intake_flat_width) * 2*relative_offset*air_thickness / ((relative_offset**2 - 1)**2)
+    else:
+      air_thickness = 0
+      air_thickness_derivative = 0
+    beyond_air_angle = math.atan2(air_thickness_derivative, 1)
     
-    intake_edge_offsets.append(
-      - x*sample.normal_in_plane_unit_height_from_shield
-      + y*sample.curve_tangent
-    )
-    
-  print_surface_base_point = sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
-  elastic_end_base_point = sample.lip_tip - elastic_holder_depth*sample.curve_in_surface_normal_unit_height_from_plane
-  
-  if air_thickness > edge_distances[1][0] + 1.5 - edge_distances[2][1]:
-    for index in [1,2]:
-      intake_edges [index].append ((
-        print_surface_base_point + intake_edge_offsets [index],
-        elastic_end_base_point + intake_edge_offsets [index],
-      ))
-  if air_thickness > edge_distances[0][0] + 1 - edge_distances[3][1]:
-    for index in [0,3]:
-      intake_edges [index].append ((
-        print_surface_base_point + intake_edge_offsets [index],
-        elastic_end_base_point + intake_edge_offsets [index],
-      ))
-    
-  if sample.position[0] > 0:
-    lower_side_cloth_lip.append (sample.lip_tip)
-  else:
-    lower_side_center_max = (sample.lip_tip[2] - lower_side_center_sample.lip_tip[2])/sample.curve_in_surface_normal[2]
-    new_lip_distance = min(
-      elastic_holder_depth,
-      lower_side_center_max*0.4,
-      (sample.lip_tip[1] - headphones_front)/sample.curve_in_surface_normal[1],
-    )
-    lip_base_point = sample.lip_tip + intake_edge_offsets[4]
-    inner_base_point = sample.lip_tip + intake_edge_offsets[5]
-    
-    down = -new_lip_distance*sample.curve_in_surface_normal
-    leeway = 0.5*min_wall_thickness*sample.curve_in_surface_normal
-    
-    def limited_project_towards (source, target):
-      #return target
-      starting_amount = (source - sample.position).dot (sample.normal) + min_wall_thickness*0.7
-      if starting_amount >= 0:
-        return source
-      amount_towards_shield = (target - source).dot (sample.normal)
-      if starting_amount + amount_towards_shield <= 0:
-        return target
-      return source + (target - source)*(-starting_amount)/amount_towards_shield
-
-    wall_inwards = min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
-    lower_side_extra_lip_hoops.append (Wire ([
-      limited_project_towards (inner_base_point + leeway, print_surface_base_point+ intake_edge_offsets [3]),
-      inner_base_point,
-      inner_base_point + down,
-      lip_base_point + down,
-      lip_base_point,
-      limited_project_towards (lip_base_point + leeway, print_surface_base_point+ intake_edge_offsets [2]),
-    ], loop = True))
-    
-    if air_thickness < 0.001:
-      lower_side_cloth_lip.append (lip_base_point + down)
-    # a fairly arbitrary approximation, but it's not necessarily worth the effort of computing the points it would realistically be taut across
-    elif air_thickness >= outer_edge_from_air+intake_flat_air_thickness_base*0.5:
-      lower_side_cloth_lip.append (sample.lip_tip + intake_edge_offsets[3] + down)
-      
-intake_inner_pairs = intake_edges [1] + intake_edges[2][::-1]
-intake_outer_pairs = intake_edges [0] + intake_edges[3][::-1]
-
-
-      
-'''
-for sample in curve_samples(shield_lower_side_curve, 20, intake_middle.curve_distance + intake_flat_width/2, intake_middle.curve_distance - intake_flat_width/2):
-  augment_intake_sample(sample)
-  
-  shift = -0.5*min_wall_thickness*sample.curve_in_surface_normal
-  big_shift = (min_wall_thickness+elastic_holder_depth)*sample.curve_in_surface_normal
-  lower_side_cloth_lip.append (sample.intake_edge_points[3]+shift - big_shift)
-  lower_side_extra_lip_hoops.append (polygon ([
-      sample.intake_edge_points[4]+shift,
-      sample.intake_edge_points[5]+shift,
-      sample.intake_edge_points[5]+shift - big_shift,
-      sample.intake_edge_points[4]+shift - big_shift,
-    ]).to_wire())
-
-'''
-  
-
-chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [a@Mirror (Right) for a in upper_side_cloth_lip]
-save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
-save ("chin_cloth_lip", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
-
-save ("lower_side_extra_lip", Loft(lower_side_extra_lip_hoops, solid = True, ruled = True))
-
-class IntakeSurface:
-  def __init__(self, pairs, expansion):
-    self.pairs = pairs
-    self.expansion = expansion
-    self.num_points = len(self.pairs)
-    
-    self.hoops = [self.flat_hoop (frac) for frac in [0,0.7,0.8,0.9,1.5]] + [self.CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
-    self.ends = [
-      self.wire (self.hoops[0]),
-      self.wire (self.hoops[-1])
+    edge_distances = [(min_wall_thickness,0),
+      (min_wall_thickness*2,0),
+      (air_thickness, -outer_edge_from_air+0),
+      (air_thickness, -outer_edge_from_air+min_wall_thickness),
+      (air_thickness, -outer_edge_from_air+min_wall_thickness+cloth_with_elastic_space),
+      (air_thickness, -outer_edge_from_air+min_wall_thickness*2+cloth_with_elastic_space),
     ]
-    self.surface = BSplineSurface(self.hoops,
-       v= BSplineDimension (periodic = True),
-    )
     
-  def wire(self, hoop):
-    curve = BSplineCurve(hoop,
-      BSplineDimension (periodic = True),
-    )
-    return Wire (Edge (curve))
-     
-  def CPAP_hoop (self, frac):
-    offset = (1 - frac) * 20
-    center = CPAP_back_center + CPAP_forwards*offset
-    direction = Direction (CPAP_forwards.cross (intake_middle.normal))
-    other_direction = -direction.cross (CPAP_forwards)
-    def CPAP_point (index):
-      angle = index/self.num_points*math.tau - 0.7*math.tau
-      return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
-    return [CPAP_point (index) for index in range (self.num_points)]
+    intake_edge_offsets = []
+    for before_air, beyond_air in edge_distances:
+      x = before_air + beyond_air * math.cos(beyond_air_angle)
+      y = beyond_air * math.sin(beyond_air_angle)
+      
+      intake_edge_offsets.append(
+        - x*sample.normal_in_plane_unit_height_from_shield
+        + y*sample.curve_tangent
+      )
+      
+    print_surface_base_point = sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
+    elastic_end_base_point = sample.lip_tip - elastic_holder_depth*sample.curve_in_surface_normal_unit_height_from_plane
+    
+    if air_thickness > edge_distances[1][0] + 1.5 - edge_distances[2][1]:
+      for index in [1,2]:
+        intake_edges [index].append ((
+          print_surface_base_point + intake_edge_offsets [index],
+          elastic_end_base_point + intake_edge_offsets [index],
+        ))
+    if air_thickness > edge_distances[0][0] + 1 - edge_distances[3][1]:
+      for index in [0,3]:
+        intake_edges [index].append ((
+          print_surface_base_point + intake_edge_offsets [index],
+          elastic_end_base_point + intake_edge_offsets [index],
+        ))
+      
+    if sample.position[0] > 0:
+      lower_side_cloth_lip.append (sample.lip_tip)
+    else:
+      lower_side_center_max = (sample.lip_tip[2] - lower_side_center_sample.lip_tip[2])/sample.curve_in_surface_normal[2]
+      new_lip_distance = min(
+        elastic_holder_depth,
+        lower_side_center_max*0.4,
+        (sample.lip_tip[1] - headphones_front)/sample.curve_in_surface_normal[1],
+      )
+      lip_base_point = sample.lip_tip + intake_edge_offsets[4]
+      inner_base_point = sample.lip_tip + intake_edge_offsets[5]
+      
+      down = -new_lip_distance*sample.curve_in_surface_normal
+      leeway = 0.5*min_wall_thickness*sample.curve_in_surface_normal
+      
+      def limited_project_towards (source, target):
+        #return target
+        starting_amount = (source - sample.position).dot (sample.normal) + min_wall_thickness*0.7
+        if starting_amount >= 0:
+          return source
+        amount_towards_shield = (target - source).dot (sample.normal)
+        if starting_amount + amount_towards_shield <= 0:
+          return target
+        return source + (target - source)*(-starting_amount)/amount_towards_shield
 
-  def flat_hoop(self, frac):
-    return [Between (a,b,frac) for a,b in self.pairs]
+      wall_inwards = min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
+      lower_side_extra_lip_hoops.append (Wire ([
+        limited_project_towards (inner_base_point + leeway, print_surface_base_point+ intake_edge_offsets [3]),
+        inner_base_point,
+        inner_base_point + down,
+        lip_base_point + down,
+        lip_base_point,
+        limited_project_towards (lip_base_point + leeway, print_surface_base_point+ intake_edge_offsets [2]),
+      ], loop = True))
+      
+      if air_thickness < 0.001:
+        lower_side_cloth_lip.append (lip_base_point + down)
+      # a fairly arbitrary approximation, but it's not necessarily worth the effort of computing the points it would realistically be taut across
+      elif air_thickness >= outer_edge_from_air+intake_flat_air_thickness_base*0.5:
+        lower_side_cloth_lip.append (sample.lip_tip + intake_edge_offsets[3] + down)
+        
+  intake_inner_pairs = intake_edges [1] + intake_edges[2][::-1]
+  intake_outer_pairs = intake_edges [0] + intake_edges[3][::-1]
 
-intake_interior = IntakeSurface (intake_inner_pairs, 0)
-intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
-def intake_cover(index):
-  return Face (intake_exterior.ends[index], holes = intake_interior.ends[index].complemented()),
-intake_CPAP_cover = intake_cover (-1)
-intake_flat_cover = intake_cover (0)
-'''show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
-show_transformed (intake_exterior.surface.toShape(), "intake_exterior", invisible = True)
-show_transformed (intake_CPAP_cover, "intake_CPAP_cover", invisible = True)
-show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)'''
-save ("intake_solid", Solid (Shell (
-  Face (intake_interior.surface),
-  Face (intake_exterior.surface),
-  intake_CPAP_cover,
-  intake_flat_cover,
-)).complemented())
 
+        
+  '''
+  for sample in curve_samples(shield_lower_side_curve, 20, intake_middle.curve_distance + intake_flat_width/2, intake_middle.curve_distance - intake_flat_width/2):
+    augment_intake_sample(sample)
+    
+    shift = -0.5*min_wall_thickness*sample.curve_in_surface_normal
+    big_shift = (min_wall_thickness+elastic_holder_depth)*sample.curve_in_surface_normal
+    lower_side_cloth_lip.append (sample.intake_edge_points[3]+shift - big_shift)
+    lower_side_extra_lip_hoops.append (polygon ([
+        sample.intake_edge_points[4]+shift,
+        sample.intake_edge_points[5]+shift,
+        sample.intake_edge_points[5]+shift - big_shift,
+        sample.intake_edge_points[4]+shift - big_shift,
+      ]).to_wire())
 
-'''intake_surfaces_shell = Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()])
-print (intake_surfaces_shell)
-show_transformed (intake_surfaces_shell, "intake_surfaces_shell", invisible = True)
-intake_solid = Part.Solid(Part.Compound ([
-  Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()]),
-  intake_CPAP_cover,
-  intake_flat_cover,
-]))
-print (intake_solid)'''
+  '''
+    
+
+  chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [a@Mirror (Right) for a in upper_side_cloth_lip]
+  save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
+  save ("chin_cloth_lip", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
+
+  save ("lower_side_extra_lip", Loft(lower_side_extra_lip_hoops, solid = True, ruled = True))
+
+  class IntakeSurface:
+    def __init__(self, pairs, expansion):
+      self.pairs = pairs
+      self.expansion = expansion
+      self.num_points = len(self.pairs)
+      
+      self.hoops = [self.flat_hoop (frac) for frac in [0,0.7,0.8,0.9,1.5]] + [self.CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
+      self.ends = [
+        self.wire (self.hoops[0]),
+        self.wire (self.hoops[-1])
+      ]
+      self.surface = BSplineSurface(self.hoops,
+         v= BSplineDimension (periodic = True),
+      )
+      
+    def wire(self, hoop):
+      curve = BSplineCurve(hoop,
+        BSplineDimension (periodic = True),
+      )
+      return Wire (Edge (curve))
+       
+    def CPAP_hoop (self, frac):
+      offset = (1 - frac) * 20
+      center = CPAP_back_center + CPAP_forwards*offset
+      direction = Direction (CPAP_forwards.cross (intake_middle.normal))
+      other_direction = -direction.cross (CPAP_forwards)
+      def CPAP_point (index):
+        angle = index/self.num_points*math.tau - 0.7*math.tau
+        return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
+      return [CPAP_point (index) for index in range (self.num_points)]
+
+    def flat_hoop(self, frac):
+      return [Between (a,b,frac) for a,b in self.pairs]
+
+  intake_interior = IntakeSurface (intake_inner_pairs, 0)
+  intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
+  def intake_cover(index):
+    return Face (intake_exterior.ends[index], holes = intake_interior.ends[index].complemented()),
+  intake_CPAP_cover = intake_cover (-1)
+  intake_flat_cover = intake_cover (0)
+  '''show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
+  show_transformed (intake_exterior.surface.toShape(), "intake_exterior", invisible = True)
+  show_transformed (intake_CPAP_cover, "intake_CPAP_cover", invisible = True)
+  show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)'''
+  save ("intake_solid", Solid (Shell (
+    Face (intake_interior.surface),
+    Face (intake_exterior.surface),
+    intake_CPAP_cover,
+    intake_flat_cover,
+  )).complemented())
+
 
 preview (upper_side_rim, lower_side_rim, intake_solid)
-#intake_solid = Part.Shape()
 
 ########################################################################
 ########  SVG bureaucracy  #######
