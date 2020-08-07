@@ -159,7 +159,7 @@ def projected_to_top (point):
 
 shield_source_curve_points = [
   temple,
-  projected_to_top (glasses_point + (Right@Rotate (Up, degrees = 45))*15),
+  projected_to_top (glasses_point + vector (15, 35, 0)),
   projected_to_top (shield_source_peak),
 ]
 
@@ -306,7 +306,7 @@ class CurveSample (ShieldSample):
     
     if isinstance(self.curve, ShieldCurveInPlane):
       self.plane_normal = self.curve.plane.normal(0,0) # note: even though it's a plane, it becomes a BSplineSurface when it gets reloaded, so we need to give the parameters
-      self.normal_in_plane = -self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
+      self.normal_in_plane = -self.normal.cross(self.plane_normal).cross(self.plane_normal)
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
       self.curve_in_surface_normal_unit_height_from_plane = self.curve_in_surface_normal/self.curve_in_surface_normal.dot(self.plane_normal)
