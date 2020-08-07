@@ -43,9 +43,9 @@ def setup(wrap, unwrap, export, override_attribute):
   
   def make_Array1(original):
     def derived(cls, values):
-      result = original (0, len(values) - 1)
+      result = original (1, len(values))
       for index, value in enumerate (values):
-        result.SetValue (index, value)
+        result.SetValue (index + 1, value)
       return result
     return classmethod(derived)
     
@@ -55,10 +55,10 @@ def setup(wrap, unwrap, export, override_attribute):
       num_columns = len (rows[0])
       if any(len (row) != num_columns for row in rows):
         raise RuntimeError (f"inconsistent numbers of columns in Array2OfPnt constructor: {rows}")
-      result = original (0, num_rows-1, 0, num_columns-1)
+      result = original (1, num_rows, 1, num_columns)
       for row_index, row in enumerate (rows):
         for column_index, value in enumerate (row):
-          result.SetValue (row_index, column_index, value)
+          result.SetValue (row_index + 1, column_index + 1, value)
       #print (result.NbRows(), result.NbColumns())
       return result
     return classmethod(derived)
@@ -71,6 +71,8 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Array1OfInteger, "__new__", make_Array1)
   Array1OfPnt = TColgp.TColgp_Array1OfPnt
   override_attribute(Array1OfPnt, "__new__", make_Array1)
+  HArray1OfPnt = TColgp.TColgp_HArray1OfPnt
+  override_attribute(HArray1OfPnt, "__new__", make_Array1)
   Array2OfPnt = TColgp.TColgp_Array2OfPnt
   override_attribute(Array2OfPnt, "__new__", make_Array2)
   
@@ -205,6 +207,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
+  simple_override(Vector, "length", lambda self: self.magnitude())
   override_attribute (Vector, "dot", lambda original: lambda self, other: original (vector_if_direction (other)))
   simple_override(Vector, "cross", lambda self, other: self.Crossed(vector_if_direction (other)))
   
@@ -406,6 +409,16 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
   
+  def Interpolate (points,*, periodic = False, tolerance = default_tolerance, parameters = None):
+    points = HArray1OfPnt (points)
+    if parameters is not None:
+      builder = GeomAPI.GeomAPI_Interpolate (points, HArray1OfReal (parameters), periodic, tolerance)
+    else:
+      builder = GeomAPI.GeomAPI_Interpolate (points, periodic, tolerance)
+    
+    builder.Perform()
+    return builder.Curve()
+  
   def curve_length (curve, first = None, last = None):
     if first is None: first = curve.FirstParameter()
     if last is None: last = curve.LastParameter()
@@ -427,10 +440,15 @@ def setup(wrap, unwrap, export, override_attribute):
   
   class CurveSurfaceIntersections (ArbitraryFields):
     pass
-      
+  
+  
+  def curve_intersections (self, other, tolerance = default_tolerance):
+    if isinstance (other, Surface):
+      return surface_intersections(other, self)
+    raise RuntimeError (f"don't know how to intersect a curve with {other}")
   def surface_intersections (self, other, tolerance = default_tolerance):
     if isinstance (other, Curve):
-      builder = GeomAPI.GeomAPI_IntCS (self, other, tolerance)
+      builder = GeomAPI.GeomAPI_IntCS (other, self)
       
       return CurveSurfaceIntersections (
         points = [builder.Point (index + 1) for index in range ( builder.NbPoints())],
@@ -439,9 +457,10 @@ def setup(wrap, unwrap, export, override_attribute):
     if isinstance (other, Surface):
       builder = GeomAPI.GeomAPI_IntSS (self, other, tolerance)
       return [builder.Line (index + 1) for index in range ( builder.NbLines())]
+    raise RuntimeError (f"don't know how to intersect a surface with {other}")
 
   simple_override (Surface, "intersections", surface_intersections)
-  
+  simple_override (Curve, "intersections", curve_intersections)
   
   def surface_parameter (surface, closest):
     analyzer = ShapeAnalysis.ShapeAnalysis_Surface (surface)
@@ -470,7 +489,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
 
-  export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension")
+  export_locals (" Curve, Surface, Circle, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate")
   
   ################################################################
   ####################  BRep Shape types  ########################
@@ -813,7 +832,7 @@ def setup(wrap, unwrap, export, override_attribute):
   def finish_Boolean (builder):
     builder.Build()
     if not builder.IsDone():
-      raise RuntimeError (f"Union failed {builder.GetReport().dump (Message.Message_Gravity.Message_Fail)} {builder.GetReport().dump (Message.Message_Gravity.Message_Alarm)} {builder.GetReport().dump (Message.Message_Gravity.Message_Warning)}")
+      raise RuntimeError (f"Boolean operation failed {builder.GetReport().dump (Message.Message_Gravity.Message_Fail)} {builder.GetReport().dump (Message.Message_Gravity.Message_Alarm)} {builder.GetReport().dump (Message.Message_Gravity.Message_Warning)}")
     return builder.Shape()
   
   def Union (*shapes):

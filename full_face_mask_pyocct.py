@@ -278,15 +278,15 @@ class CurveSample (ShieldSample):
       self.curve_parameter = curve.parameter(closest = closest)
       self.curve_distance = curve.length(0, self.curve_parameter)
     elif y is not None:
-      position = vector(curve.intersect(
-            Part.Plane (vector(0,y,0), vector(0,1,0))
-          )[0][which])
+      position = curve.intersections (
+            Plane (Point(0,y,0), Front)
+          ).points [which]
       self.curve_parameter = curve.parameter(closest = position)
       self.curve_distance = curve.length(0, self.curve_parameter)
     elif z is not None:
-      position = vector(curve.intersect(
-            Part.Plane (vector(0,0,z), vector(0,0,1))
-          )[0][which])
+      position = curve.intersections (
+            Plane (Point(0,0,z), Up)
+          ).points [which]
       self.curve_parameter = curve.parameter(closest = position)
       self.curve_distance = curve.length(0, self.curve_parameter)
     else:
@@ -438,29 +438,28 @@ CPAP_grabber = Part.Compound([
 show_transformed (CPAP_grabber, "CPAP_grabber")'''
 
 
-
-top_rim_subdivisions = 20
-top_rim_hoops = []
-for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
-  coords = [
-    (0, -shield_glue_face_width),
-    (0, 0),
-    (min_wall_thickness, 0),
-    (min_wall_thickness, min_wall_thickness),
-    (-min_wall_thickness, min_wall_thickness),
-    (-min_wall_thickness, -shield_glue_face_width),
-  ]
-  wire = Wire([
-    sample.position
-      + a*sample.normal_in_plane_unit_height_from_shield
-      + b*sample.curve_in_surface_normal_unit_height_from_plane
-    for a,b in coords
-  ], loop = True)
-  top_rim_hoops.append (wire)
-  
-
-top_rim = Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True)
-save ("top_rim")
+@run_if_changed
+def make_top_rim():
+  top_rim_subdivisions = 20
+  top_rim_hoops = []
+  for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
+    coords = [
+      (0, -shield_glue_face_width),
+      (0, 0),
+      (min_wall_thickness, 0),
+      (min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, -shield_glue_face_width),
+    ]
+    wire = Wire([
+      sample.position
+        + a*sample.normal_in_plane_unit_height_from_shield
+        + b*sample.curve_in_surface_normal_unit_height_from_plane
+      for a,b in coords
+    ], loop = True)
+    top_rim_hoops.append (wire)
+    
+  save ("top_rim", Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True))
 
 contact_leeway = 0.4
 
@@ -556,7 +555,7 @@ save ("lower_rim_cut", Vertex(
   0,
   shield_back + shield_glue_face_width + contact_leeway,
   side_curve_source_points[1][1]-contact_leeway
-).extrude(Right*lots, centered=True).extrude(Front))
+).extrude(Right*lots, centered=True).extrude(Front).extrude(Up))
 save ("upper_rim_cut", HalfSpace(Point(0,0,0-contact_leeway), Up))
 
 
@@ -593,33 +592,32 @@ for sample in curve_samples(shield_upper_side_curve, amount = 20):
 def augment_lower_curve_sample(sample):
   sample.lip_direction = (-sample.plane_normal + sample.normal_in_plane*1.5).normalized()
   sample.lip_direction_unit_height_from_shield = sample.lip_direction/sample.lip_direction.dot(sample.normal)
-  sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).Length
+  sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).length()
   sample.lip_tip = sample.position - min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip + sample.lip_direction_unit_height_from_shield*min_wall_thickness
   
 for sample in curve_samples(shield_lower_side_curve, amount = 40):
   augment_lower_curve_sample(sample)
-  lower_side_rim_hoops.append(polygon([
+  lower_side_rim_hoops.append(Wire([
     sample.position,
     sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane,
     sample.position + shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
     sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
     sample.lip_tip,
     sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
-  ]))
+  ], loop = True))
 
 
-upper_side_rim = Part.makeLoft (upper_side_rim_hoops, True)
-upper_side_rim = upper_side_rim.cut(upper_rim_cut)
-show_transformed (upper_side_rim, "upper_side_rim")
-lower_side_rim = Part.makeLoft (lower_side_rim_hoops, True)
-lower_side_rim = lower_side_rim.cut(lower_rim_cut)
-show_transformed (lower_side_rim, "lower_side_rim")
-#side_elastic_holder = Part.makeLoft (elastic_holder_hoops, True)
+upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
+upper_side_rim = Difference(upper_side_rim, upper_rim_cut)
+save ("upper_side_rim", upper_side_rim)
+lower_side_rim = Loft (lower_side_rim_hoops, solid = True)
+lower_side_rim = Difference(lower_side_rim, lower_rim_cut)
+save ("lower_side_rim", lower_side_rim)
+#side_elastic_holder = Loft (elastic_holder_hoops, solid = True)
 #side_plate = Part.makeLoft (side_plate_hoops, True)
 #show_transformed (side_plate, "side_plate")
 
-show_transformed (Part.Compound(elastic_tension_hoops), "elastic_tension")
-
+'''
 side_joint_peg_flat = polygon([
   vector(-1, shield_glue_face_width, 0),
   vector(-4, shield_glue_face_width, 0),
@@ -653,8 +651,8 @@ upper_side_rim_lower_block = Part.makeLoft ([
   polygon([
     vector(0, shield_glue_face_width, 0),
     vector(-7, shield_glue_face_width, 0),
-    vector(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.Length, 0),
-    vector(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.Length, 0),
+    vector(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
+    vector(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
   ]).to_wire().transformGeometry(matrix_from_columns(sample.normal_in_plane, sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
 
   for sample in curve_samples(shield_upper_side_curve, 5, 0, 9)
@@ -728,7 +726,7 @@ matrix = matrix_from_columns(vector(1,0,0), vector(0,0,1), vector(0,1,0), temple
 side_hook.transformShape (matrix)
 
 show_transformed (top_hook, "top_hook")
-show_transformed (side_hook, "side_hook")
+show_transformed (side_hook, "side_hook")'''
 
   
 
@@ -746,9 +744,9 @@ intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=0)
 augment_lower_curve_sample(intake_middle)
 #intake_skew_factor = 0.8
 #intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
-CPAP_back_center = vector(-85, headphones_front - 40, -110)
+CPAP_back_center = Point(-85, headphones_front - 40, -110)
 intake_flat_back_center_approx = intake_middle.lip_tip - (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
-CPAP_forwards = (intake_flat_back_center_approx - CPAP_back_center).normalized() #vector(0.2, 1, -0.1).normalized()
+CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
 
 lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
 augment_lower_curve_sample(lower_side_center_sample)
@@ -756,7 +754,7 @@ augment_lower_curve_sample(lower_side_center_sample)
 lower_side_cloth_lip = []
 lower_side_extra_lip_hoops = []
 intake_edges = ([], [], [], [])
-for sample in curve_samples(shield_lower_side_curve, 200, shield_lower_side_curve.length()-3, 0):
+for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, 0, amount = 200):
   augment_lower_curve_sample(sample)
   offset = sample.curve_distance - intake_middle.curve_distance
   relative_offset = 2*offset / intake_flat_width
@@ -830,14 +828,14 @@ for sample in curve_samples(shield_lower_side_curve, 200, shield_lower_side_curv
       return source + (target - source)*(-starting_amount)/amount_towards_shield
 
     wall_inwards = min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
-    lower_side_extra_lip_hoops.append (polygon ([
+    lower_side_extra_lip_hoops.append (Wire ([
       limited_project_towards (inner_base_point + leeway, print_surface_base_point+ intake_edge_offsets [3]),
       inner_base_point,
       inner_base_point + down,
       lip_base_point + down,
       lip_base_point,
       limited_project_towards (lip_base_point + leeway, print_surface_base_point+ intake_edge_offsets [2]),
-    ]).to_wire())
+    ], loop = True))
     
     if air_thickness < 0.001:
       lower_side_cloth_lip.append (lip_base_point + down)
@@ -867,20 +865,16 @@ for sample in curve_samples(shield_lower_side_curve, 20, intake_middle.curve_dis
 '''
   
 
-chin_cloth_lip = Part.BSplineCurve()
-chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [vector(-a[0], a[1], a[2]) for a in upper_side_cloth_lip]
-chin_cloth_lip.interpolate(chin_cloth_lip_points)
-show_transformed(chin_cloth_lip.toShape(), "chin_cloth_lip", invisible = True)
-show_transformed(Part.Compound ([Part.Point (vertex).toShape() for vertex in chin_cloth_lip_points]), "chin_cloth_lip_points", invisible = True)
+chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [a@Mirror (Right) for a in upper_side_cloth_lip]
+save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
+save ("chin_cloth_lip", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
 
-lower_side_extra_lip = Part.makeLoft(lower_side_extra_lip_hoops, True, True, False, 1)
-show_transformed(lower_side_extra_lip, "lower_side_extra_lip")
+save ("lower_side_extra_lip", Loft(lower_side_extra_lip_hoops, solid = True, ruled = True))
 
 class IntakeSurface:
   def __init__(self, pairs, expansion):
     self.pairs = pairs
     self.expansion = expansion
-    self.degree = 3
     self.num_points = len(self.pairs)
     
     self.hoops = [self.flat_hoop (frac) for frac in [0,0.7,0.8,0.9,1.5]] + [self.CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
@@ -888,28 +882,20 @@ class IntakeSurface:
       self.wire (self.hoops[0]),
       self.wire (self.hoops[-1])
     ]
-    self.surface = Part.BSplineSurface()
-    self.surface.buildFromPolesMultsKnots(self.hoops,
-      [self.degree+1] + [1]*(len(self.hoops) - self.degree - 1) + [self.degree+1],
-      [1]*(len (self.hoops[0]) + 1),
-      udegree = self.degree,
-      vdegree = self.degree,
-      vperiodic=True,
+    self.surface = BSplineSurface(self.hoops,
+       v= BSplineDimension (periodic = True),
     )
     
   def wire(self, hoop):
-    curve = Part.BSplineCurve()
-    curve.buildFromPolesMultsKnots(
-      hoop,
-      degree = self.degree,
-      periodic = True,
+    curve = BSplineCurve(hoop,
+      BSplineDimension (periodic = True),
     )
-    return curve.toShape().to_wire()
+    return Wire (Edge (curve))
      
   def CPAP_hoop (self, frac):
     offset = (1 - frac) * 20
     center = CPAP_back_center + CPAP_forwards*offset
-    direction = CPAP_forwards.cross (intake_middle.normal).normalized()
+    direction = Direction (CPAP_forwards.cross (intake_middle.normal))
     other_direction = direction.cross (CPAP_forwards)
     def CPAP_point (index):
       angle = index/self.num_points*math.tau - 0.2*math.tau
@@ -922,18 +908,22 @@ class IntakeSurface:
 intake_interior = IntakeSurface (intake_inner_pairs, 0)
 intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
 def intake_cover(index):
-  return intake_exterior.ends[index].to_face().cut(intake_interior.ends[index].to_face())
+  return Difference (
+    Face (intake_exterior.ends[index], holes = intake_interior.ends[index]),
+  )
 intake_CPAP_cover = intake_cover (-1)
 intake_flat_cover = intake_cover (0)
-show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
+'''show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
 show_transformed (intake_exterior.surface.toShape(), "intake_exterior", invisible = True)
 show_transformed (intake_CPAP_cover, "intake_CPAP_cover", invisible = True)
-show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)
-intake_solid = Part.Solid(Part.Shell (Part.Compound ([
-  Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()]),
+show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)'''
+save ("intake_solid", Solid (Shell (
+  Face (intake_interior.surface),
+  Face (intake_exterior.surface),
   intake_CPAP_cover,
   intake_flat_cover,
-]).Faces))
+)))
+
 
 '''intake_surfaces_shell = Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()])
 print (intake_surfaces_shell)
@@ -945,7 +935,7 @@ intake_solid = Part.Solid(Part.Compound ([
 ]))
 print (intake_solid)'''
 
-show_transformed (intake_solid, "intake_solid")
+Preview (intake_solid)
 #intake_solid = Part.Shape()
 
 ########################################################################
@@ -1049,7 +1039,7 @@ for sample in curve_samples(shield_top_curve, flat_approximation_increments, 0, 
     average = (sample.position + previous_sample.position)/2
     from_focus = (average - shield_focal_point)
     relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
-    angle = math.atan2(relevant_difference.Length, from_focus.Length)
+    angle = math.atan2(relevant_difference.length(), from_focus.length())
     flat_approximations.append (flat_approximations [-1] + angle)
   previous_sample = sample
 #print (f"{flat_approximations}")
@@ -1071,7 +1061,7 @@ def flat_approximate_angle (sample):
 
 def unrolled(surface):
   offset = surface.position - shield_focal_point
-  distance = offset.Length
+  distance = offset.length()
   paper_radians = flat_approximate_angle (surface)
   result = vector (
     distance*math.cos(paper_radians),
@@ -1080,8 +1070,8 @@ def unrolled(surface):
 def segments (vertices):
   result = []
   for (a,b), (c,d) in zip (vertices [: -1], vertices [1:]):
-    original = (a.position - c.position).Length
-    derived = (b - d).Length
+    original = (a.position - c.position).length()
+    derived = (b - d).length()
     ratio = derived/original
     
     #print (f"distances: {original}, {derived}, {derived/original}")
@@ -1185,7 +1175,7 @@ class RimHeadCloth:
       piece.head_source = head_curve.value (head_parameter)
       source_diff = piece.head_source - piece.rim_source
       source_diff_direction = source_diff.normalized()
-      piece.AB_length = source_diff.Length
+      piece.AB_length = source_diff.length()
       
       if len(self.pieces) == 0:
         piece.rim_output = vector()
@@ -1193,10 +1183,10 @@ class RimHeadCloth:
       else:
         previous = self.pieces [-1]
         dA0 = previous.AB_length - piece.AB_length
-        dA_length = (piece.rim_source - previous.rim_source).Length
+        dA_length = (piece.rim_source - previous.rim_source).length()
         dA1 = math.sqrt (dA_length**2 - dA0**2)
-        original_dB1 = (piece.head_source - previous.head_source).cross(source_diff_direction).Length
-        original_dB_length = (piece.head_source - previous.head_source).Length
+        original_dB1 = (piece.head_source - previous.head_source).cross(source_diff_direction).length()
+        original_dB_length = (piece.head_source - previous.head_source).length()
         original_curvature = rim_curvature
         min_curvature_change = min_curvature - original_curvature
         
@@ -1235,9 +1225,9 @@ class RimHeadCloth:
       
       output_diff = piece.head_output - piece.rim_output
       output_direction = output_diff.normalized()
-      #print (f"cloth distances: {output_diff.Length}, {source_diff.Length}, {output_diff.Length/source_diff.Length}")
-      if abs(output_diff.Length-source_diff.Length) > 0.5:
-        print (f"Warning: cloth distances mismatch: original: {source_diff.Length}, generated: {output_diff.Length}, absolute difference: {output_diff.Length - source_diff.Length}, relative difference: {output_diff.Length/source_diff.Length - 1}")
+      #print (f"cloth distances: {output_diff.length()}, {source_diff.length()}, {output_diff.length()/source_diff.length()}")
+      if abs(output_diff.length()-source_diff.length()) > 0.5:
+        print (f"Warning: cloth distances mismatch: original: {source_diff.length()}, generated: {output_diff.length()}, absolute difference: {output_diff.length()- source_diff.length()}, relative difference: {output_diff.length()/source_diff.length()- 1}")
       
       piece.endpoints = [
         piece.rim_output - output_direction*rim_extra_width,
@@ -1262,7 +1252,7 @@ def top_outer_rim_sample(sample):
     # and I think it works out that expanding the curve is basically just expanding the radius by that amount,
     # so we can convert the curvature like so:
     1/((1/sample.curve.curvature(sample.curve_parameter))
-      + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield.Length)
+      + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield.length())
   )
       
 
