@@ -154,11 +154,15 @@ shield_focal_y = temple[1] - (temple[0] * temple_direction[1] / temple_direction
 shield_source_peak = putative_chin + vector (0, 10, 0)
 shield_focal_point = Point (0, shield_focal_y, shield_source_peak[2] + (shield_focal_y - shield_source_peak[1]) * shield_focal_slope)
 
+above_temple = temple + vector (0, 0, shield_glue_face_width)
 def projected_to_top (point):
-  return point.projected (Plane (forehead_point, Up), by = Direction (shield_focal_point, point))
+  return point.projected (
+    Plane (above_temple, Up),
+    by = Direction (shield_focal_point, point)
+  )
 
 shield_source_curve_points = [
-  temple,
+  above_temple,
   projected_to_top (glasses_point + vector (15, 35, 0)),
   projected_to_top (shield_source_peak),
 ]
