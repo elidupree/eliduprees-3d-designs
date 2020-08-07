@@ -134,6 +134,8 @@ back_edge = forehead_point[1] - 96
 temple_radians = (math.tau/4) * 0.6
 shield_focal_slope = 2
 
+lots = 500
+
 ########################################################################
 ########  Generalized cone definitions  #######
 ########################################################################
@@ -240,7 +242,7 @@ for index in range(100):
   foo = index / 100
   a = shield_top_curve.value(foo)
   p = shield_surface.parameter(a)
-  b = shield_surface.value(*p)
+  b = shield_surface.value(p)
   #print((a-b).Length)'''
 
 
@@ -261,8 +263,8 @@ class ShieldSample:
     else:
       assert(false)
     
-    self.position = shield_surface.value(*self.shield_parameter)
-    self.normal = shield_surface.normal(*self.shield_parameter)
+    self.position = shield_surface.value(self.shield_parameter)
+    self.normal = shield_surface.normal(self.shield_parameter)
 
 
 class CurveSample (ShieldSample):
@@ -270,53 +272,50 @@ class CurveSample (ShieldSample):
     self.curve = curve
     if distance is not None:
       self.curve_distance = distance
-      self.curve_parameter = curve.parameterAtDistance (distance)
+      self.curve_parameter = curve.parameter(distance = distance)
     elif closest is not None:
-      self.curve_parameter = curve.parameter(closest)
+      self.curve_parameter = curve.parameter(closest = closest)
       self.curve_distance = curve.length(0, self.curve_parameter)
     elif y is not None:
       position = vector(curve.intersect(
             Part.Plane (vector(0,y,0), vector(0,1,0))
           )[0][which])
-      self.curve_parameter = curve.parameter(position)
+      self.curve_parameter = curve.parameter(closest = position)
       self.curve_distance = curve.length(0, self.curve_parameter)
     elif z is not None:
       position = vector(curve.intersect(
             Part.Plane (vector(0,0,z), vector(0,0,1))
           )[0][which])
-      self.curve_parameter = curve.parameter(position)
+      self.curve_parameter = curve.parameter(closest = position)
       self.curve_distance = curve.length(0, self.curve_parameter)
     else:
       assert(false)
-      
-    super().__init__(closest = curve.value (self.curve_parameter))
     
-    self.curve_tangent = vector (*curve.tangent (self.curve_parameter))
+    derivatives = curve.derivatives(self.curve_parameter)
+    super().__init__(closest = derivatives.position)
+    
+    self.curve_tangent = derivatives.tangent
     self.curve_in_surface_normal = self.curve_tangent.cross (self.normal)
     
     if isinstance(self.curve, ShieldCurveInPlane):
-      self.plane_normal = self.curve.plane.normal(0,0)
+      self.plane_normal = self.curve.plane.normal()
       self.normal_in_plane = -self.normal.cross(self.plane_normal).cross(self.plane_normal).normalized()
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
       self.curve_in_surface_normal_unit_height_from_plane = self.curve_in_surface_normal/self.curve_in_surface_normal.dot(self.plane_normal)
     
     # selected to approximately match XYZ when looking at the +x end of the side curve
-    self.moving_frame = matrix_from_columns(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
+    # self.moving_frame = Transform(self.normal, self.curve_in_surface_normal, self.curve_tangent, self.position)
 
 
-def curve_samples(curve, num, start_distance, end_distance):
-  def point(index):
-    fraction = index / (num-1)
-    distance = start_distance*(1-fraction) + end_distance*fraction
-    return CurveSample(curve, distance=distance)
-  return (point(index) for index in range (num))
+def curve_samples(curve, start_distance, end_distance, **kwargs):
+  return (CurveSample(curve, distance=distance) for distance in subdivisions(start_distance, end_distance, **kwargs))
 
 
 @run_if_changed
 def make_shield_cross_sections():
   shield_top_full_wire = Wire (Edge (shield_top_curve.curve), Edge (shield_top_curve.EndPoint(), shield_top_curve.StartPoint()))
-  shield_region = HalfSpace (Point (0, shield_back, 0), Front)
+  shield_region = HalfSpace (Point (0, shield_back, 0), Back)
   shield_cross_section = Face (shield_top_full_wire)
   shield_cross_sections = []
   for offset_distance in (20.0*x for x in range(10)):
@@ -325,7 +324,6 @@ def make_shield_cross_sections():
     shield_cross_sections.append(Intersection(full_section, shield_region))
     
   save ("shield_cross_sections", Compound (shield_cross_sections))
-
 
 
 ########################################################################
@@ -362,7 +360,18 @@ save ("headband_interior_2D", Face (Wire (Edge (forehead_curve))))
 save ("headband_2D", Offset2D(Wire (Edge (forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
 )
 
-headband = headband_2D.fancy_extrude (vector (0, 0, 1), bounds(-500, headband_width))
+headband = headband_2D.extrude (Up*headband_width)
+
+'''headband_side_profile = Face(Wire(
+Segment (y = 0),
+Vertex (x = headphones_front + 20, tangent = True),
+Bezier (),
+Vertex (x = headphones_front, tangent = True),
+Segment (y = -6),
+Segment (x = -lots),
+Segment (y = headband_width),
+Segment (x = lots),
+))
 
 headband_side_profile = FreeCAD_shape_builder().build ([
   start_at(500, 0),
@@ -383,11 +392,11 @@ headband = headband.common(headband_side_profile)
 
 # using a weird shaped way to attach the elastic for now, just for FDM convenience
 elastic_link_radius = 3
-elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), elastic_link_radius).toShape().to_wire().to_face())
+elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), elastic_link_radius).toShape().to_wire().to_face())'''
 
 headband_top = shield_glue_face_width + min_wall_thickness
 
-headband_elastic_link_parameter = forehead_curve.parameter(vector(60, forehead_point[1]-170))
+'''headband_elastic_link_parameter = forehead_curve.parameter(vector(60, forehead_point[1]-170))
 
 headband_elastic_link = elastic_link.translated(
   forehead_curve.value(headband_elastic_link_parameter)
@@ -396,10 +405,11 @@ headband_elastic_link = elastic_link.translated(
 headband = headband.fuse([
   headband_elastic_link,
   headband_elastic_link.mirror(vector(), vector(1,0,0)),
-]).translated(vector(0,0,headband_top - headband_width))
-show_transformed (headband, "headband")
+]).translated(vector(0,0,headband_top - headband_width))'''
 
+save("headband")
 
+'''
 CPAP_grabber_length = 16
 CPAP_grabber_shape = FreeCAD_shape_builder(zigzag_length_limit = 3, zigzag_depth = -1).build ([
       start_at(CPAP_hose_helix_outer_radius + min_wall_thickness/2, 0),
@@ -420,13 +430,13 @@ CPAP_grabber = Part.Compound([
   CPAP_grabber_shape,
   elastic_link.translated(vector(CPAP_hose_helix_outer_radius + min_wall_thickness + elastic_link_radius, 0, 0)).extrude(vector (0, 0, CPAP_grabber_length))
 ])
-show_transformed (CPAP_grabber, "CPAP_grabber")
+show_transformed (CPAP_grabber, "CPAP_grabber")'''
 
 
 
 top_rim_subdivisions = 20
 top_rim_hoops = []
-for sample in curve_samples(shield_top_curve, top_rim_subdivisions, shield_top_curve_length/2, shield_top_curve_length):
+for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
   coords = [
     (0, -shield_glue_face_width),
     (0, 0),
@@ -435,17 +445,21 @@ for sample in curve_samples(shield_top_curve, top_rim_subdivisions, shield_top_c
     (-min_wall_thickness, min_wall_thickness),
     (-min_wall_thickness, -shield_glue_face_width),
   ]
-  wire = polygon([sample.position
-    + a*sample.normal_in_plane_unit_height_from_shield
-    + b*sample.curve_in_surface_normal_unit_height_from_plane
-    for a,b in coords]).to_wire()
+  wire = Wire([
+    sample.position
+      + a*sample.normal_in_plane_unit_height_from_shield
+      + b*sample.curve_in_surface_normal_unit_height_from_plane
+    for a,b in coords
+  ], loop = True)
   top_rim_hoops.append (wire)
   
 
-top_rim = Part.makeLoft ([wire.mirror (vector(), vector (1, 0, 0)) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, True)
-show_transformed (top_rim, "top_rim")
+top_rim = Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True)
+save ("top_rim")
 
 contact_leeway = 0.4
+
+'''
 temple_block_inside = []
 temple_block_top = []
 temple_block_bottom = []
@@ -524,7 +538,7 @@ for index in range(num_forehead_elastic_guides):
     ))
   )
 forehead_elastic_guides = Part.Compound(forehead_elastic_guides)
-show_transformed (forehead_elastic_guides, "forehead_elastic_guides")
+show_transformed (forehead_elastic_guides, "forehead_elastic_guides")'''
 
 ########################################################################
 ########  Side rim and stuff #######
@@ -532,15 +546,15 @@ show_transformed (forehead_elastic_guides, "forehead_elastic_guides")
 
 
 side_plate_bottom_z = -82
+Vertex(0, shield_back + shield_glue_face_width + contact_leeway, side_curve_source_points[1][1]-contact_leeway).point()
+save ("lower_rim_cut", Vertex(
+  0,
+  shield_back + shield_glue_face_width + contact_leeway,
+  side_curve_source_points[1][1]-contact_leeway
+).extrude(Right*lots, centered=True).extrude(Front))
+save ("upper_rim_cut", HalfSpace(Point(0,0,0-contact_leeway), Up))
 
-lower_rim_cut = box(centered(500), bounds(-500, shield_back + shield_glue_face_width + contact_leeway), bounds(side_curve_source_points[1][1]-contact_leeway, 500))
-upper_rim_cut = box(centered(500), centered(500), bounds(0-contact_leeway, 500))
-show_transformed (lower_rim_cut, "lower_rim_cut", invisible=True)
 
-elastic_tension_wire = FreeCAD_shape_builder().build ([
-      start_at(0, 0),
-      horizontal_to (shield_glue_face_width),
-    ]).to_wire()
 
 upper_side_cloth_lip = []
 upper_side_rim_hoops = []

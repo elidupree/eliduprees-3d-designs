@@ -19,7 +19,7 @@ def setup(wrap, unwrap, export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -137,7 +137,9 @@ def setup(wrap, unwrap, export, override_attribute):
   Axis = gp.gp_Ax1
   Axes = gp.gp_Ax2
 
-    
+  Vector2 = gp.gp_Vec2d
+  Point2 = gp.gp_Pnt2d
+  
   Up = Direction (0, 0, 1)
   Down = Direction (0, 0, -1)
   Left = Direction (-1, 0, 0)
@@ -198,9 +200,8 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Direction, "__str__", Direction_str)
   simple_override(Direction, "__repr__", Direction_str)
   
-  simple_override(Vector, "__getitem__", Vector_index)
-  simple_override(Point, "__getitem__", Vector_index)
-  simple_override(Direction, "__getitem__", Vector_index)
+  for whatever in [Vector, Point, Direction, Vector2, Point2]:
+    simple_override(whatever, "__getitem__", Vector_index)
   
   simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
@@ -216,6 +217,8 @@ def setup(wrap, unwrap, export, override_attribute):
       return Vector(self).Crossed(vector_if_direction (other))
   simple_override(Direction, "cross", Direction_cross)
   
+  simple_override(Vector, "__rmul__", lambda self, other: self * other)
+  simple_override(Direction, "__rmul__", lambda self, other: self * other)
     
   simple_override(Point, "__add__", lambda self, other: self.translated (other))
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.translated (other*-1))
@@ -331,7 +334,7 @@ def setup(wrap, unwrap, export, override_attribute):
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
   
-  simple_override(Plane, "normal", lambda self: self.Axis().Direction())
+  simple_override(Plane, "normal", lambda self, *args: self.Axis().Direction())
   simple_override (Bounds, "max", lambda self: self.CornerMax())
   simple_override (Bounds, "min", lambda self: self.CornerMin())
   
@@ -439,6 +442,18 @@ def setup(wrap, unwrap, export, override_attribute):
 
   simple_override (Surface, "intersections", surface_intersections)
   
+  
+  def surface_parameter (surface, closest):
+    analyzer = ShapeAnalysis.ShapeAnalysis_Surface (surface)
+    return analyzer.ValueOfUV (closest, default_tolerance)
+
+  simple_override (Surface, "parameter", surface_parameter)
+  
+  def uv(*args):
+    return args if len (args) == 2 else [args[0][0], args[0][1]]
+  override_attribute (Surface, "value", lambda original: lambda self, *args: original (*uv(*args)))
+  simple_override (Surface, "normal", lambda self, *args: GeomLProp.GeomLProp_SLProps(self, *uv(*args), 2, default_tolerance).Normal())
+  
   class CurveDerivatives:
     def __init__(self, curve, parameter, *, derivatives = 2):
       self.position = curve.value (parameter)
@@ -501,9 +516,9 @@ def setup(wrap, unwrap, export, override_attribute):
     def handle_subtype(subtype, plural):
       simple_override(c, plural.lower(), lambda self: subshapes (self, subtype))
     for (other_type, plural) in zip (shape_typenames, shape_typename_plurals):
+      handle_subtype(globals() [other_type], plural)
       if other_type == typename:
         break
-      handle_subtype(globals() [other_type], plural)
     
     
   for typename in shape_typenames:
@@ -566,11 +581,16 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(Edge, "__new__", make_Edge)
   
   def make_Wire(original):
-    def derived(cls, *inputs):
+    def derived(cls, *inputs, loop = False):
       inputs = recursive_flatten(inputs)
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
+      first_vertex = None
       last_vertex = None
       for index, item in enumerate (inputs):
+        if isinstance (item, Point):
+          item = Vertex (item)
+        if first_vertex is None:
+          first_vertex = item.vertices()[0]
         if isinstance (item, Vertex):
           if last_vertex is not None:
             builder.Add (Edge (last_vertex, item))
@@ -578,6 +598,8 @@ def setup(wrap, unwrap, export, override_attribute):
         else:
           builder.Add (item)
           last_vertex = builder.Vertex()
+      if loop:
+        builder.Add (Edge (last_vertex, first_vertex))
       if not builder.IsDone():
         raise RuntimeError(f"Invalid wire (detected by builder): {inputs} => {builder.Error()}")
       result = builder.Wire()

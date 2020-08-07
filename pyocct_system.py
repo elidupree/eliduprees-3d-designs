@@ -518,7 +518,13 @@ def run_if_changed (function):
     finish_time = datetime.datetime.now()
     print(f"…done with {function_name}()! ({finish_time}, took {(finish_time - start_time)})")
 
-def save (key, value):
+class SaveByName:
+  pass
+def save (key, value = SaveByName):
+  # you can save a global by name:
+  if value is SaveByName:
+    value = _cache_globals[key]
+
   _serialize (_path_base (key), value)
   if _generating_function_context is not None:
     _generating_function_context["saved_globals"].append (key)
