@@ -67,18 +67,25 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return result
     return classmethod(derived)
   
-  Array1OfReal = TColStd.TColStd_Array1OfReal
-  override_attribute(Array1OfReal, "__new__", make_Array1)
-  Array2OfReal = TColStd.TColStd_Array2OfReal
-  override_attribute(Array2OfReal, "__new__", make_Array2)
-  Array1OfInteger = TColStd.TColStd_Array1OfInteger
-  override_attribute(Array1OfInteger, "__new__", make_Array1)
-  Array1OfPnt = TColgp.TColgp_Array1OfPnt
-  override_attribute(Array1OfPnt, "__new__", make_Array1)
-  HArray1OfPnt = TColgp.TColgp_HArray1OfPnt
-  override_attribute(HArray1OfPnt, "__new__", make_Array1)
-  Array2OfPnt = TColgp.TColgp_Array2OfPnt
-  override_attribute(Array2OfPnt, "__new__", make_Array2)
+  makers = {1: make_Array1, 2: make_Array2}
+  modules = {
+    "TColStd": "Integer, Real, Boolean",
+    "TColgp": "Pnt ",
+  }
+  
+  def do_array (module, item, dimensions, prefix):
+    #try: 
+      array = getattr (globals() [module], f"{module}_{prefix}Array{dimensions}Of{item}")
+      globals() [f"{prefix}Array{dimensions}Of{item}"] = array
+      override_attribute(array, "__new__", makers [dimensions])
+    #except AttributeError:
+    #  pass
+  
+  for module, items in modules.items():
+    for match in re.finditer(r"[\w]+", items):
+      for dimensions in range (1, 3):
+        for prefix in ["", "H"]:
+          do_array (module, match.group (0), dimensions, prefix)
   
   
   def make_List(original):
@@ -298,7 +305,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
     transform = Transform()
     transform.SetMirror(argument)
     return transform
-    
+  Reflect = Mirror
   def Translate (*args):
     return Transform (
       vector(1,0,0),
@@ -330,7 +337,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Transform, "__repr__", Transform_str)
 
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Reflect Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -419,12 +426,17 @@ def setup(wrap, unwrap, do_export, override_attribute):
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
   
-  def Interpolate (points,*, periodic = False, tolerance = default_tolerance, parameters = None):
+  def Interpolate (points,*, periodic = False, tolerance = default_tolerance, parameters = None, tangents = None):
     points = HArray1OfPnt (points)
     if parameters is not None:
       builder = GeomAPI.GeomAPI_Interpolate (points, HArray1OfReal (parameters), periodic, tolerance)
     else:
       builder = GeomAPI.GeomAPI_Interpolate (points, periodic, tolerance)
+    
+    if tangents is not None:
+      if len (tangents) == 2:
+        #I don't actually know what the Scale argument does, but if you don't say False, the result has unnecessary asymmetry
+        builder.Load (*tangents, False)
     
     builder.Perform()
     return builder.Curve()

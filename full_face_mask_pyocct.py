@@ -130,10 +130,12 @@ headphones_front = forehead_point[1]-75
 #shield_back = headphones_front + side_plate_width - shield_glue_face_width
 shield_back = headphones_front + min_wall_thickness
 back_edge = forehead_point[1] - 96
-putative_chin = Point(0, 0, -120)
+putative_chin = forehead_point + vector (0, 0, -120)
+glasses_point = forehead_point + vector (66, 0, -10)
+putative_eyeball = forehead_point + vector (35, -7, -20)
 
 temple_radians = (math.tau/4) * 0.6
-shield_focal_slope = 2
+shield_focal_slope = 1.7
 
 lots = 500
 
@@ -158,16 +160,33 @@ shield_source_curve_points = [
   temple + vector(-11,21,-123), # just outside the glasses point
   temple + vector(-27,35,-140),
   temple + vector(-50,46,-153),
-  temple + vector(-75,52,-156),
+  temple + vector(-temple[0],52,-156),
 ]
 shield_source_curve_points = shield_source_curve_points + [Point (-v[0], v[1], v[2]) for v in reversed (shield_source_curve_points[:-1])]
 shield_source_curve_points.reverse()
 save ("shield_source_curve", BSplineCurve(shield_source_curve_points))
 
-shield_source_curve_length = shield_source_curve.length()
-shield_source_curve_peak = shield_source_curve.intersections (Plane (Origin, Right)).point()
+shield_source_peak = putative_chin + vector (0, 10, 0)
+shield_focal_point = Point (0, shield_focal_y, shield_source_peak[2] + (shield_focal_y - shield_source_peak[1]) * shield_focal_slope)
 
-shield_focal_point = Point (0, shield_focal_y, shield_source_curve_peak[2] + (shield_focal_y - shield_source_curve_peak[1]) * shield_focal_slope)
+def projected_to_top (point):
+  return point.projected (Plane (forehead_point, Up), by = Direction (shield_focal_point, point))
+
+new_shield_source_curve_points = [
+  temple,
+  projected_to_top (glasses_point + (Right@Rotate (Up, degrees = 45))*15),
+  projected_to_top (shield_source_peak),
+]
+
+new_shield_source_curve_points = new_shield_source_curve_points + [v@Reflect (Right) for v in reversed (new_shield_source_curve_points[:-1])]
+new_shield_source_curve_points.reverse()
+save ("new_shield_source_curve", Interpolate (new_shield_source_curve_points, tangents = [Vector (temple_direction)@Reflect (Right), Vector (temple_direction)@Reflect (Origin)]))
+
+
+shield_source_curve_length = shield_source_curve.length()
+
+
+
 
 def scaled_shield_source_curve_points (zmin=None, zmax=None):
   if zmin is not None:
@@ -239,6 +258,7 @@ def make_shield_curves():
 shield_side_curve_length = shield_side_curve.length()
 
 shield_top_curve_length = shield_top_curve.length()
+preview(Edge(shield_source_curve), Edge(shield_top_curve.curve), Edge(new_shield_source_curve), Compound ([Vertex (point) for point in new_shield_source_curve_points]))
 
 '''print(shield_top_curve.NbPoles())
 for index in range(100):
@@ -249,7 +269,7 @@ for index in range(100):
   #print((a-b).Length)'''
 
 
-glasses_point = forehead_point + vector (66, 0, -10)
+
 save ("glasses_vertex", Vertex (glasses_point))
 diff = Direction (glasses_point - shield_focal_point)
 save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
