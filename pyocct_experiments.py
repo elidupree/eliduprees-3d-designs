@@ -147,13 +147,13 @@ def flex_but_dont_twist_test():
   length = curve.length()
   controls = []
   struts = []
-  amount = 21
+  amount = 13
   radius = 0.25
   for index, distance in enumerate (subdivisions (0, length, amount = amount)):
     steps_from_terminus = min(index, (amount-1)-index)
     parameter = curve.parameter (distance = distance)
     derivatives = curve.derivatives (parameter)
-    offset = 0 if index % 2 == 0 else 10
+    offset = 0 if steps_from_terminus == 0 else (-4 if index % 2 == 0 else 12)
     print(vars (derivatives))
     controls.append (derivatives.position - derivatives.normal*offset)
     if index % 2 == 0 and steps_from_terminus != 0:
