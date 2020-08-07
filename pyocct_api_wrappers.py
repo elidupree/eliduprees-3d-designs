@@ -11,6 +11,7 @@ Capitalization convention:
 import re
 import math
 import importlib
+import os.path
 
 
 def setup(wrap, unwrap, do_export, override_attribute):
@@ -19,7 +20,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -181,6 +182,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   def make_Direction(original):
     def derived(cls, *args):
+      if len(args) == 1 and isinstance(args[0], Direction):
+        return args[0]
       if len(args) == 2 and isinstance(args[0], Point) and isinstance(args[1], Point):
         args = [Vector(*args)]
       return original(*args)
@@ -908,8 +911,18 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def SaveSTL_raw (path, shape):
     StlAPI.StlAPI.Write_ (shape, path)
   
-    
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude ")
+  def LoadSTL (path):
+    #note: it appears that StlAPI.Read is simply nonfunctional
+    '''shape = Shape()
+    StlAPI.StlAPI.Read_ (shape, os.path.abspath (path))
+    shape = downcast_shape (shape)'''
+    print (os.path.abspath (path))
+    triangulation = RWStl.RWStl.ReadFile_(os.path.abspath (path))
+    vertices = [Vertex (point) for point in triangulation.nodes()]
+    faces = [Wire (*(vertices [index - 1] for index in triangle.Get (0, 0, 0))) for triangle in triangulation.triangles()]
+    return Compound (faces)
+  
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude LoadSTL ")
   
 
   

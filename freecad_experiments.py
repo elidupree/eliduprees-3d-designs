@@ -1762,8 +1762,8 @@ def ice_bottle_thing():
 #ice_bottle_thing()
 
 
-#faces.run(globals())
-air_adapters.run(globals())
+faces.run(globals())
+#air_adapters.run(globals())
 #adjustable_elastic_connector()
 #portable_air_purifier.run(globals())
 

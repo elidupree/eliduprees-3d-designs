@@ -9,6 +9,7 @@ import os
 import os.path
 import json
 import traceback
+import io
 from OCCT.BOPAlgo import BOPAlgo_Options
 import OCCT.Exchange
 import OCCT.TopoDS
@@ -387,7 +388,18 @@ def _initialize_cache_system (cache_globals, cache_directory):
   _cache_globals = cache_globals
   _cache_directory = cache_directory
 
-
+def _get_code (value):
+  stream = io.StringIO()
+  try:
+    dis.dis(value, file = stream)
+  except TypeError:
+    return None, None
+  try:
+    code2 = inspect.getsource (value)
+  except (TypeError, OSError):
+    return None, None
+  return stream.getvalue(), code2
+  
 def _globals_in_code(code):
   def ignore_predefined_filter(match):
     key = match.group(1)
@@ -414,8 +426,12 @@ def _output_hash (key):
     raise OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")  
   value = _cache_globals [key]
   
-  try:
-    code = dis.Bytecode(value).dis()
+  code, code2 = _get_code (value)
+  if code is None:
+    result = repr(value)
+    if " object at 0x" in result:
+      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
+  else:
     #print(key, code)
     code2 = inspect.getsource (value)
     hasher = hashlib.sha256()
@@ -424,11 +440,7 @@ def _output_hash (key):
     for key2 in _globals_in_code (code):
       hasher.update (_output_hash (key2).encode ("utf-8"))
     result = hasher.hexdigest()
-  except TypeError:
-    result = repr(value)
-    if " object at 0x" in result:
-      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
-    
+        
   #print(f"Info: decided that output hash of {key} is {result}")
     
   _cache_info_by_global_key [key] = {"output_hash": result}
@@ -477,8 +489,7 @@ def run_if_changed (function):
   function_name = function.__name__
   
   print (f"### doing {function_name}() ###")
-  code = dis.Bytecode(function).dis()
-  code2 = inspect.getsource (function)
+  code, code2 =_get_code (function)
   #print (code)
   #print(list(_globals_in_code(code)))
   #print (code2)
