@@ -133,7 +133,7 @@ back_edge = forehead_point[1] - 96
 putative_chin = forehead_point + vector (0, 0, -135)
 rim_bottom_z = -165 - shield_glue_face_width # experimentally measured -165 as the approximate invisible position; subtracting shield_glue_face_width isn't exactly the right formula, but it's an arbitrary number anyway
 glasses_point = forehead_point + vector (66, 0, -10)
-putative_eyeball = forehead_point + vector (35, -7, -20)
+putative_eyeball = forehead_point + vector (35, -15, -35)
 air_target = putative_chin + Up*40
 
 temple_radians = (math.tau/4) * 0.6
@@ -968,12 +968,12 @@ preview (
   lower_side_rim,
   lower_side_extra_lip,
   intake_solid,
-  shield_cross_sections,
+  #shield_cross_sections,
   #Face (shield_surface),
   Edge(shield_source_curve),
   Edge(shield_top_curve.curve),
   shield_source_points,
-  #eye_lasers,
+  eye_lasers,
   #LoadSTL ("private/face5_for_papr.stl"),
 )
 
