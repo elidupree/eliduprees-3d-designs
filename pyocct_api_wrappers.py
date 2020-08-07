@@ -226,6 +226,9 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Point, "__add__", lambda self, other: self.translated (other))
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.translated (other*-1))
   
+  def Between (first, second, fraction):
+    return first + Vector (first, second)*fraction
+  
   simple_override(Direction, "__add__", lambda self, other: Vector(self) + vector_if_direction (other))
   simple_override(Direction, "__sub__", lambda self, other: Vector(self) - vector_if_direction (other))
   simple_override(Direction, "__neg__", lambda self: Direction(-self[0], -self[1], -self[2]))
@@ -321,7 +324,7 @@ def setup(wrap, unwrap, export, override_attribute):
   simple_override(Transform, "__repr__", Transform_str)
 
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin")
+  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -634,7 +637,7 @@ def setup(wrap, unwrap, export, override_attribute):
       if len(args) == 1 and isinstance(args[0], Surface):
         args = [args[0], default_tolerance]
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
-      for hole in holes:
+      for hole in recursive_flatten(holes):
         builder.Add (hole)
       if not builder.IsDone():
         raise RuntimeError(f"Invalid face (detected by builder) {args}, {holes} => {builder.Error()}")

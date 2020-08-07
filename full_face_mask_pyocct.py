@@ -903,7 +903,7 @@ class IntakeSurface:
     return [CPAP_point (index) for index in range (self.num_points)]
 
   def flat_hoop(self, frac):
-    return [a*(1-frac) + b*frac for a,b in self.pairs]
+    return [Between (a,b,frac) for a,b in self.pairs]
 
 intake_interior = IntakeSurface (intake_inner_pairs, 0)
 intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
