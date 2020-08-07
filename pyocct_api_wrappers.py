@@ -13,7 +13,7 @@ import math
 import importlib
 
 
-def setup(wrap, unwrap, export, override_attribute):
+def setup(wrap, unwrap, do_export, override_attribute):
   def simple_override (c, name, value):
     override_attribute(c, name, lambda original: value)
   #import pkgutil
@@ -24,6 +24,10 @@ def setup(wrap, unwrap, export, override_attribute):
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
   ExchangeBasic = Exchange.ExchangeBasic
+  
+  def export (function):
+    do_export (function.__name__, function)
+    return function
   
   exported_locals = []
   def export_locals(names):
@@ -88,6 +92,7 @@ def setup(wrap, unwrap, export, override_attribute):
   override_attribute(ListOfShape, "__new__", make_List)
       
   # conveniently allow you to throw together nested lists of shapes
+  @export
   def recursive_flatten (arguments):
     try:
       return [value for argument in arguments for value in recursive_flatten (argument)]
@@ -701,7 +706,7 @@ def setup(wrap, unwrap, export, override_attribute):
   
   export_locals ("Shape, is_shape, read_brep")
   for name in shape_typenames:
-    export(name, globals()[name])
+    do_export(name, globals()[name])
   
   
   ################################################################
@@ -892,6 +897,6 @@ def setup(wrap, unwrap, export, override_attribute):
   #########################  Exports  ############################
   ################################################################
   for name in exported_locals:
-    export(name, locals()[name])
+    do_export(name, locals()[name])
   
   

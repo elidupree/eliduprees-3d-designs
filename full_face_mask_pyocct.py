@@ -201,24 +201,24 @@ side_curve_source_points = [
 ]
 
 save ("side_curve_source_surface", BSplineSurface([
-    [Point (100, y, z) for y,z in side_curve_source_points],
     [Point (-100, y, z) for y,z in side_curve_source_points],
+    [Point (100, y, z) for y,z in side_curve_source_points],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
 ))
 
 save ("upper_side_curve_source_surface", BSplineSurface([
-    [Point (100, y, z) for y,z in side_curve_source_points[0:2]],
     [Point (0, y, z) for y,z in side_curve_source_points[0:2]],
+    [Point (100, y, z) for y,z in side_curve_source_points[0:2]],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
 ))
 
 save ("lower_side_curve_source_surface", BSplineSurface([
-    [Point (100, y, z) for y,z in side_curve_source_points[1:3]],
     [Point (-100, y, z) for y,z in side_curve_source_points[1:3]],
+    [Point (100, y, z) for y,z in side_curve_source_points[1:3]],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
@@ -581,8 +581,8 @@ for sample in curve_samples(shield_upper_side_curve, 0, shield_upper_side_curve.
 for sample in curve_samples(shield_upper_side_curve, amount = 20):
   upper_side_rim_hoops.append(Wire([
     sample.position,
-    sample.position + shield_glue_face_width*sample.curve_in_surface_normal,
-    sample.position + shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
+    sample.position - shield_glue_face_width*sample.curve_in_surface_normal,
+    sample.position - shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
     sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
     sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
     upper_side_lip_tip(sample),
@@ -740,7 +740,7 @@ intake_flat_subdivisions = 10
 intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
 
 
-intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=0)
+intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=1)
 augment_lower_curve_sample(intake_middle)
 #intake_skew_factor = 0.8
 #intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
@@ -896,9 +896,9 @@ class IntakeSurface:
     offset = (1 - frac) * 20
     center = CPAP_back_center + CPAP_forwards*offset
     direction = Direction (CPAP_forwards.cross (intake_middle.normal))
-    other_direction = direction.cross (CPAP_forwards)
+    other_direction = -direction.cross (CPAP_forwards)
     def CPAP_point (index):
-      angle = index/self.num_points*math.tau - 0.2*math.tau
+      angle = index/self.num_points*math.tau - 0.7*math.tau
       return center + direction*(CPAP_inner_radius + self.expansion)*math.sin (angle) + other_direction*(CPAP_inner_radius + self.expansion)*math.cos(angle)
     return [CPAP_point (index) for index in range (self.num_points)]
 
@@ -908,9 +908,7 @@ class IntakeSurface:
 intake_interior = IntakeSurface (intake_inner_pairs, 0)
 intake_exterior = IntakeSurface (intake_outer_pairs, min_wall_thickness)
 def intake_cover(index):
-  return Difference (
-    Face (intake_exterior.ends[index], holes = intake_interior.ends[index]),
-  )
+  return Face (intake_exterior.ends[index], holes = intake_interior.ends[index].complemented()),
 intake_CPAP_cover = intake_cover (-1)
 intake_flat_cover = intake_cover (0)
 '''show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
@@ -922,7 +920,7 @@ save ("intake_solid", Solid (Shell (
   Face (intake_exterior.surface),
   intake_CPAP_cover,
   intake_flat_cover,
-)))
+)).complemented())
 
 
 '''intake_surfaces_shell = Part.makeShell([intake_interior.surface.toShape(), intake_exterior.surface.toShape()])
@@ -935,7 +933,7 @@ intake_solid = Part.Solid(Part.Compound ([
 ]))
 print (intake_solid)'''
 
-Preview (intake_solid)
+preview (upper_side_rim, lower_side_rim, intake_solid)
 #intake_solid = Part.Shape()
 
 ########################################################################

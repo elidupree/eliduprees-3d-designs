@@ -580,13 +580,14 @@ def initialize_system (cache_globals, argument_parser = None):
   return parse_result
 
   
-def preview(preview_shape, width=2000, height=1500):
+def preview(*preview_shapes, width=2000, height=1500):
   if skip_previews:
-    print (f"Skipping preview of: {preview_shape}")
+    print (f"Skipping preview of: {preview_shapes}")
   else:
-    print (f"Previewing: {preview_shape}")
+    print (f"Previewing: {preview_shapes}")
     from OCCT.Visualization.QtViewer import ViewerQt
     v = ViewerQt(width=width, height=height)
-    v.display_shape(unwrap(preview_shape))
+    for shape in recursive_flatten (preview_shapes):
+      v.display_shape(unwrap(shape))
     v.start()
   
