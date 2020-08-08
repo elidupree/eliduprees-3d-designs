@@ -398,42 +398,59 @@ headband_top = shield_glue_face_width + min_wall_thickness
 standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
 save("standard_headband")
 
-large_forehead_ratio = max_head_circumference/standard_forehead_curve.length()
+def curled_forehead_points(circle_radius):
+  result = []
+  class CurlStep(object):
+    pass
+  
+  previous = None
+  total_extra = (max_head_circumference - standard_forehead_curve.length()) + fastener_hook_length
+  start = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point))
+  temple_distance = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = temple))
+  circle_center = forehead_point + Front*80
+  finish = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point+Front*lots)) + total_extra
+  for distance in subdivisions (start, finish, max_length = 5):
+    step = CurlStep()
+    step.curve_distance = distance
+    parameter = standard_forehead_curve.parameter (distance = distance)
+    derivatives = step.derivatives = standard_forehead_curve.derivatives (parameter)
+    if previous is None:
+      step.output_position = derivatives.position
+      step.total_radians_change = 0
+    else:
+      offset = Vector (previous.derivatives.position, derivatives.position)
+      tangent_distance = derivatives.tangent.dot(previous.derivatives.tangent)
+      normal_distance = derivatives.tangent.dot(previous.derivatives.normal)
+      observed_radians = math.atan2(normal_distance, tangent_distance)
+      current_adjusted_tangent = derivatives.tangent@Rotate(Up, radians = previous.total_radians_change)
+      if distance < temple_distance:
+        target_curvature_change = -0.002
+        min_radians_change = -203
+      else:
+        from_center = Vector (circle_center, previous.output_position)
+        print (circle_radius, from_center. length())
+        tangent_direction = Direction(from_center)@Rotate(Up, radians = -math.acos(circle_radius/from_center.length()))
+        angle_error = math.asin(current_adjusted_tangent.dot(tangent_direction))
+        target_curvature_change = -angle_error/20
+        min_radians_change = -angle_error
+      target_radians_change = (distance - previous.curve_distance)*target_curvature_change
+      # if uncurling, arbitrarily restrict it from becoming straight or inverted; not sure if there's an actual need for this
+      radians_change = max(min_radians_change, min(target_radians_change, observed_radians*0.8))
+      step.total_radians_change = previous.total_radians_change + radians_change
+      step.output_position = previous.output_position + offset@Rotate (Up, radians = step.total_radians_change)
+    result.append (step.output_position)
+    previous = step
+  return result
 
-uncurled_forehead_points = []
-class ForeheadUnrollStep(object):
-  pass
-previous = None
-for distance in subdivisions (standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point)), standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point+Front*lots)), max_length = 5):
-  step = ForeheadUnrollStep()
-  step.curve_distance = distance
-  parameter = standard_forehead_curve.parameter (distance = distance)
-  derivatives = step.derivatives = standard_forehead_curve.derivatives (parameter)
-  if previous is None:
-    step.output_position = derivatives.position
-    step.total_radians_change = 0
-  else:
-    offset = Vector (previous.derivatives.position, derivatives.position)
-    tangent_distance = derivatives.tangent.dot(previous.derivatives.tangent)
-    normal_distance = derivatives.tangent.dot(previous.derivatives.normal)
-    observed_radians = math.atan2(normal_distance, tangent_distance)
-    # I wanted to the curvature increase to be significantly bigger than this, but for now, I need it to fit on my Ender-3 build plate
-    target_radians_change = (distance - previous.curve_distance)*0.001
-    # arbitrarily restrict it from becoming straight or inverted; not sure if there's an actual need for this
-    radians_change = min(target_radians_change, observed_radians*0.8)
-    print (normal_distance, observed_radians, radians_change)
-    step.total_radians_change = previous.total_radians_change + radians_change
-    step.output_position = previous.output_position + offset@Rotate (Up, radians = step.total_radians_change)
-  uncurled_forehead_points.append (step.output_position)
-  previous = step
-
-print(uncurled_forehead_points)
-uncurled_forehead_poles = [a@Mirror (Right) for a in reversed(
-uncurled_forehead_points[1:])] + uncurled_forehead_points
+curled_forehead_poles = [a@Mirror (Right) for a in reversed(
+curled_forehead_points(35)[1:])] + curled_forehead_points(50)
 save("large_forehead_curve", BSplineCurve(
-  [pole@Scale(large_forehead_ratio) for pole in uncurled_forehead_poles],
+  curled_forehead_poles,
 ))
-preview (standard_forehead_curve, large_forehead_curve)
+preview (standard_forehead_curve,
+  curled_forehead_poles,
+  #large_forehead_curve
+)
 
 
 @run_if_changed
