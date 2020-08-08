@@ -100,6 +100,7 @@ Additional notes after prototype #3:
 – a small amount of air leaks out at the temple (a small amount of torque from the intake hose bends the frame away from the face, causing the headband to form a triangle of airspace that can't be closed by the elastic-cloth-edge; the CPAP grabber can fix this, but it's preferable to make it impossible to leak by accident).
 – We still need a way to make the headband more comfortable (I glued some foam on, but it's not the perfect foam for the job and also it's not very washable)
 – This version has WAY less reflections because the shield surface normals mostly point towards the face instead of places where there can be bright light
+– Eventually, the temple joint deformed (wasn't strong enough)
 
 
 '''
@@ -136,9 +137,18 @@ glasses_point = forehead_point + vector (66, 0, -10)
 putative_eyeball = forehead_point + vector (35, -15, -35)
 air_target = putative_chin + Up*40
 
+contact_leeway = 0.4
+
 temple_radians = (math.tau/4) * 0.6
 shield_focal_slope = 1.8
 lots = 500
+
+min_head_circumference = 500
+max_head_circumference = 650
+head_variability = max_head_circumference - min_head_circumference
+fastener_hook_length = 80
+fastener_loop_length = fastener_hook_length + head_variability
+
 
 ########################################################################
 ########  Generalized cone definitions  #######
@@ -355,9 +365,9 @@ save ("eye_lasers", Compound ([
 ########  Forehead/headband/top rim  #######
 ########################################################################
 
-forehead_points = [vector (a,b,0) for a,b in [
+standard_forehead_points = [vector (a,b,0) for a,b in [
   (0, 0),
-  (15, 0),
+  (15, -0.01),
   (25, -2.5),
   (35, -7),
   (45, -14),
@@ -372,22 +382,84 @@ forehead_points = [vector (a,b,0) for a,b in [
   (0, -195),
 ]]
 degree = 3
-forehead_poles = [forehead_point + a@Mirror (Right) for a in reversed(forehead_points[1:])] + [forehead_point + a for a in forehead_points[:-1]]
-save ("forehead_curve", BSplineCurve(
-  forehead_poles,
+standard_forehead_poles = [forehead_point + a@Mirror (Right) for a in reversed(standard_forehead_points[1:-1])] + [forehead_point + a for a in standard_forehead_points]
+save ("standard_forehead_curve", BSplineCurve(
+  standard_forehead_poles,
   BSplineDimension (periodic = True),
 ))
-print(f"Forehead circumference: {forehead_curve.length()}")
+print(f"Standard forehead circumference: {standard_forehead_curve.length()}")
 
-#headband_cut_box = Box (centered (50), bounds (-500, forehead_point[1]-100), centered(500))
-save ("headband_interior_2D", Face (Wire (Edge (forehead_curve))))
 
-save ("headband_2D", Offset2D(Wire (Edge (forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
+save ("standard_headband_2D", Offset2D(Wire (Edge (standard_forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
 )
 
 headband_top = shield_glue_face_width + min_wall_thickness
 
-headband = (headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
+standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
+save("standard_headband")
+
+large_forehead_ratio = max_head_circumference/standard_forehead_curve.length()
+
+uncurled_forehead_points = []
+class ForeheadUnrollStep(object):
+  pass
+previous = None
+for distance in subdivisions (standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point)), standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point+Front*lots)), max_length = 5):
+  step = ForeheadUnrollStep()
+  step.curve_distance = distance
+  parameter = standard_forehead_curve.parameter (distance = distance)
+  derivatives = step.derivatives = standard_forehead_curve.derivatives (parameter)
+  if previous is None:
+    step.output_position = derivatives.position
+    step.total_radians_change = 0
+  else:
+    offset = Vector (previous.derivatives.position, derivatives.position)
+    tangent_distance = derivatives.tangent.dot(previous.derivatives.tangent)
+    normal_distance = derivatives.tangent.dot(previous.derivatives.normal)
+    observed_radians = math.atan2(normal_distance, tangent_distance)
+    # I wanted to the curvature increase to be significantly bigger than this, but for now, I need it to fit on my Ender-3 build plate
+    target_radians_change = (distance - previous.curve_distance)*0.001
+    # arbitrarily restrict it from becoming straight or inverted; not sure if there's an actual need for this
+    radians_change = min(target_radians_change, observed_radians*0.8)
+    print (normal_distance, observed_radians, radians_change)
+    step.total_radians_change = previous.total_radians_change + radians_change
+    step.output_position = previous.output_position + offset@Rotate (Up, radians = step.total_radians_change)
+  uncurled_forehead_points.append (step.output_position)
+  previous = step
+
+print(uncurled_forehead_points)
+uncurled_forehead_poles = [a@Mirror (Right) for a in reversed(
+uncurled_forehead_points[1:])] + uncurled_forehead_points
+save("large_forehead_curve", BSplineCurve(
+  [pole@Scale(large_forehead_ratio) for pole in uncurled_forehead_poles],
+))
+preview (standard_forehead_curve, large_forehead_curve)
+
+
+@run_if_changed
+def make_top_rim():
+  top_rim_subdivisions = 20
+  top_rim_hoops = []
+  for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
+    coords = [
+      (0, -shield_glue_face_width),
+      (0, 0),
+      (min_wall_thickness, 0),
+      (min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, min_wall_thickness),
+      (-min_wall_thickness, -shield_glue_face_width),
+    ]
+    wire = Wire([
+      sample.position
+        + a*sample.normal_in_plane_unit_height_from_shield
+        + b*sample.curve_in_surface_normal_unit_height_from_plane
+      for a,b in coords
+    ], loop = True)
+    top_rim_hoops.append (wire)
+    
+  save ("top_rim", Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True))
+
+
 
 '''headband_side_profile = Face(Wire(
 Segment (y = 0),
@@ -434,7 +506,6 @@ headband = headband.fuse([
   headband_elastic_link.mirror(vector(), vector(1,0,0)),
 ]).translated(vector(0,0,headband_top - headband_width))'''
 
-save("headband")
 
 '''
 CPAP_grabber_length = 16
@@ -460,30 +531,7 @@ CPAP_grabber = Part.Compound([
 show_transformed (CPAP_grabber, "CPAP_grabber")'''
 
 
-@run_if_changed
-def make_top_rim():
-  top_rim_subdivisions = 20
-  top_rim_hoops = []
-  for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
-    coords = [
-      (0, -shield_glue_face_width),
-      (0, 0),
-      (min_wall_thickness, 0),
-      (min_wall_thickness, min_wall_thickness),
-      (-min_wall_thickness, min_wall_thickness),
-      (-min_wall_thickness, -shield_glue_face_width),
-    ]
-    wire = Wire([
-      sample.position
-        + a*sample.normal_in_plane_unit_height_from_shield
-        + b*sample.curve_in_surface_normal_unit_height_from_plane
-      for a,b in coords
-    ], loop = True)
-    top_rim_hoops.append (wire)
-    
-  save ("top_rim", Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True))
 
-contact_leeway = 0.4
 
 '''
 temple_block_inside = []
@@ -928,12 +976,14 @@ def make_intake():
 
 '''
 preview (
-  headband,
+  standard_headband,
   top_rim,
   upper_side_rim,
   lower_side_rim,
   lower_side_extra_lip,
   intake_solid,
+  top_hook,
+  side_hook,
   #shield_cross_sections,
   #Face (shield_surface),
   Edge(shield_source_curve),
@@ -1269,7 +1319,7 @@ def top_outer_rim_sample(sample):
       
 @run_if_changed
 def make_forehead_cloth():
-  forehead_top_curve = forehead_curve.translated(vector(0,0,headband_top - forehead_curve.StartPoint()[2]))
+  forehead_top_curve = standard_forehead_curve.translated(vector(0,0,headband_top - standard_forehead_curve.StartPoint()[2]))
   forehead_cloth = RimHeadCloth(
     (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length/2, top_hook_front.curve_distance, amount = math.floor(shield_top_curve_length * 2))),
     forehead_top_curve,
@@ -1347,7 +1397,7 @@ print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: 
 
 show_transformed (whole_frame, "whole_frame", invisible=True)'''
 
-def reflected (component):
+'''def reflected (component):
   return [component, component.mirror (vector(), vector (1, 0, 0))]
 
 whole_headband = Part.Compound ([headband, forehead_elastic_guides] + reflected (temple_block) + reflected (forehead_hook))
@@ -1366,7 +1416,7 @@ show_transformed (lower_side, "lower_side", invisible=pieces_invisible)
 joint_test_box = box(centered(22, on=78), centered(40, on=-123), centered(40))
 show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_side.Solids]), "upper_side_joint_test", invisible=pieces_invisible)
 show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
-show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)
+show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)'''
   
   
   

@@ -618,6 +618,12 @@ def preview(*preview_shapes, width=2000, height=1500):
     from OCCT.Visualization.QtViewer import ViewerQt
     v = ViewerQt(width=width, height=height)
     for shape in recursive_flatten (preview_shapes):
+      if isinstance (shape, Point):
+        shape = Vertex (shape)
+      if isinstance (shape, Curve):
+        shape = Edge (shape)
+      if isinstance (shape, Surface):
+        shape = Face (shape)
       v.display_shape(unwrap(shape))
     v.start()
   
