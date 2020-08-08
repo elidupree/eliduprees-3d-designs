@@ -251,15 +251,6 @@ shield_side_curve_length = shield_side_curve.length()
 shield_top_curve_length = shield_top_curve.length()
 
 
-'''print(shield_top_curve.NbPoles())
-for index in range(100):
-  foo = index / 100
-  a = shield_top_curve.value(foo)
-  p = shield_surface.parameter(a)
-  b = shield_surface.value(p)
-  #print((a-b).Length)'''
-
-
 
 save ("glasses_vertex", Vertex (glasses_point))
 diff = Direction (glasses_point - shield_focal_point)
@@ -718,20 +709,7 @@ show_transformed (Part.Compound (top_pegs), "top_pegs")
 temple_block = temple_block.cut ([upper_side_rim_upper_block.makeOffsetShape(contact_leeway, 0.01)] + [peg.makeOffsetShape (contact_leeway, 0.01) for peg in top_pegs])
 show_transformed (temple_block, "temple_block")
 
-
-def elastic_plate_segment (num, start_distance, end_distance, thickness = min_wall_thickness):
-  hoops = []
-  for point in side_curve_points(num, start_distance, end_distance):
-    fraction = (point.side_curve_distance - start_distance)/(end_distance - start_distance)
-    offset = point.away*(min_wall_thickness + elastic_holder_depth) + point.side_curve_tangent*((fraction*2 - 1)*elastic_holder_depth/elastic_catch_slope)
-    inside = point.position - point.normal*min_wall_thickness
-    hoops.append(polygon ([
-      inside,
-      inside+ point.normal*thickness,
-      inside+ point.normal*thickness + offset,
-      inside+ offset,
-    ]))
-  return Part.makeLoft (hoops, True)'''
+'''
 
 
 elastic_hook_base_length = 5
@@ -940,10 +918,6 @@ def make_intake():
     return Face (intake_exterior.ends[index], holes = intake_interior.ends[index].complemented()),
   intake_CPAP_cover = intake_cover (-1)
   intake_flat_cover = intake_cover (0)
-  '''show_transformed (intake_interior.surface.toShape(), "intake_interior", invisible = True)
-  show_transformed (intake_exterior.surface.toShape(), "intake_exterior", invisible = True)
-  show_transformed (intake_CPAP_cover, "intake_CPAP_cover", invisible = True)
-  show_transformed (intake_flat_cover, "intake_flat_cover", invisible = True)'''
   save ("intake_solid", Solid (Shell (
     Face (intake_interior.surface),
     Face (intake_exterior.surface),
@@ -1393,15 +1367,6 @@ joint_test_box = box(centered(22, on=78), centered(40, on=-123), centered(40))
 show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_side.Solids]), "upper_side_joint_test", invisible=pieces_invisible)
 show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
 show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)
-
-'''import MeshPart
-whole_frame_top_mesh = MeshPart.meshFromShape (
-  whole_frame_top,
-  MaxLength = 2,
-  AngularDeflection = math.tau / 
-)
-document().addObject ("Mesh::Feature", "whole_frame_top_mesh").Mesh = whole_frame_top_mesh'''
-
   
   
   
