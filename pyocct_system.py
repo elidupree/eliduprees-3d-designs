@@ -231,13 +231,14 @@ _setup_wrappers()
 
 class SerializeAsVars:
   pass
-  
+
 def _setup_serialization():
   # just a casual 128 bits of random data so there's no way it would occur by accident
   unique_placeholder = "PLACEHOLDER_d43e642cf620e3fa21378b00c24dd6b4"
   brep_placeholder = "BREP"
   geometry_placeholder = "Geometry"
   vars_placeholder = "vars"
+  class_placeholder = "class"
   
   def placeholder (name, data):
     return [unique_placeholder, name, data]
@@ -246,6 +247,9 @@ def _setup_serialization():
     if type (value) is list and len(value) == 3 and value [0] == unique_placeholder:
       return value [1], value [2]
     return None, None
+
+  point2s = ["Point2", "Vector2", "Direction2"]
+  point3s = ["Point", "Vector", "Direction"]
 
   class Serializer:
     def __init__(self, path_base):
@@ -280,6 +284,16 @@ def _setup_serialization():
       
       if isinstance (value, SerializeAsVars):
         return placeholder (vars_placeholder, (value.__class__.__name__, self.serialized (vars (value))))
+      
+      for p in point2s:
+        if isinstance (value, globals()[p]):
+          value = wrap(value)
+          return placeholder (class_placeholder, (p, (value[0], value[1])))
+      
+      for p in point3s:
+        if isinstance (value, globals()[p]):
+          value = wrap(value)
+          return placeholder (class_placeholder, (p, (value[0], value[1], value[2])))
       
       if type (value) in [str, int, float, type (None)]:
         return value
@@ -323,6 +337,11 @@ def _setup_serialization():
           for key, value in self.deserialized (data).items():
             setattr (result, key, value)
           return result
+        
+        if name == class_placeholder:
+          class_name, data = data
+          c = _cache_globals [class_name]
+          return c(*data)
           
         return [self.deserialized (inner_value) for inner_value in value]
       
@@ -414,7 +433,7 @@ def _output_hash (key):
   #print("output_hash called", key)
   in_memory = _cache_info_by_global_key.get(key)
   if in_memory is _Recursive:
-    raise OutputHashError("the system currently can't handle recursive functions")
+    raise OutputHashError(f"the system currently can't handle recursive functions ({key})")
   if in_memory is not None:
     if "output_hash" not in in_memory:
       raise OutputHashError("tried to get output hash of a cache thing that doesn't have one (did you refer to a run_if_changed function?")

@@ -268,7 +268,7 @@ save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
 
 
 
-class ShieldSample:
+class ShieldSample(SerializeAsVars):
   def __init__(self, parameter = None, closest = None, intersecting = None, which = 0):
     if intersecting is not None:
       closest = shield_surface.intersections (intersecting).points [which]
@@ -292,7 +292,6 @@ class CurveSample (ShieldSample):
     if intersecting is not None:
       closest = curve.intersections (intersecting).points [which]
     
-    self.curve = curve
     if distance is not None:
       self.curve_distance = distance
       self.curve_parameter = curve.parameter(distance = distance)
@@ -309,8 +308,8 @@ class CurveSample (ShieldSample):
     self.curve_normal = derivatives.normal
     self.curve_in_surface_normal = Direction (self.curve_tangent.cross (self.normal))
     
-    if isinstance(self.curve, ShieldCurveInPlane):
-      self.plane_normal = self.curve.plane.normal(0,0) # note: even though it's a plane, it becomes a BSplineSurface when it gets reloaded, so we need to give the parameters
+    if isinstance(curve, ShieldCurveInPlane):
+      self.plane_normal = curve.plane.normal(0,0) # note: even though it's a plane, it becomes a BSplineSurface when it gets reloaded, so we need to give the parameters
       self.normal_in_plane = Direction (-self.normal.cross(self.plane_normal).cross(self.plane_normal))
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
@@ -732,35 +731,29 @@ def elastic_plate_segment (num, start_distance, end_distance, thickness = min_wa
       inside+ point.normal*thickness + offset,
       inside+ offset,
     ]))
-  return Part.makeLoft (hoops, True)
+  return Part.makeLoft (hoops, True)'''
 
 
 elastic_hook_base_length = 5
 elastic_hook_outwards = 6
 elastic_hook_forwards = 10
 
-elastic_hook = Part.makePolygon([
-  vector(0,0),
-  vector(elastic_hook_outwards,elastic_hook_forwards-1.25),
-  vector(elastic_hook_outwards,elastic_hook_forwards),
-  vector(0,elastic_hook_base_length),
-  vector(0,0),
-]).to_face().extrude(vector(0,0,stiffer_wall_thickness))
+elastic_hook = Face(Wire([
+  Point(0,0,0),
+  Point(elastic_hook_outwards,elastic_hook_forwards-1.25,0),
+  Point(elastic_hook_outwards,elastic_hook_forwards,0),
+  Point(0,elastic_hook_base_length,0),
+], loop = True)).extrude(vector(0,0,stiffer_wall_thickness))
 
 
 top_hook_back = CurveSample (shield_top_curve, y= headphones_front+4, which = 1)
-top_hook_front = CurveSample (shield_top_curve, distance = top_hook_back.curve_distance - elastic_hook_forwards)
-top_hook_forwards = (top_hook_front.position - top_hook_back.position).normalized()
-top_hook = elastic_hook.copy()
-matrix = matrix_from_columns(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness))
-top_hook.transformShape (matrix)
+save("top_hook_front", CurveSample (shield_top_curve, distance = top_hook_back.curve_distance - elastic_hook_forwards))
+top_hook_forwards = Direction (top_hook_front.position - top_hook_back.position)
 
-side_hook = elastic_hook.copy()
-matrix = matrix_from_columns(vector(1,0,0), vector(0,0,1), vector(0,1,0), temple + vector(0, -min_wall_thickness, -elastic_hook_base_length-1))
-side_hook.transformShape (matrix)
+save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness)))
 
-show_transformed (top_hook, "top_hook")
-show_transformed (side_hook, "side_hook")'''
+save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, -elastic_hook_base_length-1)))
+
 
 ########################################################################
 ########  Intake  #######
@@ -779,14 +772,13 @@ def make_intake():
   intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=1)
   augment_lower_curve_sample(intake_middle)
   #intake_skew_factor = 0.8
-  #intake_forwards = (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor).normalized()
+  #intake_forwards = Direction (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor)
   CPAP_back_center = Point(-85, headphones_front - 40, -110)
   intake_flat_back_center_approx = intake_middle.lip_tip + (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
   CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
 
   lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
   augment_lower_curve_sample(lower_side_center_sample)
-  print ("yet C", vars (lower_side_center_sample))
   
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
@@ -902,9 +894,9 @@ def make_intake():
   '''
     
 
-  chin_cloth_lip_points = upper_side_cloth_lip[::-1] + lower_side_cloth_lip + [a@Mirror (Right) for a in upper_side_cloth_lip]
+  chin_cloth_lip_points = upper_side_cloth_lip + lower_side_cloth_lip[::-1] + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
   save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
-  save ("chin_cloth_lip", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
+  save ("chin_cloth_lip_points", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
 
   save ("lower_side_extra_lip", Loft(lower_side_extra_lip_hoops, solid = True, ruled = True))
 
@@ -960,7 +952,7 @@ def make_intake():
   )).complemented())
 
 
-
+'''
 preview (
   headband,
   top_rim,
@@ -975,19 +967,20 @@ preview (
   shield_source_points,
   eye_lasers,
   #LoadSTL ("private/face5_for_papr.stl"),
-)
+)'''
 
 ########################################################################
 ########  SVG bureaucracy  #######
 ########################################################################
 
 def to_svg_data(contents):
-  if type(contents) is list:
+  '''if type(contents) is list:
     return "\n".join(to_svg_data(foo) for foo in contents)
   elif type(contents) is str:
     return contents
   else:
-    return Drawing.projectToSVG(contents)
+  '''
+  return "" #Drawing.projectToSVG(contents)
 
 def save_inkscape_svg(filename, contents):
   contents = to_svg_data(contents)
@@ -1049,8 +1042,8 @@ def save_inkscape_svg(filename, contents):
     '''+contents+'''
 </g>
 </svg>'''
-  with open(os.path.join(data_path, "full_face_mask_svgs/", filename), "w") as file:
-    file.write(file_data)
+  #with open(os.path.join(data_path, "full_face_mask_svgs/", filename), "w") as file:
+  #  file.write(file_data)
 
 def center_vertices_on_letter_paper(vertices):
   if type(vertices) is list:
@@ -1059,6 +1052,7 @@ def center_vertices_on_letter_paper(vertices):
   offset = vector(
     (215.9 - (max (vertex [0] for vertex in vertices()) + min (vertex [0] for vertex in vertices())))/2,
     (-279.4 - (max (vertex [1] for vertex in vertices()) + min (vertex [1] for vertex in vertices())))/2,
+    0,
   )
   for vertex in vertices():
     vertex[0] += offset[0]
@@ -1072,11 +1066,11 @@ def center_vertices_on_letter_paper(vertices):
 flat_approximation_increments = 201
 previous_sample = None
 flat_approximations = [0]
-for sample in curve_samples(shield_top_curve, flat_approximation_increments, 0, shield_top_curve_length):
+for sample in curve_samples(shield_top_curve, amount=flat_approximation_increments):
   if previous_sample is not None:
     difference = sample.position - previous_sample.position
-    average = (sample.position + previous_sample.position)/2
-    from_focus = (average - shield_focal_point)
+    average = Between(sample.position, previous_sample.position)
+    from_focus = Vector(shield_focal_point, average)
     relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
     angle = math.atan2(relevant_difference.length(), from_focus.length())
     flat_approximations.append (flat_approximations [-1] + angle)
@@ -1084,14 +1078,18 @@ for sample in curve_samples(shield_top_curve, flat_approximation_increments, 0, 
 #print (f"{flat_approximations}")
 def flat_approximate_angle (sample):
   difference = (sample.position - shield_focal_point)
-  projected = CurveSample (shield_top_curve, closest = shield_focal_point + difference*(shield_top_curve.StartPoint[2] - shield_focal_point[2])/difference [2])
+  projected = CurveSample (shield_top_curve, closest = shield_focal_point + difference*(shield_top_curve.StartPoint()[2] - shield_focal_point[2])/difference [2])
   adjusted = projected.curve_distance*(flat_approximation_increments -1)/shield_top_curve_length
   #linearly interpolate
   floor = math.floor (adjusted)
   fraction = adjusted - floor
   previous = flat_approximations [floor]
-  next = flat_approximations [floor + 1]
-  result = next*fraction + previous*(1-fraction)
+  if floor+1 >= len(flat_approximations):
+    assert(floor+0.99 < len(flat_approximations))
+    result = previous
+  else:
+    next = flat_approximations [floor + 1]
+    result = next*fraction + previous*(1-fraction)
   #print (f" angles: {surface.ellipse_parameter}, {adjusted}, floor: {floor}, {fraction}, {previous}, {next}, {result}, ")
   # put 0 in the middle
   return result - flat_approximations [(flat_approximation_increments -1)//2]
@@ -1102,9 +1100,11 @@ def unrolled(surface):
   offset = surface.position - shield_focal_point
   distance = offset.length()
   paper_radians = flat_approximate_angle (surface)
-  result = vector (
+  result = Point(
     distance*math.cos(paper_radians),
-    distance*math.sin (paper_radians))
+    distance*math.sin (paper_radians),
+    0
+  )
   return (surface, result)
 def segments (vertices):
   result = []
@@ -1115,24 +1115,23 @@ def segments (vertices):
     
     #print (f"distances: {original}, {derived}, {derived/original}")
     assert (abs (1 - ratio) <=0.01)
-    result.append(Part.LineSegment (b, d))
+    result.append(Edge(b, d))
   print (f"total length: {sum( segment.length() for segment in result)}")
   return result
 
-unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, 40, 0, shield_side_curve_length/2)
+unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, 0, shield_side_curve_length/2, amount=40)
   ]
-unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 40, 0, shield_top_curve_length/2)
+unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 0, shield_top_curve_length/2, amount=40)
     ]
   
 unrolled_combined = unrolled_top+unrolled_side
 center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
     
 
-unrolled = Part.Shape(
-  segments (unrolled_top) + segments (unrolled_side) + [Part.LineSegment (unrolled_side[-1][1], unrolled_top[-1][1])]
-)
+save("unrolled", Wire(
+  segments (unrolled_top) + segments (unrolled_side) + [Edge(unrolled_side[-1][1], unrolled_top[-1][1])]
+))
 
-show_transformed (unrolled, "unrolled", invisible=pieces_invisible)
 save_inkscape_svg("unrolled_shield.svg", unrolled)
 
 
@@ -1194,10 +1193,10 @@ dB[1] = original dB[1] - (target curvature - original curvature) * ||B-A||*||dA|
 
 elastic_tube_border_width = 12
 
-class RimHeadClothPiece(object):
+class RimHeadClothPiece(SerializeAsVars):
   pass
           
-class RimHeadCloth:
+class RimHeadCloth(SerializeAsVars):
   def __init__(self, rim_samples, head_curve, target_head_multiplier = 1.5, min_curvature = 1/100, rim_extra_width = elastic_tube_border_width, head_extra_width = elastic_tube_border_width):
     self.source_head_length = 0
     self.cloth_head_length = 0
@@ -1210,15 +1209,15 @@ class RimHeadCloth:
     for index, (rim_position, rim_curvature) in enumerate(rim_samples):
       piece = RimHeadClothPiece()
       piece.rim_source = rim_position
-      head_parameter = head_curve.parameter (piece.rim_source)
+      head_parameter = head_curve.parameter (closest = piece.rim_source)
       piece.head_source = head_curve.value (head_parameter)
       source_diff = piece.head_source - piece.rim_source
-      source_diff_direction = source_diff.normalized()
+      source_diff_direction = Direction (source_diff)
       piece.AB_length = source_diff.length()
       
       if len(self.pieces) == 0:
-        piece.rim_output = vector()
-        piece.head_output = vector(piece.AB_length, 0)
+        piece.rim_output = Point()
+        piece.head_output = Point(piece.AB_length, 0, 0)
       else:
         previous = self.pieces [-1]
         dA0 = previous.AB_length - piece.AB_length
@@ -1257,13 +1256,13 @@ class RimHeadCloth:
         self.source_head_length += original_dB_length
         self.cloth_head_length += dB1
         
-        previous_output_direction = (previous.head_output - previous.rim_output).normalized()
-        previous_output_perpendicular = vector(-previous_output_direction[1], previous_output_direction[0])
+        previous_output_direction = Direction (previous.head_output - previous.rim_output)
+        previous_output_perpendicular = Direction (-previous_output_direction[1], previous_output_direction[0], 0)
         piece.rim_output = previous.rim_output + previous_output_direction*dA0 + previous_output_perpendicular*dA1
         piece.head_output = previous.head_output + previous_output_perpendicular*dB1
       
       output_diff = piece.head_output - piece.rim_output
-      output_direction = output_diff.normalized()
+      output_direction = Direction (output_diff)
       #print (f"cloth distances: {output_diff.length()}, {source_diff.length()}, {output_diff.length()/source_diff.length()}")
       if abs(output_diff.length()-source_diff.length()) > 0.5:
         print (f"Warning: cloth distances mismatch: original: {source_diff.length()}, generated: {output_diff.length()}, absolute difference: {output_diff.length()- source_diff.length()}, relative difference: {output_diff.length()/source_diff.length()- 1}")
@@ -1276,9 +1275,9 @@ class RimHeadCloth:
       
       debug_display = False
       #debug_display = True
-      if debug_display:
+      '''if debug_display:
         if index % debug_display_rate == 0 or index == len(rim_samples) - 1:
-          Part.show(Part.Compound([Part.LineSegment(piece.head_output, piece.rim_output).toShape(), Part.LineSegment(piece.head_source, piece.rim_source).toShape()]))
+          Part.show(Part.Compound([Part.LineSegment(piece.head_output, piece.rim_output).toShape(), Part.LineSegment(piece.head_source, piece.rim_source).toShape()]))'''
         
 # TODO: more correct
 def top_outer_rim_sample(sample):
@@ -1290,26 +1289,28 @@ def top_outer_rim_sample(sample):
     # curvature is the reciprocal of radius,
     # and I think it works out that expanding the curve is basically just expanding the radius by that amount,
     # so we can convert the curvature like so:
-    1/((1/sample.curve.curvature(sample.curve_parameter))
+    1/((1/shield_top_curve.curvature(sample.curve_parameter))
       + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield.length())
   )
       
+@run_if_changed
+def make_forehead_cloth():
+  forehead_top_curve = forehead_curve.translated(vector(0,0,headband_top - forehead_curve.StartPoint()[2]))
+  forehead_cloth = RimHeadCloth(
+    (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length/2, top_hook_front.curve_distance, amount = math.floor(shield_top_curve_length * 2))),
+    forehead_top_curve,
+    min_curvature = 1/120
+  )
+  
+  save ("forehead_cloth", forehead_cloth)
 
-forehead_top_curve = forehead_curve.translated(vector(0,0,headband_top - forehead_curve.StartPoint[2]))
-forehead_cloth = RimHeadCloth(
-  (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, math.floor(shield_top_curve_length * 2), shield_top_curve_length/2, top_hook_front.curve_distance)),
-  forehead_top_curve,
-  min_curvature = 1/120
-)
-
-forehead_cloth_points = (
-  [piece.endpoints [0] for piece in forehead_cloth.pieces]
-  + [piece.endpoints [1] for piece in reversed (forehead_cloth.pieces)]
-)
-center_vertices_on_letter_paper(forehead_cloth_points)
-forehead_cloth_shape = polygon(forehead_cloth_points)
-show_transformed (forehead_cloth_shape, "forehead_cloth", invisible=pieces_invisible)
-save_inkscape_svg("forehead_cloth.svg", forehead_cloth_shape)
+  forehead_cloth_points = (
+    [piece.endpoints [0] for piece in forehead_cloth.pieces]
+    + [piece.endpoints [1] for piece in reversed (forehead_cloth.pieces)]
+  )
+  center_vertices_on_letter_paper(forehead_cloth_points)
+  save("forehead_cloth_wire", Wire(forehead_cloth_points))
+  save_inkscape_svg("forehead_cloth.svg", Wire(forehead_cloth_points))
 
 print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
 
@@ -1321,45 +1322,38 @@ print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_foreh
 # add significant leeway to accommodate larger necks, reduce the chance of yanking it off the rim
 neck_y = shield_back - 20 #5
 neck_points = [
-  vector(75, neck_y, 20),
-  vector(75, neck_y, 0),
-  vector(75, neck_y, -20),
-  vector(74, neck_y, -40),
-  vector(70, neck_y, -60),
-  vector(66, neck_y, -80),
-  vector(57, neck_y, -100),
-  vector(38, neck_y, -120),
-  vector(8, neck_y, -140),
+  Point(75, neck_y, 20),
+  Point(75, neck_y, 0),
+  Point(75, neck_y, -20),
+  Point(74, neck_y, -40),
+  Point(70, neck_y, -60),
+  Point(66, neck_y, -80),
+  Point(57, neck_y, -100),
+  Point(38, neck_y, -120),
+  Point(8, neck_y, -140),
 ]
 #neck_points = [vector(a[0], a[1] + a[2]*0.2, a[2]) for a in neck_points] 
-neck_points = neck_points + [vector(-a[0], a[1], a[2]) for a in reversed(neck_points)]
+neck_points = neck_points + [a@Reflect (Right) for a in reversed(neck_points)]
+save ("neck_curve", BSplineCurve(neck_points))
 
-degree = 3
-neck_curve = Part.BSplineCurve()
-neck_curve.buildFromPolesMultsKnots(
-  neck_points,
-  mults = [degree+1] + [1]*(len(neck_points) - degree - 1) + [degree+1],
-  degree = degree,
-)
-show_transformed(neck_curve.toShape(), "neck_curve", invisible = True)
+@run_if_changed
+def make_chin_cloth():
+  chin_cloth_lip_subdivisions = 500
+  chin_cloth_lip_length = chin_cloth_lip.length()
+  chin_cloth = RimHeadCloth(
+    ((chin_cloth_lip.value (parameter), chin_cloth_lip.curvature (parameter)) for parameter in (chin_cloth_lip.parameter (distance = index*chin_cloth_lip_length/(chin_cloth_lip_subdivisions-1)) for index in range(chin_cloth_lip_subdivisions))),
+    neck_curve,
+    min_curvature = 1/120
+  )
+  save ("chin_cloth", chin_cloth)
 
-
-chin_cloth_lip_subdivisions = 500
-chin_cloth_lip_length = chin_cloth_lip.length()
-chin_cloth = RimHeadCloth(
-  ((chin_cloth_lip.value (parameter), chin_cloth_lip.curvature (parameter)) for parameter in (chin_cloth_lip.parameterAtDistance (index*chin_cloth_lip_length/(chin_cloth_lip_subdivisions-1)) for index in range(chin_cloth_lip_subdivisions))),
-  neck_curve,
-  min_curvature = 1/120
-)
-
-chin_cloth_points = (
-  [piece.endpoints [0] for piece in chin_cloth.pieces]
-  + [piece.endpoints [1] for piece in reversed (chin_cloth.pieces)]
-)
-center_vertices_on_letter_paper(chin_cloth_points)
-chin_cloth_shape = polygon(chin_cloth_points)
-show_transformed (chin_cloth_shape, "chin_cloth", invisible=pieces_invisible)
-save_inkscape_svg("chin_cloth.svg", chin_cloth_shape)
+  chin_cloth_points = (
+    [piece.endpoints [0] for piece in chin_cloth.pieces]
+    + [piece.endpoints [1] for piece in reversed (chin_cloth.pieces)]
+  )
+  center_vertices_on_letter_paper(chin_cloth_points)
+  save ("chin_cloth_wire", Wire (chin_cloth_points))
+  save_inkscape_svg("chin_cloth.svg", Wire (chin_cloth_points))
 
 print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: {chin_cloth.cloth_head_length}, ratio: {chin_cloth.cloth_head_length/chin_cloth.source_head_length}")
 

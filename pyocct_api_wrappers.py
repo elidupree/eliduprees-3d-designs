@@ -154,6 +154,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
 
   Vector2 = gp.gp_Vec2d
   Point2 = gp.gp_Pnt2d
+  Direction2 = gp.gp_Dir2d
   
   Up = Direction (0, 0, 1)
   Down = Direction (0, 0, -1)
@@ -204,6 +205,14 @@ def setup(wrap, unwrap, do_export, override_attribute):
     if index == 2:
       return self.Z()
     raise IndexError("point/vector can only be indexed with 0-2")
+  def Vector_setindex(self, index, value):
+    if index == 0:
+      return self.SetX(value)
+    if index == 1:
+      return self.SetY(value)
+    if index == 2:
+      return self.SetZ(value)
+    raise IndexError("point/vector can only be indexed with 0-2")
     
   def vector_if_direction (value):
     if isinstance (value, Direction):
@@ -218,8 +227,9 @@ def setup(wrap, unwrap, do_export, override_attribute):
   represent (Point, Point_str)
   represent (Direction, Direction_str)
   
-  for whatever in [Vector, Point, Direction, Vector2, Point2]:
+  for whatever in [Vector, Point, Direction, Vector2, Point2, Direction2]:
     simple_override(whatever, "__getitem__", Vector_index)
+    simple_override(whatever, "__setitem__", Vector_setindex)
   
   simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
@@ -242,7 +252,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Point, "__add__", lambda self, other: self.translated (other))
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.translated (other*-1))
   
-  def Between (first, second, fraction):
+  def Between (first, second, fraction = 0.5):
     return first + Vector (first, second)*fraction
   
   simple_override(Direction, "__add__", lambda self, other: Vector(self) + vector_if_direction (other))
@@ -284,7 +294,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
       ]
       result.SetValues(*values)
       result_values = [result.value(row + 1, column + 1) for row in range(3) for column in range (4)]
-      if result_values != values:
+      if any(abs(a - b) > default_tolerance for a,b in zip(values, result_values)):
         raise RuntimeError (f"it's no good use Transform when it automatically adjusts the values (original: {values}, adjusted: {result_values})")
       return result
       
@@ -340,7 +350,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Transform, "__repr__", Transform_str)
 
   
-  export_locals ("vector, Vector, Point, Direction, Transform, Axis, Axes, Mirror, Reflect Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
+  export_locals ("vector, Vector, Point, Direction, Vector2 Point2 Direction2,  Transform, Axis, Axes, Mirror, Reflect Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -519,6 +529,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
           self.normal = None
   
   simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
+  simple_override (Curve, "curvature", lambda self, u: GeomLProp.GeomLProp_CLProps(self, u, 2, default_tolerance).Curvature())
 
   export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
@@ -580,6 +591,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Face, "outer_wire", BRepTools.BRepTools.OuterWire_)
   simple_override(Face, "surface", lambda self: BRep.BRep_Tool.Surface_(self))
   
+  def edge_length(self):
+    curve, a, b = self.curve()
+    return curve.length(a, b)
+  simple_override(Edge, "length", edge_length)
   
   def is_shape(obj):
     return isinstance(obj, Shape)
