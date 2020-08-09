@@ -921,7 +921,7 @@ save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, -elastic_hook_base_length-1)))
 
 
-preview(upper_side_rim, lower_side_rim, standard_headband, top_hook, side_hook)
+#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook)
 
 ########################################################################
 ########  Intake  #######
@@ -951,7 +951,7 @@ def make_intake():
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
   intake_edges = ([], [], [], [])
-  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, 0, amount = 200):
+  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, shield_lower_side_curve.length()/2+1, amount = 100):
     augment_lower_curve_sample(sample)
     offset = sample.curve_distance - intake_middle.curve_distance
     relative_offset = 2*offset / intake_flat_width
@@ -1062,7 +1062,12 @@ def make_intake():
   '''
     
 
-  chin_cloth_lip_points = upper_side_cloth_lip + lower_side_cloth_lip[::-1] + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
+  chin_cloth_lip_points = (
+    upper_side_cloth_lip
+    + [a@Mirror (Right) for a in lower_side_cloth_lip]
+    + lower_side_cloth_lip[::-1]
+    + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
+  )
   save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
   save ("chin_cloth_lip_points", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
 
@@ -1116,14 +1121,17 @@ def make_intake():
   )).complemented())
 
 
-'''
+
 preview (
   standard_headband,
   top_rim,
   upper_side_rim,
+  upper_side_rim@Reflect(Right),
   lower_side_rim,
   lower_side_extra_lip,
+  lower_side_extra_lip@Reflect(Right),
   intake_solid,
+  intake_solid@Reflect(Right),
   top_hook,
   side_hook,
   #shield_cross_sections,
@@ -1131,9 +1139,9 @@ preview (
   Edge(shield_source_curve),
   Edge(shield_top_curve.curve),
   shield_source_points,
-  eye_lasers,
+  #eye_lasers,
   #LoadSTL ("private/face5_for_papr.stl"),
-)'''
+)
 
 ########################################################################
 ########  SVG bureaucracy  #######
