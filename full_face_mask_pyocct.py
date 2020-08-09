@@ -951,7 +951,7 @@ def make_intake():
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
   intake_edges = ([], [], [], [])
-  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-3, shield_lower_side_curve.length()/2+1, amount = 100):
+  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length(), shield_lower_side_curve.length()/2+1, amount = 100):
     augment_lower_curve_sample(sample)
     offset = sample.curve_distance - intake_middle.curve_distance
     relative_offset = 2*offset / intake_flat_width
@@ -1120,33 +1120,6 @@ def make_intake():
     intake_flat_cover,
   )).complemented())
 
-preview(upper_side_rim_lower_block)
-
-preview (
-  standard_headband,
-  top_rim,
-  upper_side_rim,
-  upper_side_rim@Reflect(Right),
-  
-  upper_side_rim_lower_block,
-  side_joint_peg,
-  lower_rim_block,
-  
-  lower_side_rim,
-  lower_side_extra_lip,
-  lower_side_extra_lip@Reflect(Right),
-  intake_solid,
-  intake_solid@Reflect(Right),
-  top_hook,
-  side_hook,
-  #shield_cross_sections,
-  #Face (shield_surface),
-  Edge(shield_source_curve),
-  Edge(shield_top_curve.curve),
-  shield_source_points,
-  #eye_lasers,
-  #LoadSTL ("private/face5_for_papr.stl"),
-)
 
 ########################################################################
 ########  SVG bureaucracy  #######
@@ -1298,7 +1271,7 @@ def segments (vertices):
   print (f"total length: {sum( segment.length() for segment in result)}")
   return result
 
-unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, 0, shield_side_curve_length/2, amount=40)
+unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, shield_side_curve_length/2, shield_side_curve_length, amount=40)
   ]
 unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 0, shield_top_curve_length/2, amount=40)
     ]
@@ -1307,11 +1280,11 @@ unrolled_combined = unrolled_top+unrolled_side
 center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
     
 
-save("unrolled", Wire(
-  segments (unrolled_top) + segments (unrolled_side) + [Edge(unrolled_side[-1][1], unrolled_top[-1][1])]
+save("unrolled_shield_wire", Wire(
+  segments (unrolled_side) + segments (unrolled_top) + [Edge(unrolled_side[0][1], unrolled_top[-1][1])]
 ))
 
-save_inkscape_svg("unrolled_shield.svg", unrolled)
+save_inkscape_svg("unrolled_shield.svg", unrolled_shield_wire)
 
 
 ########################################################################
@@ -1488,8 +1461,8 @@ def make_forehead_cloth():
     + [piece.endpoints [1] for piece in reversed (forehead_cloth.pieces)]
   )
   center_vertices_on_letter_paper(forehead_cloth_points)
-  save("forehead_cloth_wire", Wire(forehead_cloth_points))
-  save_inkscape_svg("forehead_cloth.svg", Wire(forehead_cloth_points))
+  save("forehead_cloth_wire", Wire(forehead_cloth_points, loop=True))
+  save_inkscape_svg("forehead_cloth.svg", Wire(forehead_cloth_points, loop=True))
 
 print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
 
@@ -1531,8 +1504,8 @@ def make_chin_cloth():
     + [piece.endpoints [1] for piece in reversed (chin_cloth.pieces)]
   )
   center_vertices_on_letter_paper(chin_cloth_points)
-  save ("chin_cloth_wire", Wire (chin_cloth_points))
-  save_inkscape_svg("chin_cloth.svg", Wire (chin_cloth_points))
+  save ("chin_cloth_wire", Wire (chin_cloth_points, loop=True))
+  save_inkscape_svg("chin_cloth.svg", Wire (chin_cloth_points, loop=True))
 
 print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: {chin_cloth.cloth_head_length}, ratio: {chin_cloth.cloth_head_length/chin_cloth.source_head_length}")
 
@@ -1573,6 +1546,38 @@ show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_sid
 show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
 show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)'''
   
+  
+  
+
+preview (
+  standard_headband,
+  top_rim,
+  upper_side_rim,
+  upper_side_rim@Reflect(Right),
+  
+  upper_side_rim_lower_block,
+  side_joint_peg,
+  lower_rim_block,
+  
+  lower_side_rim,
+  lower_side_extra_lip,
+  lower_side_extra_lip@Reflect(Right),
+  intake_solid,
+  intake_solid@Reflect(Right),
+  top_hook,
+  side_hook,
+  #shield_cross_sections,
+  #Face (shield_surface),
+  Edge(shield_source_curve),
+  Edge(shield_top_curve.curve),
+  shield_source_points,
+  #eye_lasers,
+  #LoadSTL ("private/face5_for_papr.stl"),
+  
+  unrolled_shield_wire,
+  forehead_cloth_wire,
+  chin_cloth_wire,
+)
   
   
   
