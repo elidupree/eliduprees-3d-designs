@@ -941,7 +941,7 @@ def make_intake():
   augment_lower_curve_sample(intake_middle)
   #intake_skew_factor = 0.8
   #intake_forwards = Direction (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor)
-  CPAP_back_center = Point(-85, headphones_front - 40, -110)
+  CPAP_back_center = Point(-72, headphones_front - 40, -110)
   intake_flat_back_center_approx = intake_middle.lip_tip + (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
   CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
 
