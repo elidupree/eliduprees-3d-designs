@@ -951,7 +951,7 @@ def make_intake():
   lower_side_cloth_lip = []
   lower_side_extra_lip_hoops = []
   intake_edges = ([], [], [], [])
-  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length(), shield_lower_side_curve.length()/2+1, amount = 100):
+  for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-1, shield_lower_side_curve.length()/2+1, amount = 100):
     augment_lower_curve_sample(sample)
     offset = sample.curve_distance - intake_middle.curve_distance
     relative_offset = 2*offset / intake_flat_width
@@ -1545,9 +1545,18 @@ joint_test_box = box(centered(22, on=78), centered(40, on=-123), centered(40))
 show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_side.Solids]), "upper_side_joint_test", invisible=pieces_invisible)
 show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
 show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)'''
+
+def reflected (components):
+  return components + [component@Reflect(Right) for component in components]
   
-  
-  
+@run_if_changed
+def make_FDM_printable_lower_side():
+  lower_side = Compound ([
+    lower_side_rim,
+  ]
+  + reflected ([lower_side_extra_lip, intake_solid, lower_rim_block, side_joint_peg]))
+  save("lower_side", lower_side)
+  save_STL("lower_side", lower_side)
 
 preview (
   standard_headband,

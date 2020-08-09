@@ -600,6 +600,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Shape, "extrude", lambda self, *args, **kwargs: Extrude (self, *args, **kwargs))
   simple_override(Shape, "cut", lambda self, *args, **kwargs: Difference(self, *args, **kwargs))
   simple_override(Shape, "intersection", lambda self, *args, **kwargs: Intersection(self, *args, **kwargs))
+  simple_override(Shape, "offset", lambda self, *args, **kwargs: Offset (self, *args, **kwargs))
+  simple_override(Shape, "offset2D", lambda self, *args, **kwargs: Offset2D (self, *args, **kwargs))
   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
