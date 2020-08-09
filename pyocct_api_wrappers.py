@@ -153,6 +153,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   Point = gp.gp_Pnt
   Direction = gp.gp_Dir
   Transform = gp.gp_Trsf
+  GeometryTransform = gp.gp_GTrsf
   Axis = gp.gp_Ax1
   Axes = gp.gp_Ax2
 
@@ -303,9 +304,31 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return result
       
     return classmethod(derived)
+  
+  def make_GeometryTransform(original):
+    def derived(cls, a=vector(1,0,0),b=vector(0,1,0),c=vector(0,0,1),d=vector(0,0,0)):
+      if isinstance(a, gp.gp_GTrsf2d) or isinstance(a, Transform):
+        return original(a)
+        
+      result = original()
+      values = [
+        a[0], b[0], c[0], d[0],
+        a[1], b[1], c[1], d[1],
+        a[2], b[2], c[2], d[2],
+      ]
+      indices = [(row+1, column +1) for row in range(3) for column in range (4)]
+      for value, index in zip (values, indices):
+        result.SetValue(*index, value)
+      return result
+      
+    return classmethod(derived)
+    
   override_attribute(Transform, "__new__", make_Transform)
   simple_override(Transform, "__matmul__", lambda self, other: other.Multiplied(self))
   simple_override(Transform, "inverse", Transform.Inverted)
+  override_attribute(GeometryTransform, "__new__", make_GeometryTransform)
+  simple_override(GeometryTransform, "__matmul__", lambda self, other: other.Multiplied(self))
+  simple_override(GeometryTransform, "inverse", GeometryTransform.Inverted)
   
   for transformable in [Vector, Point]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
@@ -349,12 +372,17 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return "Transform[\n"+"\n".join(
       ", ".join(str(self.value (row + 1, column + 1)) for column in range (4))
     for row in range(3))+"]"
+  def GeometryTransform_str (self):
+    return "GeometryTransform[\n"+"\n".join(
+      ", ".join(str(self.value (row + 1, column + 1)) for column in range (4))
+    for row in range(3))+"]"
   
-  simple_override(Transform, "__str__", Transform_str)
-  simple_override(Transform, "__repr__", Transform_str)
+  represent (Transform, Transform_str)
+  represent (GeometryTransform, GeometryTransform_str)
+  
 
   
-  export_locals ("vector, Vector, Point, Direction, Vector2 Point2 Direction2,  Transform, Axis, Axes, Mirror, Reflect Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
+  export_locals ("vector, Vector, Point, Direction, Vector2 Point2 Direction2,  Transform, GeometryTransform, Axis, Axes, Mirror, Reflect Translate, Rotate, Scale, Up, Down, Left, Right, Front, Back, Origin, Between")
   
   ################################################################
   #####################  Other geometry  #########################
@@ -566,10 +594,12 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return result
   
   simple_override(Shape, "bounds", shape_bounds)
-  simple_override(Shape, "__matmul__", lambda self, matrix: BRepBuilderAPI.BRepBuilderAPI_Transform(self, matrix).Shape())
+  simple_override(Shape, "__matmul__", lambda self, matrix: (BRepBuilderAPI.BRepBuilderAPI_Transform if isinstance (matrix, Transform) else BRepBuilderAPI.BRepBuilderAPI_GTransform)(self, matrix).Shape())
   simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
   simple_override(Shape, "clone", lambda self: BRepBuilderAPI.BRepBuilderAPI_Copy (self).Shape())
   simple_override(Shape, "extrude", lambda self, *args, **kwargs: Extrude (self, *args, **kwargs))
+  simple_override(Shape, "cut", lambda self, *args, **kwargs: Difference(self, *args, **kwargs))
+  simple_override(Shape, "intersection", lambda self, *args, **kwargs: Intersection(self, *args, **kwargs))
   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
