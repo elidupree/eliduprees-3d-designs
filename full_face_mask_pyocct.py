@@ -123,6 +123,7 @@ CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
 CPAP_hose_helix_outer_radius = 22/2
 headband_thickness = min_wall_thickness
 headband_width = 10
+overhead_strap_width = headband_width
 headband_cut_radius = 25
 cloth_with_elastic_space = 3
 forehead_point = Origin
@@ -138,6 +139,7 @@ putative_eyeball = forehead_point + vector (35, -15, -35)
 air_target = putative_chin + Up*40
 
 contact_leeway = 0.4
+ridge_thickness = 2
 
 temple_radians = (math.tau/4) * 0.6
 shield_focal_slope = 1.8
@@ -145,9 +147,8 @@ lots = 500
 
 min_head_circumference = 500
 max_head_circumference = 650
-head_variability = max_head_circumference - min_head_circumference
+min_overhead_strap_length = 250
 fastener_hook_length = 80
-fastener_loop_length = fastener_hook_length + head_variability
 
 
 ########################################################################
@@ -365,7 +366,9 @@ save ("eye_lasers", Compound ([
 ########  Forehead/headband/top rim  #######
 ########################################################################
 
-standard_forehead_points = [vector (a,b,0) for a,b in [
+headband_top = shield_glue_face_width + min_wall_thickness
+headband_bottom= headband_top - headband_width
+standard_forehead_points = [forehead_point + vector (a,b,0) for a,b in [
   (0, 0),
   (15, -0.01),
   (25, -2.5),
@@ -382,29 +385,55 @@ standard_forehead_points = [vector (a,b,0) for a,b in [
   (0, -195),
 ]]
 degree = 3
-standard_forehead_poles = [forehead_point + a@Mirror (Right) for a in reversed(standard_forehead_points[1:-1])] + [forehead_point + a for a in standard_forehead_points]
+standard_forehead_poles = [a@Mirror (Right) for a in reversed(standard_forehead_points[1:-1])] + standard_forehead_points
 save ("standard_forehead_curve", BSplineCurve(
   standard_forehead_poles,
   BSplineDimension (periodic = True),
 ))
 print(f"Standard forehead circumference: {standard_forehead_curve.length()}")
 
+overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
+  (0, headband_bottom),
+  (-2, 10),
+  (-4, 21),
+  (-22, 50),
+  (-70, 75),
+  (-125, 75),
+  (-173, 60),
+  (-191, 21),
+  (-195, 0),
+  (-195, -140),
+]]
+
+save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
+
 
 save ("standard_headband_2D", Offset2D(Wire (Edge (standard_forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
 )
 
-headband_top = shield_glue_face_width + min_wall_thickness
-
 standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
 save("standard_headband")
 
-def curled_forehead_points(offset_distance):
+
+head_variability = max_head_circumference - min_head_circumference
+fastener_loop_length = fastener_hook_length + head_variability
+'''
+for someone with the maximum head circumference, the fastener hooks will be lined up with the very end of the fastener loops on the other end of the headband; this still leaves 1 degree of freedom (how far to the left or right, on the back of the head, that position would be)
+
+I'm initially assuming that the fastener hooks will be at the center of the back of the head on an average head (further right on a smaller head, further left on a larger head).
+
+Also, all users must have the slots for the overhead strap be able to be in the middle of the back of the head; for maximum sized heads, the rightmost slot would be exactly in the center. If we don't want to make the headband any longer than needed, we actually want to put the fastener hooks all the way at the right end of the slots, meaning that, if they are shorter than the slots, they would be significantly to the right of the back on the average head. That's okay.
+'''
+overhead_strap_slots_width = head_variability + overhead_strap_width
+headband_left_length = max_head_circumference/2 + overhead_strap_width/2
+headband_right_length = (max_head_circumference + fastener_hook_length) - headband_left_length
+
+def curled_forehead_points(total_distance, offset_distance):
   result = []
   class CurlStep(object):
     pass
   
   previous = None
-  total_distance = (max_head_circumference + fastener_hook_length)/2
   start = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point))
   temple_distance = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = temple))
   circle_center = forehead_point + Front*80
@@ -422,7 +451,7 @@ def curled_forehead_points(offset_distance):
       normal_distance = derivatives.tangent.dot(previous.derivatives.normal)
       observed_radians = math.atan2(normal_distance, tangent_distance)
       current_adjusted_tangent = derivatives.tangent@Rotate(Up, radians = previous.total_radians_change)
-      target_curvature_change = -0.002
+      target_curvature_change = -0.0005
       target_radians_change = (distance - previous.curve_distance)*target_curvature_change
       # if uncurling, arbitrarily restrict it from becoming straight or inverted; not sure if there's an actual need for this
       radians_change = min(target_radians_change, observed_radians*0.8)
@@ -435,27 +464,117 @@ def curled_forehead_points(offset_distance):
   counterpoint = previous.output_position@Reflect (Right) + Left*offset_distance*2
   curve = Interpolate ([
       point,
-      Between (point, counterpoint, 0.25) + Front*(90 + offset_distance),
-      Between (point, counterpoint) + Front*(100 + offset_distance),
-      Between (point, counterpoint, 0.75) + Front*(90 + offset_distance),
+      Between (point, counterpoint, 0.25) + Front*(100 + offset_distance),
+      Between (point, counterpoint) + Front*(110 + offset_distance),
+      Between (point, counterpoint, 0.75) + Front*(100 + offset_distance),
       counterpoint
     ],
     tangents = [Vector (current_adjusted_tangent), Vector (current_adjusted_tangent@Reflect (Front))])
   for distance in subdivisions (0, total_distance - (temple_distance - start), max_length = 5)[1:]:
-    result.append (curve.value(curve.parameter (distance = distance)))
+    parameter = curve.parameter (distance = distance)
+    assert(parameter < curve.LastParameter())
+    result.append (curve.value(parameter))
   
   return result
 
 curled_forehead_poles = [a@Mirror (Right) for a in reversed(
-curled_forehead_points(5)[1:])] + curled_forehead_points(-5)
+curled_forehead_points(headband_left_length, 5)[1:])] + curled_forehead_points(headband_right_length, -5)
 save("large_forehead_curve", BSplineCurve(
   curled_forehead_poles,
 ))
-preview (standard_forehead_curve,
-  #curled_forehead_poles,
-  large_forehead_curve
-)
 
+def forehead_wave(*distance_range):
+  forehead_wave_curves = []
+  for (distance0, start), (distance1, finish) in pairs ([(d, large_forehead_curve.derivatives(distance=d)) for d in subdivisions (*distance_range, max_length = 17)]):
+    middle = large_forehead_curve.derivatives(distance = (distance1 + distance0)/2)
+    control_distance = (distance1 - distance0)/4
+    close_offset = -min_wall_thickness * 1.3
+    far_offset = -6.6 - min_wall_thickness/2
+    forehead_wave_curves.append (BSplineCurve([
+      start.position + start.normal*close_offset,
+      start.position + start.normal*close_offset + start.tangent*control_distance,
+      middle.position + middle.normal*far_offset - middle.tangent*control_distance,
+      middle.position + middle.normal*far_offset,
+    ]))
+    forehead_wave_curves.append (BSplineCurve([
+      middle.position + middle.normal*far_offset,
+      middle.position + middle.normal*far_offset + middle.tangent*control_distance,
+      finish.position + finish.normal*close_offset - finish.tangent*control_distance,
+      finish.position + finish.normal*close_offset,
+    ]))
+    
+  return Face(Offset2D(Wire (Edge(curve) for curve in forehead_wave_curves), min_wall_thickness/2))
+    
+  
+
+
+@run_if_changed
+def make_headband_1():
+  wire = Wire(Edge(large_forehead_curve))
+  shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
+  expanded = Face(Offset2D(shifted, min_wall_thickness/2))
+  save("curled_headband", expanded.extrude(Up*headband_width))
+  
+@run_if_changed
+def make_headband_2():
+  faces = Compound(
+    forehead_wave(fastener_hook_length, large_forehead_curve.distance(closest=temple@Mirror(Right))),
+    forehead_wave(large_forehead_curve.distance(closest=temple), large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length/2)),
+  )
+  save("curled_headband_wave", faces.extrude(Up*headband_width))
+
+def ridge_slot(curve, start, finish, direction, wall_adjust):
+  middle = (start + finish)/2
+  positions = subdivisions (-overhead_strap_width, overhead_strap_width, amount = 7)
+  fractions = [0, 1, 1, 1, 1, 1, 0]
+  controls = []
+  position_derivatives = [curve.derivatives (distance = middle + position) for position in positions]
+  for derivatives, fraction in zip (position_derivatives, fractions):
+    controls.append (derivatives.position + derivatives.normal*direction*(-wall_adjust + fraction*(min_wall_thickness + ridge_thickness + contact_leeway*2)))
+  slot = Wire (Edge (BSplineCurve (controls)))
+  slot = Face (Offset2D (slot, min_wall_thickness/2))
+  slot = slot.extrude (Up*headband_width)
+  prong = Edge (position_derivatives[2].position, position_derivatives [-3].position)
+  middle_derivatives = position_derivatives [len (position_derivatives)//2]
+  prong = prong@Translate (middle_derivatives.normal*direction*-wall_adjust)
+  prong = prong.extrude (middle_derivatives.normal*direction*(wall_adjust + ridge_thickness - min_wall_thickness)).extrude (Up*1.5)
+  return Compound(slot, prong)
+
+@run_if_changed
+def make_headband_3():
+  overhead_strap_slots = []
+  for start, finish in pairs (subdivisions (0, overhead_strap_slots_width, max_length = overhead_strap_width*3)):
+    overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, 1, min_wall_thickness/2))
+  save ("overhead_strap_slots", Compound (overhead_strap_slots))
+  
+'''
+save ("overhead_strap_slot_test", Intersection (
+  Compound (overhead_strap_slots, curled_headband),
+  Face(Wire(Edge(Circle (Axes (Point (50, -186, 0), Up), 15)))).extrude(Up*headband_width)
+))
+save_STL ("overhead_strap_slot_test", overhead_strap_slot_test)
+#preview (overhead_strap_slot_test)'''
+#preview (large_forehead_curve, curled_headband, curled_headband_wave, standard_headband_2D, overhead_strap_slots)
+
+@run_if_changed
+def make_overhead_strap():
+  ridge_points = []
+  ridge_back_points = []
+  for index, ridge_distance in enumerate (subdivisions (min_overhead_strap_length, overhead_strap_curve.length(), max_length = 2, require_parity = 1)):
+    derivatives = overhead_strap_curve.derivatives (distance = ridge_distance)
+    offset = (min_wall_thickness/2) if index % 2 == 0 else (ridge_thickness - min_wall_thickness/2)
+    ridge_points.append (derivatives.position - derivatives.normal*offset)
+    ridge_back_points.append (derivatives.position)
+  ridges_face = Face(Wire(ridge_points + ridge_back_points[::-1], loop=True))
+  strap_face = Face(Offset2D(Wire(Edge(overhead_strap_curve)), min_wall_thickness/2))
+  save ("overhead_strap", Union(strap_face, ridges_face).extrude(Right*overhead_strap_width, centered = True))
+
+'''save ("overhead_strap_test", Intersection (
+  overhead_strap,
+  Face(Wire(Edge(Circle (Axes (overhead_strap_points[-2], Right), 15)))).extrude(Right*20, centered=True)
+))
+save_STL ("overhead_strap_test", overhead_strap_test)
+preview(overhead_strap_test)'''
 
 @run_if_changed
 def make_top_rim():
@@ -653,7 +772,7 @@ save ("upper_rim_cut", HalfSpace(Point(0,0,0-contact_leeway), Up))
 def upper_side_lip_tip(sample):
   return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
   
-print(shield_upper_side_curve.plane)
+#print(shield_upper_side_curve.plane)
   
 @run_if_changed
 def make_upper_side_rim():
@@ -801,6 +920,8 @@ save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)
 
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, -elastic_hook_base_length-1)))
 
+
+preview(upper_side_rim, lower_side_rim, standard_headband, top_hook, side_hook)
 
 ########################################################################
 ########  Intake  #######

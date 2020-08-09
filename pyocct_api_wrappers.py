@@ -12,6 +12,7 @@ import re
 import math
 import importlib
 import os.path
+import functools
 
 
 def setup(wrap, unwrap, do_export, override_attribute):
@@ -126,12 +127,15 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return True
     return all(v == first for v in i)
   
-  def subdivisions (start, end, *, amount = None, max_length = None):
+  def subdivisions (start, end, *, amount = None, max_length = None, require_parity = None):
     delta = end - start
     
     if max_length is not None:
       distance = delta.magnitude() if isinstance (delta, Vector) else abs (delta)
       required = math.ceil (distance/max_length) + 1
+      if require_parity is not None:
+        if required % 2 != require_parity:
+          required += 1
       amount = max ((amount or 0), required)
     
     if amount < 2:
@@ -425,7 +429,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
       
       if weights is None:
         weights = [1 for value in poles]
-      print(num_u, len(u.knots(num_u)), len(u.multiplicities(num_u)))
+      #print(num_u, len(u.knots(num_u)), len(u.multiplicities(num_u)))
       return original(
         Array1OfPnt(poles),
         Array1OfReal(weights),
@@ -456,25 +460,34 @@ def setup(wrap, unwrap, do_export, override_attribute):
     
     builder.Perform()
     return builder.Curve()
-  
+    
+  def curve_parameter_function (function):
+    @functools.wraps(function)
+    def wrapped(curve, parameter = None, *, distance = None, from_parameter = 0, closest = None, **kwargs):
+      if closest is not None:
+        parameter = GeomAPI.GeomAPI_ProjectPointOnCurve (closest, curve).LowerDistanceParameter()
+        if False: #exceptions not handled yet
+          parameter = min ([
+            curve.FirstParameter(), curve.LastParameter()
+          ], key = lambda parameter: curve.value (parameter).distance (closest))
+      
+      if distance is not None:
+        adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
+        parameter = GCPnts.GCPnts_AbscissaPoint (adapter, distance, from_parameter).Parameter()
+      
+      return function(curve, parameter, **kwargs)
+    return wrapped
+    
   def curve_length (curve, first = None, last = None):
     if first is None: first = curve.FirstParameter()
     if last is None: last = curve.LastParameter()
     adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
     return GCPnts.GCPnts_AbscissaPoint.Length_(adapter, first, last)
-  def curve_parameter (curve,*, distance = None, from_parameter = 0, closest = None):
-    if closest is not None:
-      return GeomAPI.GeomAPI_ProjectPointOnCurve (closest, curve).LowerDistanceParameter()
-      if False: #exceptions not handled
-        return min ([
-          curve.FirstParameter(), curve.LastParameter()
-        ], key = lambda parameter: curve.value (parameter).distance (closest))
-      
-    if distance is not None:
-      adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
-      return GCPnts.GCPnts_AbscissaPoint (adapter, distance, from_parameter).Parameter()
+    
+    
   simple_override (Curve, "length", curve_length)
-  simple_override (Curve, "parameter", curve_parameter)
+  simple_override (Curve, "parameter", curve_parameter_function (lambda curve, parameter: parameter))
+  simple_override (Curve, "distance", curve_parameter_function (lambda curve, parameter: curve.length(0, parameter)))
   
   class CurveSurfaceIntersections (ArbitraryFields):
     def point(self):
@@ -528,8 +541,9 @@ def setup(wrap, unwrap, do_export, override_attribute):
         else:
           self.normal = None
   
-  simple_override (Curve, "derivatives", lambda self, *args, **kwargs: CurveDerivatives(self, *args, **kwargs))
-  simple_override (Curve, "curvature", lambda self, u: GeomLProp.GeomLProp_CLProps(self, u, 2, default_tolerance).Curvature())
+  simple_override (Curve, "derivatives", curve_parameter_function (lambda curve, parameter, **kwargs: CurveDerivatives(curve, parameter, **kwargs)))
+  simple_override (Curve, "curvature", curve_parameter_function (lambda curve, parameter: GeomLProp.GeomLProp_CLProps(curve, parameter, 2, default_tolerance).Curvature()))
+  override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))
 
   export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
@@ -776,11 +790,13 @@ def setup(wrap, unwrap, do_export, override_attribute):
     if only_plane:
       return GeomAdaptor.GeomAdaptor_Surface (shared_surface).Plane()
     
-  def Offset2D (spine, offset, *, join = JoinArc, fill = False):
-    builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffset (spine, join)
+  def Offset2D (spine, offset, *, join = JoinArc, fill = False, open = False):
+    builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffset (spine, join, open)
     builder.Perform (offset)
     result = builder.Shape()
     if fill:
+      # TODO: support open wires, including with or without open = True
+      # (right now, Face alone works for open wires, but doing it with open = True is more complicated)
       if offset > 0:
         return Face (result, holes = [spine.Complemented()])
       else:
@@ -792,6 +808,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def Offset (shape, offset, *, tolerance = default_tolerance, mode = ModeSkin, join = JoinArc, fill = False):
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffsetShape()
     builder.PerformByJoin (shape, offset, tolerance, mode, False, False, join)
+    
     result = builder.Shape()
     if not fill:
       return result
@@ -931,7 +948,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
     '''shape = Shape()
     StlAPI.StlAPI.Read_ (shape, os.path.abspath (path))
     shape = downcast_shape (shape)'''
-    print (os.path.abspath (path))
+    #print (os.path.abspath (path))
     triangulation = RWStl.RWStl.ReadFile_(os.path.abspath (path))
     vertices = [Vertex (point) for point in triangulation.nodes()]
     faces = [Wire (*(vertices [index - 1] for index in triangle.Get (0, 0, 0))) for triangle in triangulation.triangles()]
