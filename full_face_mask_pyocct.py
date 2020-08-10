@@ -148,6 +148,7 @@ lots = 500
 min_head_circumference = 500
 max_head_circumference = 650
 min_overhead_strap_length = 250
+fastener_hook_length = 40
 
 
 ########################################################################
