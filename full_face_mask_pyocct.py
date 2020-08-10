@@ -408,12 +408,15 @@ overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
 
 save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
 
+def flat_to_headband(shape):
+  return (shape@Translate (Up*headband_top)).extrude (Down*headband_width)
+
 @run_if_changed
 def make_standard_headband():
   standard_headband_2D = Offset2D(Wire (Edge (standard_forehead_curve)), headband_thickness, fill = True)
   save ("standard_headband_2D", standard_headband_2D)
 
-  standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
+  standard_headband = flat_to_headband(standard_headband_2D)
   save("standard_headband", standard_headband)
 
 
@@ -517,7 +520,7 @@ def make_headband_1():
   wire = Wire(Edge(large_forehead_curve))
   shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
   expanded = Face(Offset2D(shifted, min_wall_thickness/2))
-  save("curled_headband", expanded.extrude(Up*headband_width))
+  save("curled_headband", flat_to_headband(expanded))
   
 @run_if_changed
 def make_headband_2():
@@ -525,7 +528,7 @@ def make_headband_2():
     forehead_wave(fastener_hook_length, large_forehead_curve.distance(closest=temple@Mirror(Right))),
     forehead_wave(large_forehead_curve.distance(closest=temple), large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length/2)),
   )
-  save("curled_headband_wave", faces.extrude(Up*headband_width))
+  save("curled_headband_wave", flat_to_headband(faces))
 
 def ridge_slot(curve, start, finish, direction, wall_adjust):
   middle = (start + finish)/2
@@ -537,7 +540,7 @@ def ridge_slot(curve, start, finish, direction, wall_adjust):
     controls.append (derivatives.position + derivatives.normal*direction*(-wall_adjust + fraction*(min_wall_thickness + ridge_thickness + contact_leeway*2)))
   slot = Wire (Edge (BSplineCurve (controls)))
   slot = Face (Offset2D (slot, min_wall_thickness/2))
-  slot = slot.extrude (Up*headband_width)
+  slot = flat_to_headband(slot)
   prong = Edge (position_derivatives[2].position, position_derivatives [-3].position)
   middle_derivatives = position_derivatives [len (position_derivatives)//2]
   prong = prong@Translate (middle_derivatives.normal*direction*-wall_adjust)
@@ -554,7 +557,7 @@ def make_headband_3():
 '''
 save ("overhead_strap_slot_test", Intersection (
   Compound (overhead_strap_slots, curled_headband),
-  Face(Wire(Edge(Circle (Axes (Point (50, -186, 0), Up), 15)))).extrude(Up*headband_width)
+  flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (50, -186, 0), Up), 15)))))
 ))
 save_STL ("overhead_strap_slot_test", overhead_strap_slot_test)
 #preview (overhead_strap_slot_test)'''
@@ -683,13 +686,13 @@ show_transformed (CPAP_grabber, "CPAP_grabber")'''
 
 
 temple_block_length = 36
+temple_block_start_distance = standard_forehead_curve.distance (closest = temple)-1
 
 @run_if_changed
 def make_temple_block():
   temple_block_inside = []
   temple_block_top = []
   temple_block_bottom = []
-  temple_block_start_distance = standard_forehead_curve.distance (closest = temple)-1
   
   for distance in range (temple_block_length + 1):
     temple_block_inside.append (standard_forehead_curve.value (distance = temple_block_start_distance - distance))
@@ -932,7 +935,26 @@ def make_temple_block_pegs():
   save ("temple_top_pegs", Compound (top_pegs))
   save ("temple_block", Difference (temple_block_uncut, [Offset(a, contact_leeway) for a in [side_peg] + top_pegs]))
   
-  
+@run_if_changed
+def make_temple_block_on_curled_headband():
+  standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
+  curled_middle_distance = large_forehead_curve.distance (closest = forehead_point)
+  curled_temple_block_distance = curled_middle_distance + (temple_block_start_distance - standard_middle_distance)
+  s0 = standard_forehead_curve.value(distance = temple_block_start_distance)
+  s1 = standard_forehead_curve.value(distance = temple_block_start_distance - temple_block_length)
+  c0 = large_forehead_curve.value(distance = curled_temple_block_distance)
+  c1 = large_forehead_curve.value(distance = curled_temple_block_distance - temple_block_length)
+  temple_block_on_curled_headband = (
+    temple_block
+    @ Rotate (
+      Axis(s0, Up),
+      radians = -Direction(s0,s1).Angle(Direction(c0, c1))
+    )
+    @ Translate (
+      s0, c0
+    )
+  )
+  save("temple_block_on_curled_headband", temple_block_on_curled_headband)
   
 '''
 upper_side_rim_upper_block = Part.makeLoft ([
@@ -1648,6 +1670,17 @@ def make_FDM_printable_top_rim():
   save("top_rim_final", top_rim_final)
   save_STL("top_rim_final", top_rim_final)
 
+@run_if_changed
+def make_FDM_printable_headband():
+  headband_final = Compound ([
+    curled_headband,
+    curled_headband_wave,
+    overhead_strap_slots,
+  ]
+  + reflected ([temple_block_on_curled_headband]))
+  save("headband_final", headband_final)
+  save_STL("headband_final", headband_final)
+  
 preview (
   standard_headband,
   temple_top_pegs,
