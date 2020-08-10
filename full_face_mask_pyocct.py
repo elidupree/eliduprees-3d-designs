@@ -530,28 +530,29 @@ def make_headband_2():
   )
   save("curled_headband_wave", flat_to_headband(faces))
 
-def ridge_slot(curve, start, finish, direction, wall_adjust):
+def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0):
   middle = (start + finish)/2
   positions = subdivisions (-overhead_strap_width, overhead_strap_width, amount = 7)
   fractions = [0, 1, 1, 1, 1, 1, 0]
   controls = []
   position_derivatives = [curve.derivatives (distance = middle + position) for position in positions]
   for derivatives, fraction in zip (position_derivatives, fractions):
-    controls.append (derivatives.position + derivatives.normal*direction*(-wall_adjust + fraction*(min_wall_thickness + ridge_thickness + contact_leeway*2)))
+    derivatives.adjusted_normal = derivatives.tangent@Rotate (Up, degrees = 90*direction)
+    controls.append (derivatives.position + derivatives.adjusted_normal*(wall_adjust + fraction*(min_wall_thickness + ridge_thickness + contact_leeway*2)))
   slot = Wire (Edge (BSplineCurve (controls)))
   slot = Face (Offset2D (slot, min_wall_thickness/2))
-  slot = flat_to_headband(slot)
+  slot = (slot@Translate(Up*bottom)).extrude (Up*(top - bottom))
   prong = Edge (position_derivatives[2].position, position_derivatives [-3].position)
   middle_derivatives = position_derivatives [len (position_derivatives)//2]
-  prong = prong@Translate (middle_derivatives.normal*direction*-wall_adjust)
-  prong = prong.extrude (middle_derivatives.normal*direction*(wall_adjust + ridge_thickness - min_wall_thickness)).extrude (Up*1.5)
+  prong = prong@Translate (middle_derivatives.adjusted_normal*wall_adjust + Up*bottom)
+  prong = prong.extrude (middle_derivatives.adjusted_normal*(min_wall_thickness/2 + ridge_thickness - min_wall_thickness)).extrude (Up*1.5*math.copysign(1, top - bottom))
   return Compound(slot, prong)
 
 @run_if_changed
 def make_headband_3():
   overhead_strap_slots = []
   for start, finish in pairs (subdivisions (0, overhead_strap_slots_width, max_length = overhead_strap_width*3)):
-    overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, 1, min_wall_thickness/2))
+    overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, direction = -1, wall_adjust = -min_wall_thickness/2, top = headband_bottom, bottom = headband_top))
   save ("overhead_strap_slots", Compound (overhead_strap_slots))
   
 '''
@@ -660,29 +661,41 @@ headband = headband.fuse([
   headband_elastic_link.mirror(vector(), vector(1,0,0)),
 ]).translated(vector(0,0,headband_top - headband_width))'''
 
-
-'''
 CPAP_grabber_length = 16
-CPAP_grabber_shape = FreeCAD_shape_builder(zigzag_length_limit = 3, zigzag_depth = -1).build ([
-      start_at(CPAP_hose_helix_outer_radius + min_wall_thickness/2, 0),
-      vertical_to(CPAP_grabber_length),
-  ]).as_xz().to_wire().makeOffset2D(min_wall_thickness/2, fill=True).common(box(centered(500), centered(500), bounds(0, CPAP_grabber_length)))
-
-CPAP_grabber_shape = CPAP_grabber_shape.revolve(vector(), vector(0,0,1), 360)
-CPAP_grabber_shape = CPAP_grabber_shape.cut(
-  FreeCAD_shape_builder().build ([
-      start_at(0, 0),
-      diagonal_to(-50, -100),
-      horizontal_to(50),
-      close()
-    ]).to_wire().to_face().extrude(vector (0, 0, CPAP_grabber_length))
-)
-
-CPAP_grabber = Part.Compound([
-  CPAP_grabber_shape,
-  elastic_link.translated(vector(CPAP_hose_helix_outer_radius + min_wall_thickness + elastic_link_radius, 0, 0)).extrude(vector (0, 0, CPAP_grabber_length))
-])
-show_transformed (CPAP_grabber, "CPAP_grabber")'''
+@run_if_changed
+def make_CPAP_grabber():
+  main_circle_radius = CPAP_hose_helix_outer_radius - 2 + min_wall_thickness/2
+  min_parameter = math.tau/16
+  main_arc = TrimmedCurve (Circle (Axes (Origin, Up, Front), main_circle_radius), min_parameter, math.tau - min_parameter)
+  derivatives = main_arc.derivatives (min_parameter)
+  # we want: radius - (outward normal[0]*radius) = x - min_wall_thickness/2 - space/2
+  space = 1.5
+  print (derivatives.normal)
+  side_arc_radius = (derivatives.position [0] - min_wall_thickness/2 - space/2) / (1 + derivatives.normal[0])
+  side_arc = TrimmedCurve (Circle (Axes (derivatives.position - derivatives.normal*side_arc_radius, Up, Right), side_arc_radius), math.tau/4 + min_parameter, math.tau*6/8)
+  curves = [
+    side_arc,
+    main_arc,
+    side_arc@Reflect (Right)
+  ]
+  CPAP_grabber_wire = Wire (curves)
+  CPAP_grabber_solid = Face (CPAP_grabber_wire.offset2D (min_wall_thickness/2)).extrude (Up*CPAP_grabber_length)
+  # hack - instead of a strictly straight line, disambiguate a plane
+  joining_curve = BSplineCurve ([
+    Point (- main_circle_radius, main_circle_radius, 0),
+    Point (0, main_circle_radius+0.1, 0),
+    Point (main_circle_radius, main_circle_radius, 0),
+  ], BSplineDimension (degree = 2))
+  slot = ridge_slot (joining_curve, 0, joining_curve.length(), direction=1, bottom = 0, top = CPAP_grabber_length)
+  joining_solid = Face (Edge(joining_curve).offset2D (min_wall_thickness/2)).extrude (Up*CPAP_grabber_length)
+  CPAP_grabber_assembled = Compound ([
+    CPAP_grabber_solid@Translate (Right*main_circle_radius),
+    CPAP_grabber_solid@Translate (Left*main_circle_radius),
+    joining_solid,
+    slot,
+  ])
+  save("CPAP_grabber", CPAP_grabber_assembled)
+  save_STL("CPAP_grabber", CPAP_grabber_assembled)
 
 
 temple_block_length = 36

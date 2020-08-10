@@ -329,9 +329,6 @@ def setup(wrap, unwrap, do_export, override_attribute):
   override_attribute(GeometryTransform, "__new__", make_GeometryTransform)
   simple_override(GeometryTransform, "__matmul__", lambda self, other: other.Multiplied(self))
   simple_override(GeometryTransform, "inverse", GeometryTransform.Inverted)
-  
-  for transformable in [Vector, Point]:
-    simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
     
   def transform_direction (self, transform):
     if abs(transform.ScaleFactor()) != 1.0:
@@ -558,11 +555,12 @@ def setup(wrap, unwrap, do_export, override_attribute):
   class CurveDerivatives:
     def __init__(self, curve, parameter, *, derivatives = 2):
       self.position = curve.value (parameter)
+      props = GeomLProp.GeomLProp_CLProps(curve, parameter, derivatives, default_tolerance)
       if derivatives > 0:
-        self.velocity = curve.DN(parameter, 1)
+        self.velocity = props.D1()
         self.tangent = Direction (self.velocity)
       if derivatives > 1:
-        self.acceleration = curve.DN(parameter, 2)
+        self.acceleration = props.D2()
         putative_normal = self.tangent.cross (self.acceleration).cross (self.tangent)
         if putative_normal.magnitude() > default_tolerance:
           self.normal = Direction(putative_normal)
@@ -571,7 +569,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   simple_override (Curve, "derivatives", curve_parameter_function (lambda curve, parameter, **kwargs: CurveDerivatives(curve, parameter, **kwargs)))
   simple_override (Curve, "curvature", curve_parameter_function (lambda curve, parameter: GeomLProp.GeomLProp_CLProps(curve, parameter, 2, default_tolerance).Curvature()))
-  override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))
+  override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))  
+  
+  for transformable in [Vector, Point, Curve, Surface]:
+    simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
 
   export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
@@ -700,6 +701,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
       for index, item in enumerate (inputs):
         if isinstance (item, Point):
           item = Vertex (item)
+        if isinstance (item, Curve):
+          item = Edge (item)
         if first_vertex is None:
           first_vertex = item.vertices()[0]
         if isinstance (item, Vertex):
@@ -725,6 +728,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
         return original()
       if len(args) == 1 and isinstance(args[0], Surface):
         args = [args[0], default_tolerance]
+      if len(args) == 1 and isinstance(args[0], Edge):
+        args = [Wire(args[0])]
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
       for hole in recursive_flatten(holes):
         builder.Add (hole)
@@ -823,6 +828,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return GeomAdaptor.GeomAdaptor_Surface (shared_surface).Plane()
     
   def Offset2D (spine, offset, *, join = JoinArc, fill = False, open = False):
+    if isinstance(spine, Edge):
+      spine = Wire(spine)
     builder = BRepOffsetAPI.BRepOffsetAPI_MakeOffset (spine, join, open)
     builder.Perform (offset)
     result = builder.Shape()
