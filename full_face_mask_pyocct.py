@@ -650,17 +650,6 @@ elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headba
 
 
 
-'''headband_elastic_link_parameter = forehead_curve.parameter(vector(60, forehead_point[1]-170))
-
-headband_elastic_link = elastic_link.translated(
-  forehead_curve.value(headband_elastic_link_parameter)
-  - forehead_curve.normal(headband_elastic_link_parameter) * (headband_thickness + elastic_link_radius * 0.5)
-).cut(headband_interior_2D).extrude(vector (0, 0, headband_width))
-headband = headband.fuse([
-  headband_elastic_link,
-  headband_elastic_link.mirror(vector(), vector(1,0,0)),
-]).translated(vector(0,0,headband_top - headband_width))'''
-
 CPAP_grabber_length = 16
 @run_if_changed
 def make_CPAP_grabber():
@@ -721,69 +710,34 @@ def make_temple_block():
   temple_block = Loft(temple_block_hoops, solid = True)
   save ("temple_block_uncut", temple_block)
 
-'''
+standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
+curled_middle_distance = large_forehead_curve.distance (closest = forehead_point)
+temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
+curled_temple_block_distance = curled_middle_distance + (temple_block_from_middle_distance)
 
-forehead_hook_thickness = 3
-forehead_hook_distance = temple_block_start_distance - temple_block_length - cloth_with_elastic_space - forehead_hook_thickness/2
-forehead_hook_parameter = forehead_curve.parameterAtDistance(forehead_hook_distance)
-forehead_hook_base = forehead_curve.value(forehead_hook_parameter)
-forehead_hook_normal = forehead_curve.normal(forehead_hook_parameter)
-forehead_hook_tangent = vector(forehead_curve.tangent(forehead_hook_parameter)[0])
-forehead_hook = Part.Compound([
-  box(
-    bounds(0, cloth_with_elastic_space + forehead_hook_thickness/2),
-    centered(forehead_hook_thickness),
-    bounds(headband_width - forehead_hook_thickness, headband_width),
-  ),
-  Part.makeCylinder(
-    forehead_hook_thickness/2,
-    headband_width,
-    vector(cloth_with_elastic_space + forehead_hook_thickness/2, 0, 0),
-    vector(0,0,1),
-  )
-])
-matrix = GeometryTransform (-forehead_hook_normal, forehead_hook_tangent, vector(0,0,1), forehead_hook_base + vector(0,0,headband_top - headband_width))
-forehead_hook = forehead_hook.transformGeometry (matrix)
 
-show_transformed (forehead_hook, "forehead_hook")
-
-forehead_hook_distance_range = forehead_curve.length(0, forehead_curve.parameter(vector(-forehead_hook_base[0], forehead_hook_base[1], forehead_hook_base[2]))) - forehead_hook_distance
-num_forehead_elastic_guides = 16
-forehead_elastic_guides = []
-forehead_elastic_guide_length = 3.5
-for index in range(num_forehead_elastic_guides):
-  frac = (index + 1) / (num_forehead_elastic_guides + 1)
-  distance = forehead_hook_distance + forehead_hook_distance_range*frac
-  parameter = forehead_curve.parameterAtDistance(distance)
-  base = forehead_curve.value(parameter)
-  normal = forehead_curve.normal(parameter)
-  tangent = vector(forehead_curve.tangent(parameter)[0])
-  shape = FreeCAD_shape_builder().build([
-    start_at(0,0),
-    horizontal_to(forehead_elastic_guide_length),
-    vertical_to(min_wall_thickness),
-    diagonal_to(min_wall_thickness, forehead_elastic_guide_length),
-    horizontal_to(0),
-    close()
-  ]).to_wire().to_face().fancy_extrude(vector(0,0,1), centered(stiffer_wall_thickness))
-  forehead_elastic_guides.append(
-    shape.transformGeometry (matrix_from_columns(
-      -normal,
-      vector(0,0,1),
-      tangent,
-      base + vector(0,0,headband_top - headband_width)
-    ))
-  )
-  forehead_elastic_guides.append(
-    shape.transformGeometry (matrix_from_columns(
-      -normal,
-      vector(0,0,-1),
-      tangent,
-      base + vector(0,0,headband_top)
-    ))
-  )
-forehead_elastic_guides = Part.Compound(forehead_elastic_guides)
-show_transformed (forehead_elastic_guides, "forehead_elastic_guides")'''
+forehead_elastic_hook_width = 12
+def forehead_elastic_hook(derivatives):
+  wire = Wire(FilletedEdges([
+    Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*0.5) + Up*stiffer_wall_thickness*0.5),
+    (Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*1.5 + cloth_with_elastic_space) + Up*stiffer_wall_thickness*0.5), stiffer_wall_thickness),
+    Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*1.5 + cloth_with_elastic_space) + Up*headband_width*0.8),
+  ])).offset2D(stiffer_wall_thickness/2)
+  return Face(wire).extrude(derivatives.tangent*forehead_elastic_hook_width, centered=True)
+  
+@run_if_changed
+def make_forehead_elastic_hooks():
+  orientations = [-1,1,1,-1]
+  distance_radius = temple_block_from_middle_distance - temple_block_length - forehead_elastic_hook_width/2 - cloth_with_elastic_space
+  hooks = []
+  for orientation, distance in zip (orientations, subdivisions (curled_middle_distance - distance_radius, curled_middle_distance + distance_radius, amount = len (orientations))):
+    hook = forehead_elastic_hook (large_forehead_curve.derivatives (distance = distance))
+    if orientation == -1:
+      hook = hook @ Reflect(Up) @ Translate(Up*headband_top)
+    else:
+      hook = hook @ Translate(Up*headband_bottom)
+    hooks.append (hook)
+  save ("forehead_elastic_hooks", Compound (hooks))
 
 ########################################################################
 ########  Side rim and stuff #######
@@ -950,9 +904,6 @@ def make_temple_block_pegs():
   
 @run_if_changed
 def make_temple_block_on_curled_headband():
-  standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
-  curled_middle_distance = large_forehead_curve.distance (closest = forehead_point)
-  curled_temple_block_distance = curled_middle_distance + (temple_block_start_distance - standard_middle_distance)
   s0 = standard_forehead_curve.value(distance = temple_block_start_distance)
   s1 = standard_forehead_curve.value(distance = temple_block_start_distance - temple_block_length)
   c0 = large_forehead_curve.value(distance = curled_temple_block_distance)
@@ -969,35 +920,10 @@ def make_temple_block_on_curled_headband():
   )
   save("temple_block_on_curled_headband", temple_block_on_curled_headband)
   
-'''
-upper_side_rim_upper_block = Part.makeLoft ([
-  polygon([
-    vector(0, 3, 0),
-    vector(-10, 3, 0),
-    vector(-10, -0.6, 0),
-    vector(0, -0.6, 0),
-  ]).to_wire().transformGeometry(matrix_from_columns(forehead_curve.tangent(forehead_curve.parameter(temple))[0], sample.curve_in_surface_normal, -sample.curve_tangent, sample.position))
 
-  for sample in curve_samples(shield_upper_side_curve, 2, shield_upper_side_curve.length() - shield_glue_face_width - contact_leeway, shield_upper_side_curve.length() + min_wall_thickness - headband_width + 2)
-], True)
-show_transformed (upper_side_rim_upper_block, "upper_side_rim_upper_block")
-
-def top_peg (distance, length):
-  sample = CurveSample (shield_top_curve, distance = distance)
-  return polygon([
-    vector(-1.3, min_wall_thickness, 0),
-    vector(1.3, min_wall_thickness, 0),
-    vector(2, -2.5, 0),
-    vector(-2, -2.5, 0),
-  ]).to_face().transformGeometry(matrix_from_columns(sample.curve_tangent, sample.curve_in_surface_normal_unit_height_from_plane, sample.normal, sample.position)).fancy_extrude (-forehead_curve.tangent(forehead_curve.parameter(temple))[0], bounds(min_wall_thickness/2, length))
-top_pegs = [top_peg (shield_top_curve_length - 1.5, 10), top_peg (shield_top_curve_length - 8, 5)]
-show_transformed (Part.Compound (top_pegs), "top_pegs")
-
-temple_block = temple_block.cut ([upper_side_rim_upper_block.makeOffsetShape(contact_leeway, 0.01)] + [peg.makeOffsetShape (contact_leeway, 0.01) for peg in top_pegs])
-show_transformed (temple_block, "temple_block")
-
-'''
-
+  
+  
+  
 
 elastic_hook_base_length = 5
 elastic_hook_outwards = 6

@@ -711,7 +711,9 @@ def setup(wrap, unwrap, do_export, override_attribute):
           last_vertex = item
         else:
           builder.Add (item)
-          last_vertex = builder.Vertex()
+          # for some reason, this doesn't work (gets "vertex hasn't gp_Pnt" errors)
+          #last_vertex = builder.Vertex()
+          last_vertex = item.edges()[-1].vertices()[-1]
       if loop:
         builder.Add (Edge (last_vertex, first_vertex))
       if not builder.IsDone():
