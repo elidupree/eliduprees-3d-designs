@@ -738,10 +738,10 @@ def forehead_elastic_hook(derivatives):
   
 @run_if_changed
 def make_forehead_elastic_hooks():
-  orientations = [-1,1,1,-1]
+  orientations = [-1,1,-1]
   distance_radius = temple_block_from_middle_distance - temple_block_length - forehead_elastic_hook_width/2 - cloth_with_elastic_space
   hooks = []
-  for orientation, distance in zip (orientations, subdivisions (curled_middle_distance - distance_radius, curled_middle_distance + distance_radius, amount = len (orientations))):
+  for orientation, distance in zip (orientations, subdivisions (curled_middle_distance + 18, curled_middle_distance + distance_radius, amount = len (orientations))):
     hook = forehead_elastic_hook (large_forehead_curve.derivatives (distance = distance))
     if orientation == -1:
       hook = hook @ Reflect(Up) @ Translate(Up*headband_top)
@@ -1634,10 +1634,9 @@ def make_FDM_printable_headband():
     curled_headband,
     curled_headband_wave,
     overhead_strap_slots,
-    forehead_elastic_hooks,
     forehead_overhead_strap_joint,
   ]
-  + reflected ([temple_block_on_curled_headband]))
+  + reflected ([temple_block_on_curled_headband, forehead_elastic_hooks,]))
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
 
