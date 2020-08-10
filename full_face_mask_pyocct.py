@@ -311,7 +311,7 @@ class CurveSample (ShieldSample):
     self.curve_in_surface_normal = Direction (self.curve_tangent.cross (self.normal))
     
     if isinstance(curve, ShieldCurveInPlane):
-      self.plane_normal = curve.plane.normal(0,0) # note: even though it's a plane, it becomes a BSplineSurface when it gets reloaded, so we need to give the parameters
+      self.plane_normal = curve.plane.normal(0,0) # note: the plane is actually a BSplineSurface, so we need to give the parameters
       self.normal_in_plane = Direction (-self.normal.cross(self.plane_normal).cross(self.plane_normal))
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
@@ -596,8 +596,15 @@ def make_top_rim():
       for a,b in coords
     ], loop = True)
     top_rim_hoops.append (wire)
-    
-  save ("top_rim", Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True))
+  
+  top_rim = Loft ([wire@Mirror (Right) for wire in reversed (top_rim_hoops[1:])] + top_rim_hoops, solid = True)
+  sample = CurveSample (shield_upper_side_curve, z=0)
+  cut = Box (Point(0, -lots, -lots), Point(lots, lots, lots)).intersection(HalfSpace (
+    sample.position - sample.curve_in_surface_normal*(shield_glue_face_width + contact_leeway),
+    sample.curve_in_surface_normal
+  ))
+  
+  save ("top_rim", Difference(top_rim, [cut, cut@Reflect (Right)]))
 
 
 
@@ -671,26 +678,30 @@ CPAP_grabber = Part.Compound([
 show_transformed (CPAP_grabber, "CPAP_grabber")'''
 
 
+temple_block_length = 36
 
+@run_if_changed
+def make_temple_block():
+  temple_block_inside = []
+  temple_block_top = []
+  temple_block_bottom = []
+  temple_block_start_distance = standard_forehead_curve.distance (closest = temple)-1
+  
+  for distance in range (temple_block_length + 1):
+    temple_block_inside.append (standard_forehead_curve.value (distance = temple_block_start_distance - distance))
+    sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance*1.1)
+    
+    foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.normal_in_plane*contact_leeway
+    temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
+    temple_block_bottom.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*(min_wall_thickness - headband_width))
+  temple_block_hoops = [
+    Wire(temple_block_top + [Point(a[0], a[1], temple_block_top[0][2]) for a in reversed(temple_block_inside)], loop = True), 
+    Wire(temple_block_bottom + [Point(a[0], a[1], temple_block_bottom[0][2]) for a in reversed(temple_block_inside)], loop = True), 
+  ]
+  temple_block = Loft(temple_block_hoops, solid = True)
+  save ("temple_block_uncut", temple_block)
 
 '''
-temple_block_inside = []
-temple_block_top = []
-temple_block_bottom = []
-temple_block_start_distance = forehead_curve.length (0, forehead_curve.parameter (temple))-1
-temple_block_length = 15
-for distance in range (temple_block_length + 1):
-  temple_block_inside.append (forehead_curve.value (forehead_curve.parameterAtDistance(temple_block_start_distance - distance)))
-  sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance*1.1)
-  
-  foo = sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.normal_in_plane*contact_leeway
-  temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
-  temple_block_bottom.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*(min_wall_thickness - headband_width))
-temple_block_hoops = [
-  polygon(temple_block_top + [vector(a[0], a[1], temple_block_top[0][2]) for a in reversed(temple_block_inside)]), 
-  polygon(temple_block_bottom + [vector(a[0], a[1], temple_block_bottom[0][2]) for a in reversed(temple_block_inside)]), 
-]
-temple_block = Part.makeLoft(temple_block_hoops, True)
 
 forehead_hook_thickness = 3
 forehead_hook_distance = temple_block_start_distance - temple_block_length - cloth_with_elastic_space - forehead_hook_thickness/2
@@ -766,7 +777,6 @@ save ("lower_rim_cut", Vertex(
   shield_back + shield_glue_face_width + contact_leeway,
   side_curve_source_points[1][1]-contact_leeway
 ).extrude(Right*lots, centered=True).extrude(Front*lots).extrude(Up*lots))
-save ("upper_rim_cut", HalfSpace(Point(0,0,0-contact_leeway), Up))
 
 
 def upper_side_lip_tip(sample):
@@ -777,6 +787,11 @@ def upper_side_lip_tip(sample):
 @run_if_changed
 def make_upper_side_rim():
   upper_side_rim_hoops = []
+  support_base = Edge (standard_forehead_curve).intersection (Box (
+    Point (0, temple [1] - min_wall_thickness, - lots), Point (lots, temple [1]+shield_glue_face_width, lots)
+  ))
+  support_base = support_base.extrude (Direction (*(v.point() for v in support_base.vertices()))@Rotate(Up, degrees=90)*min_wall_thickness).wires()[0]
+  support_hoops = []
   for sample in curve_samples(shield_upper_side_curve, amount = 20):
     upper_side_rim_hoops.append(Wire([
       sample.position,
@@ -787,8 +802,11 @@ def make_upper_side_rim():
       upper_side_lip_tip(sample),
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ], loop = True))
-  upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
-  upper_side_rim = Difference(upper_side_rim, upper_rim_cut)
+    support_hoops.append (support_base@Translate(temple, sample.position))
+  upper_side_rim = Union (
+    Loft (upper_side_rim_hoops, solid = True),
+    Loft (support_hoops, solid = True).cut (HalfSpace (Point (0, 0, headband_bottom - contact_leeway), Up)),
+  )
   save ("upper_side_rim", upper_side_rim)
 
 
@@ -829,47 +847,87 @@ save("elastic_tension", Compound (elastic_tension_hoops))
 
 
 
+@run_if_changed
+def make_side_joint():
+  side_joint_peg_flat = Face(Wire([
+    Point(-1, shield_glue_face_width, 0),
+    Point(-4, shield_glue_face_width, 0),
+    Point(-3, shield_glue_face_width-3, 0),
+    Point(-1, shield_glue_face_width-3, 0),
+  ], loop = True))
 
-side_joint_peg_flat = Face(Wire([
-  Point(-1, shield_glue_face_width, 0),
-  Point(-4, shield_glue_face_width, 0),
-  Point(-3, shield_glue_face_width-3, 0),
-  Point(-1, shield_glue_face_width-3, 0),
-], loop = True))
-
-side_joint_peg = side_joint_peg_flat.extrude(Up*13)@Translate(Down*5)
-sample = CurveSample (shield_lower_side_curve, distance = 0)
-matrix = GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
-side_joint_peg = side_joint_peg@matrix
-side_joint_peg_hole = Offset(side_joint_peg, contact_leeway)
-side_joint_peg_neighborhood = Offset(side_joint_peg, contact_leeway + min_wall_thickness)
-save ("side_joint_peg", side_joint_peg)
+  side_joint_peg = side_joint_peg_flat.extrude(Up*13)@Translate(Down*5)
+  sample = CurveSample (shield_lower_side_curve, distance = 0)
+  matrix = GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
+  side_joint_peg = side_joint_peg@matrix
+  side_joint_peg_hole = Offset(side_joint_peg, contact_leeway)
+  side_joint_peg_neighborhood = Offset(side_joint_peg, contact_leeway + min_wall_thickness)
+  save ("side_joint_peg", side_joint_peg)
+  save ("side_joint_peg_hole", side_joint_peg_hole)
 
 
-lower_rim_block = Loft ([
-  Wire([
-    Point(0, shield_glue_face_width, 0),
-    Point(-3.7, shield_glue_face_width, 0),
-    Point(-2.9, shield_glue_face_width-3, 0),
-    Point(0, shield_glue_face_width-3, 0),
-  ], loop = True)@GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
+  lower_rim_block = Loft ([
+    Wire([
+      Point(0, shield_glue_face_width, 0),
+      Point(-3.7, shield_glue_face_width, 0),
+      Point(-2.9, shield_glue_face_width-3, 0),
+      Point(0, shield_glue_face_width-3, 0),
+    ], loop = True)@GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
 
-  for sample in curve_samples(shield_lower_side_curve, 0, 10, amount = 5)
-], solid = True)
-save ("lower_rim_block", Difference (lower_rim_block, lower_rim_cut))
+    for sample in curve_samples(shield_lower_side_curve, 0, 10, amount = 5)
+  ], solid = True)
+  save ("lower_rim_block", Difference (lower_rim_block, lower_rim_cut))
 
-upper_side_rim_lower_block = Loft ([
-  Wire([
-    Point(0, shield_glue_face_width, 0),
-    Point(-7, shield_glue_face_width, 0),
-    Point(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
-    Point(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
-  ], loop = True)@GeometryTransform (sample.normal_in_plane, -sample.curve_in_surface_normal, sample.curve_tangent, sample.position)
+  upper_side_rim_lower_block = Loft ([
+    Wire([
+      Point(0, shield_glue_face_width, 0),
+      Point(-7, shield_glue_face_width, 0),
+      Point(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
+      Point(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
+    ], loop = True)@GeometryTransform (sample.normal_in_plane, -sample.curve_in_surface_normal, sample.curve_tangent, sample.position)
 
-  for sample in curve_samples(shield_upper_side_curve, shield_upper_side_curve.length() - 9, shield_upper_side_curve.length(), amount = 5)
-], solid = True).cut(side_joint_peg_hole).intersection (side_joint_peg_neighborhood)
-save("upper_side_rim_lower_block", upper_side_rim_lower_block)
+    for sample in curve_samples(shield_upper_side_curve, shield_upper_side_curve.length() - 9, shield_upper_side_curve.length(), amount = 5)
+  ], solid = True).cut(side_joint_peg_hole).intersection (side_joint_peg_neighborhood)
+  save("upper_side_rim_lower_block", upper_side_rim_lower_block)
 
+@run_if_changed
+def make_temple_block_pegs():
+  sample_heights = [
+    headband_top - stiffer_wall_thickness - contact_leeway,
+    headband_bottom + stiffer_wall_thickness + contact_leeway,
+  ]
+  samples = [CurveSample (shield_upper_side_curve, z=z) for z in sample_heights]
+  peg_direction = -standard_forehead_curve.derivatives (closest = temple).tangent
+  peg_hoops = [
+    Wire([
+      sample.position + a*peg_direction - b*sample.curve_in_surface_normal
+      for a,b in [
+        (0.2, -0.4),
+        (10, -0.4),
+        (10, 3),
+        (0.2, 3),
+      ]
+    ], loop = True)
+    for sample in samples
+  ]
+  side_peg = Loft (peg_hoops, solid = True)
+  
+  
+  def top_peg (sample):
+    return Edge (
+      sample.position - (stiffer_wall_thickness - min_wall_thickness + contact_leeway)*sample.curve_in_surface_normal_unit_height_from_plane,
+      sample.position - (shield_glue_face_width)*sample.curve_in_surface_normal_unit_height_from_plane
+    ).extrude (-sample.normal_in_plane*10).extrude (sample.curve_tangent*3, centered = True)
+  
+  
+  top_pegs = [top_peg(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length - 14, shield_top_curve_length - temple_block_length + 2, amount = 2)]
+  
+  save ("temple_side_peg", side_peg)
+  save ("temple_top_pegs", Compound (top_pegs))
+  save ("temple_block", Difference (temple_block_uncut, [Offset(a, contact_leeway) for a in [side_peg] + top_pegs]))
+  
+  
+  
 '''
 upper_side_rim_upper_block = Part.makeLoft ([
   polygon([
@@ -912,13 +970,13 @@ elastic_hook = Face(Wire([
 ], loop = True)).extrude(vector(0,0,stiffer_wall_thickness))
 
 
-top_hook_back = CurveSample (shield_top_curve, y= headphones_front+4, which = 1)
+top_hook_back = CurveSample (shield_top_curve, y= headphones_front+8, which = 1)
 save("top_hook_front", CurveSample (shield_top_curve, distance = top_hook_back.curve_distance - elastic_hook_forwards))
 top_hook_forwards = Direction (top_hook_front.position - top_hook_back.position)
 
 save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness)))
 
-save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, -elastic_hook_base_length-1)))
+save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
 
 
 #preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook)
@@ -1558,8 +1616,32 @@ def make_FDM_printable_lower_side():
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
 
+@run_if_changed
+def make_FDM_printable_upper_side():
+  upper_side = Compound ([
+    upper_side_rim.cut(side_joint_peg_hole),
+    temple_side_peg,
+    side_hook,
+    upper_side_rim_lower_block,
+  ])
+  save("upper_side", upper_side)
+  save_STL("upper_side", upper_side)
+  
+
+@run_if_changed
+def make_FDM_printable_top_rim():
+  top_rim_final = Compound ([
+    top_rim,
+  ]
+  + reflected ([temple_top_pegs, top_hook]))
+  save("top_rim_final", top_rim_final)
+  save_STL("top_rim_final", top_rim_final)
+
 preview (
   standard_headband,
+  temple_top_pegs,
+  temple_side_peg,
+  temple_block,
   top_rim,
   upper_side_rim,
   upper_side_rim@Reflect(Right),
