@@ -148,7 +148,6 @@ lots = 500
 min_head_circumference = 500
 max_head_circumference = 650
 min_overhead_strap_length = 250
-fastener_hook_length = 80
 
 
 ########################################################################
@@ -525,8 +524,8 @@ def make_headband_1():
 @run_if_changed
 def make_headband_2():
   faces = Compound(
-    forehead_wave(fastener_hook_length, large_forehead_curve.distance(closest=temple@Mirror(Right))),
-    forehead_wave(large_forehead_curve.distance(closest=temple), large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length/2)),
+    forehead_wave(fastener_hook_length + 80, large_forehead_curve.distance(closest=temple@Mirror(Right))),
+    forehead_wave(large_forehead_curve.distance(closest=temple), large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length)),
   )
   save("curled_headband_wave", flat_to_headband(faces))
 
