@@ -355,12 +355,13 @@ def eye_laser(direction):
   except IndexError:
     return Wire (putative_eyeball, putative_eyeball + direction*200)
     
-  
-save ("eye_lasers", Compound ([
-  eye_laser(Direction (x, 1, z))
-  for x in subdivisions (-2, 2, amount = 10)
-  for z in subdivisions (-2, 2, amount = 10)
-]))
+@run_if_changed
+def make_eye_lasers():
+  save ("eye_lasers", Compound ([
+    eye_laser(Direction (x, 1, z))
+    for x in subdivisions (-2, 2, amount = 10)
+    for z in subdivisions (-2, 2, amount = 10)
+  ]))
 
 ########################################################################
 ########  Forehead/headband/top rim  #######
@@ -407,12 +408,13 @@ overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
 
 save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
 
+@run_if_changed
+def make_standard_headband():
+  standard_headband_2D = Offset2D(Wire (Edge (standard_forehead_curve)), headband_thickness, fill = True)
+  save ("standard_headband_2D", standard_headband_2D)
 
-save ("standard_headband_2D", Offset2D(Wire (Edge (standard_forehead_curve)), headband_thickness, fill = True)#.cut(headband_cut_box)
-)
-
-standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
-save("standard_headband")
+  standard_headband = (standard_headband_2D@Translate (Up*headband_top)).extrude (Down*headband_width)
+  save("standard_headband", standard_headband)
 
 
 head_variability = max_head_circumference - min_head_circumference
@@ -477,11 +479,13 @@ def curled_forehead_points(total_distance, offset_distance):
   
   return result
 
-curled_forehead_poles = [a@Mirror (Right) for a in reversed(
-curled_forehead_points(headband_left_length, 5)[1:])] + curled_forehead_points(headband_right_length, -5)
-save("large_forehead_curve", BSplineCurve(
-  curled_forehead_poles,
-))
+@run_if_changed
+def make_curled_forehead():
+  curled_forehead_poles = [a@Mirror (Right) for a in reversed(
+  curled_forehead_points(headband_left_length, 5)[1:])] + curled_forehead_points(headband_right_length, -5)
+  save("large_forehead_curve", BSplineCurve(
+    curled_forehead_poles,
+  ))
 
 def forehead_wave(*distance_range):
   forehead_wave_curves = []
@@ -837,12 +841,14 @@ def make_lower_side_rim():
   lower_side_rim = Difference(lower_side_rim, lower_rim_cut)
   save ("lower_side_rim", lower_side_rim)
 
-#side_plate_hoops = []
-elastic_tension_hoops = []
-for sample in curve_samples(shield_side_curve, amount = 79):
-  elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
+@run_if_changed
+def make_elastic_tension():
+  #side_plate_hoops = []
+  elastic_tension_hoops = []
+  for sample in curve_samples(shield_side_curve, amount = 79):
+    elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
 
-save("elastic_tension", Compound (elastic_tension_hoops))
+  save("elastic_tension", Compound (elastic_tension_hoops))
 
 
 
@@ -1272,20 +1278,24 @@ def center_vertices_on_letter_paper(vertices):
 ########################################################################
 ########  Unrolled shield shape  #######
 ########################################################################
-  
+
 flat_approximation_increments = 201
-previous_sample = None
-flat_approximations = [0]
-for sample in curve_samples(shield_top_curve, amount=flat_approximation_increments):
-  if previous_sample is not None:
-    difference = sample.position - previous_sample.position
-    average = Between(sample.position, previous_sample.position)
-    from_focus = Vector(shield_focal_point, average)
-    relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
-    angle = math.atan2(relevant_difference.length(), from_focus.length())
-    flat_approximations.append (flat_approximations [-1] + angle)
-  previous_sample = sample
-#print (f"{flat_approximations}")
+@run_if_changed
+def make_flat_approximations():
+  previous_sample = None
+  flat_approximations = [0]
+  for sample in curve_samples(shield_top_curve, amount=flat_approximation_increments):
+    if previous_sample is not None:
+      difference = sample.position - previous_sample.position
+      average = Between(sample.position, previous_sample.position)
+      from_focus = Vector(shield_focal_point, average)
+      relevant_difference = difference - from_focus*(difference.dot(from_focus)/from_focus.dot(from_focus))
+      angle = math.atan2(relevant_difference.length(), from_focus.length())
+      flat_approximations.append (flat_approximations [-1] + angle)
+    previous_sample = sample
+  #print (f"{flat_approximations}")
+  save("flat_approximations", flat_approximations)
+  
 def flat_approximate_angle (sample):
   difference = (sample.position - shield_focal_point)
   projected = CurveSample (shield_top_curve, closest = shield_focal_point + difference*(shield_top_curve.StartPoint()[2] - shield_focal_point[2])/difference [2])
@@ -1329,20 +1339,21 @@ def segments (vertices):
   print (f"total length: {sum( segment.length() for segment in result)}")
   return result
 
-unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, shield_side_curve_length/2, shield_side_curve_length, amount=40)
-  ]
-unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 0, shield_top_curve_length/2, amount=40)
+@run_if_changed
+def make_unrolled_shield():
+  unrolled_side = [unrolled (surface) for surface in curve_samples (shield_side_curve, shield_side_curve_length/2, shield_side_curve_length, amount=40)
     ]
-  
-unrolled_combined = unrolled_top+unrolled_side
-center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
+  unrolled_top = [unrolled (surface) for surface in curve_samples (shield_top_curve, 0, shield_top_curve_length/2, amount=40)
+      ]
     
-
-save("unrolled_shield_wire", Wire(
-  segments (unrolled_side) + segments (unrolled_top) + [Edge(unrolled_side[0][1], unrolled_top[-1][1])]
-))
-
-save_inkscape_svg("unrolled_shield.svg", unrolled_shield_wire)
+  unrolled_combined = unrolled_top+unrolled_side
+  center_vertices_on_letter_paper(lambda: (vertex [1] for vertex in unrolled_combined))
+      
+  unrolled_shield_wire = Wire(
+    segments (unrolled_side) + segments (unrolled_top) + [Edge(unrolled_side[0][1], unrolled_top[-1][1])]
+  )
+  save("unrolled_shield_wire", unrolled_shield_wire)
+  save_inkscape_svg("unrolled_shield.svg", unrolled_shield_wire)
 
 
 ########################################################################

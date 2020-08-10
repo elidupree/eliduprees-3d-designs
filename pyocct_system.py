@@ -503,11 +503,19 @@ def _load_cache (key):
   value, hash = _deserialize(path)
   _cache_info_by_global_key [key] = {"output_hash": hash}
   _cache_globals [key] = value
+
+_last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
   
 def run_if_changed (function):
   function_name = function.__name__
-  
   print (f"### doing {function_name}() ###")
+  
+  global _last_finished_ric_function
+  seconds = (datetime.datetime.now() - _last_finished_ric_function["time"]).total_seconds()
+  if seconds > 0.1:
+    print(f"""(It's been {seconds} seconds since {_last_finished_ric_function["name"]}, maybe there's some expensive stuff not wrapped in a @run_if_changed function?)""")
+  
+  
   code, code2 =_get_code (function)
   #print (code)
   #print(list(_globals_in_code(code)))
@@ -557,6 +565,7 @@ def run_if_changed (function):
     
     finish_time = datetime.datetime.now()
     print(f"…done with {function_name}()! ({finish_time}, took {(finish_time - start_time)})")
+  _last_finished_ric_function = {"name": function_name + "()", "time": datetime.datetime.now()}
 
 class _SaveByName:
   pass
@@ -611,6 +620,9 @@ def initialize_system (cache_globals, argument_parser = None):
 
   
 def preview(*preview_shapes, width=2000, height=1500):
+  global _last_preview_start
+  seconds = (datetime.datetime.now() - _last_preview_start).total_seconds()
+  print(f"""(It's been {seconds} seconds since the start of the program (or last preview))""")
   if skip_previews:
     print (f"Skipping preview of: {preview_shapes}")
   else:
@@ -626,4 +638,7 @@ def preview(*preview_shapes, width=2000, height=1500):
         shape = Face (shape)
       v.display_shape(unwrap(shape))
     v.start()
-  
+  _last_preview_start = datetime.datetime.now()
+    
+_last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
+_last_preview_start = datetime.datetime.now()
