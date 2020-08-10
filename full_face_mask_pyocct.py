@@ -530,22 +530,26 @@ def make_headband_2():
   )
   save("curled_headband_wave", flat_to_headband(faces))
 
-def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0):
+def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, prong_side = 0):
   middle = (start + finish)/2
   positions = subdivisions (-overhead_strap_width, overhead_strap_width, amount = 7)
   fractions = [0, 1, 1, 1, 1, 1, 0]
   controls = []
   position_derivatives = [curve.derivatives (distance = middle + position) for position in positions]
+  control_offset_distance = min_wall_thickness + ridge_thickness + contact_leeway*2
   for derivatives, fraction in zip (position_derivatives, fractions):
     derivatives.adjusted_normal = derivatives.tangent@Rotate (Up, degrees = 90*direction)
-    controls.append (derivatives.position + derivatives.adjusted_normal*(wall_adjust + fraction*(min_wall_thickness + ridge_thickness + contact_leeway*2)))
+    controls.append (derivatives.position + derivatives.adjusted_normal*(wall_adjust + fraction*control_offset_distance))
   slot = Wire (Edge (BSplineCurve (controls)))
   slot = Face (Offset2D (slot, min_wall_thickness/2))
   slot = (slot@Translate(Up*bottom)).extrude (Up*(top - bottom))
   prong = Edge (position_derivatives[2].position, position_derivatives [-3].position)
   middle_derivatives = position_derivatives [len (position_derivatives)//2]
+  prong_length = min_wall_thickness/2 + ridge_thickness - min_wall_thickness
+  prong = prong.extrude (middle_derivatives.adjusted_normal*prong_length).extrude (Up*1.5*math.copysign(1, top - bottom))
   prong = prong@Translate (middle_derivatives.adjusted_normal*wall_adjust + Up*bottom)
-  prong = prong.extrude (middle_derivatives.adjusted_normal*(min_wall_thickness/2 + ridge_thickness - min_wall_thickness)).extrude (Up*1.5*math.copysign(1, top - bottom))
+  if prong_side == 1:
+    prong = prong@Translate (middle_derivatives.adjusted_normal*(control_offset_distance - prong_length))
   return Compound(slot, prong)
 
 @run_if_changed
@@ -564,18 +568,26 @@ save_STL ("overhead_strap_slot_test", overhead_strap_slot_test)
 #preview (overhead_strap_slot_test)'''
 #preview (large_forehead_curve, curled_headband, curled_headband_wave, standard_headband_2D, overhead_strap_slots)
 
-@run_if_changed
-def make_overhead_strap():
+def overhead_strap_ridges_face(start, finish):
   ridge_points = []
   ridge_back_points = []
-  for index, ridge_distance in enumerate (subdivisions (min_overhead_strap_length, overhead_strap_curve.length(), max_length = 2, require_parity = 1)):
+  for index, ridge_distance in enumerate (subdivisions (start, finish, max_length = 2, require_parity = 1)):
     derivatives = overhead_strap_curve.derivatives (distance = ridge_distance)
     offset = (min_wall_thickness/2) if index % 2 == 0 else (ridge_thickness - min_wall_thickness/2)
     ridge_points.append (derivatives.position - derivatives.normal*offset)
     ridge_back_points.append (derivatives.position)
-  ridges_face = Face(Wire(ridge_points + ridge_back_points[::-1], loop=True))
+  return Face(Wire(ridge_points + ridge_back_points[::-1], loop=True))
+
+
+@run_if_changed
+def make_overhead_strap():
   strap_face = Face(Offset2D(Wire(Edge(overhead_strap_curve)), min_wall_thickness/2))
-  save ("overhead_strap", Union(strap_face, ridges_face).extrude(Right*overhead_strap_width, centered = True))
+  combined_face = Union(
+    strap_face,
+    overhead_strap_ridges_face(min_overhead_strap_length, overhead_strap_curve.length()),
+    overhead_strap_ridges_face(0, headband_width*1.2),
+  )
+  save ("overhead_strap", combined_face.extrude(Right*overhead_strap_width, centered = True))
 
 '''save ("overhead_strap_test", Intersection (
   overhead_strap,
@@ -659,7 +671,6 @@ def make_CPAP_grabber():
   derivatives = main_arc.derivatives (min_parameter)
   # we want: radius - (outward normal[0]*radius) = x - min_wall_thickness/2 - space/2
   space = 1.5
-  print (derivatives.normal)
   side_arc_radius = (derivatives.position [0] - min_wall_thickness/2 - space/2) / (1 + derivatives.normal[0])
   side_arc = TrimmedCurve (Circle (Axes (derivatives.position - derivatives.normal*side_arc_radius, Up, Right), side_arc_radius), math.tau/4 + min_parameter, math.tau*6/8)
   curves = [
@@ -738,6 +749,10 @@ def make_forehead_elastic_hooks():
       hook = hook @ Translate(Up*headband_bottom)
     hooks.append (hook)
   save ("forehead_elastic_hooks", Compound (hooks))
+
+@run_if_changed
+def make_forehead_overhead_strap_joint():
+  save("forehead_overhead_strap_joint", ridge_slot(large_forehead_curve, curled_middle_distance-20, curled_middle_distance+20, direction = 1, wall_adjust = min_wall_thickness/2, top = headband_bottom, bottom = headband_top, prong_side = 1))
 
 ########################################################################
 ########  Side rim and stuff #######
@@ -1610,16 +1625,26 @@ def make_FDM_printable_top_rim():
   save_STL("top_rim_final", top_rim_final)
 
 @run_if_changed
+def make_FDM_printable_overhead_strap():
+  save_STL("overhead_strap", overhead_strap)
+
+@run_if_changed
 def make_FDM_printable_headband():
   headband_final = Compound ([
     curled_headband,
     curled_headband_wave,
     overhead_strap_slots,
+    forehead_elastic_hooks,
+    forehead_overhead_strap_joint,
   ]
   + reflected ([temple_block_on_curled_headband]))
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
-  
+
+preview(
+  headband_final,
+  overhead_strap,
+)
 preview (
   standard_headband,
   temple_top_pegs,
