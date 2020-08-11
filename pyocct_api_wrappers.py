@@ -665,24 +665,24 @@ def setup(wrap, unwrap, do_export, override_attribute):
       results.extend (compounded_shapes (child))
     
     return results
+  
+  def CompoundIfNeeded (shapes):
+    if len (shapes) == 1:
+      return shapes[0]
+    return Compound (shapes)
     
   def decompose_compound (compound):
-    results = compounded_shapes (compound)
-    if len (results) == 1:
-      return results [0]
-    return Compound (results)
+    return CompoundIfNeeded (compounded_shapes (compound))
     
   simple_override(Compound, "decompose", decompose_compound)
   simple_override(Shape, "decompose_if_compound", decompose_compound)
+  simple_override(Shape, "compounded_shapes", compounded_shapes)
   
   def recursive_flatten_compounded (*arguments):
     return [value for argument in recursive_flatten(*arguments) for value in compounded_shapes (argument)]
 
   def recursive_decompose (*arguments):
-    results = recursive_flatten_compounded (*arguments)
-    if len (results) == 1:
-      return results [0]
-    return Compound (results)
+    return CompoundIfNeeded (recursive_flatten_compounded (*arguments))
   
   def is_shape(obj):
     return isinstance(obj, Shape)
@@ -990,6 +990,14 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return finish_Boolean (builder)
     
   def Intersection (first, second):
+    first_shapes = recursive_flatten_compounded(first)
+    if len (first_shapes) > 1:
+      return CompoundIfNeeded ([result_shape for shape in first_shapes for result_shape in Intersection (shape, second).compounded_shapes()])
+      
+    second_shapes = recursive_flatten_compounded(second)
+    if len (second_shapes) > 1:
+      return CompoundIfNeeded ([result_shape for shape in second_shapes for result_shape in Intersection (first, shape).compounded_shapes()])
+      
     builder = BRepAlgoAPI.BRepAlgoAPI_Common(first.decompose_if_compound(), second.decompose_if_compound())
     return finish_Boolean (builder)
   
