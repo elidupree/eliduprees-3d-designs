@@ -103,6 +103,17 @@ Additional notes after prototype #3:
 – Eventually, the temple joint deformed (wasn't strong enough)
 
 
+Additional notes after (never-completed) prototype #4:
+– the temple joint needs reinforcing to prevent the upper side rim bending forwards and backwards
+– the "flex but don't twist" wave got in the way of plugging the upper side ran into its whole (that's just plug it lower down)
+– the upper side rim needs reinforcing to prevent it from twisting
+– the side joint likewise needs to be reinforced to prevent twisting (once the upper side is no longer the weakest point)
+– one of the forehead elastic hooks broke; also it would be nice to have "flex but don't twist" across the whole forehead, so maybe give up on the elastic hooks and just put the elastic on the human forehead again
+– the chin positioning wasn't quite right; with the most comfortable headband position, I measured the shield around 19mm in front of my chin instead of the target 10mm.
+– the overhead strap needs to be stopped from wobbling side to side
+– the CPAP grabber was no good (you can't put the mask on while holding both hoses to the back of the head, and also it was unhelpful and thence the overhead strap all over the place); probably just get rid of it and rely on the mask stiffness to handle the hoses
+– the hook and loop fasteners stick to your hair if you're not careful, and also a normal person might put them on wrong; try making a plastic valley around the hooks to help with these
+
 '''
 
 import math
