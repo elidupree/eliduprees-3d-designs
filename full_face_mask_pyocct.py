@@ -779,9 +779,9 @@ def make_side_joint():
     return Edge (
       sample.position - (shield_glue_face_width - 4)*sample.curve_in_surface_normal_unit_height_from_plane,
       sample.position - (shield_glue_face_width)*sample.curve_in_surface_normal_unit_height_from_plane
-    ).extrude (-sample.normal_in_plane*5).extrude (sample.curve_tangent*3, centered = True)
+    ).extrude (-sample.normal_in_plane*length).extrude (sample.curve_tangent*3, centered = True)
   
-  side_pegs = [side_peg(sample, length) for length, sample in zip([4, 8], curve_samples (shield_lower_side_curve, 10, 24, amount = 2))]
+  side_pegs = [side_peg(sample, length) for length, sample in zip([4, 7], curve_samples (shield_lower_side_curve, 10, 24, amount = 2))]
   save ("side_peg_holes", Compound ([Solid(Offset(a, contact_leeway)) for a in side_pegs]))
   save ("side_pegs", Compound (side_pegs))
   
