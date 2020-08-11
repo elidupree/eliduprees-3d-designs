@@ -113,6 +113,7 @@ Additional notes after (never-completed) prototype #4:
 – the overhead strap needs to be stopped from wobbling side to side
 – the CPAP grabber was no good (you can't put the mask on while holding both hoses to the back of the head, and also it was unhelpful and thence the overhead strap all over the place); probably just get rid of it and rely on the mask stiffness to handle the hoses
 – the hook and loop fasteners stick to your hair if you're not careful, and also a normal person might put them on wrong; try making a plastic valley around the hooks to help with these
+– for my headphones, it might be nice to have the CPAP intakes about 5mm lower, but I think that might bump into my shoulders too much.
 
 '''
 
@@ -143,7 +144,7 @@ headphones_front = forehead_point[1]-75
 #shield_back = headphones_front + side_plate_width - shield_glue_face_width
 shield_back = headphones_front + min_wall_thickness
 back_edge = forehead_point[1] - 96
-putative_chin = forehead_point + vector (0, 0, -135)
+putative_chin = forehead_point + vector (0, -9, -135)
 rim_bottom_z = -165 - shield_glue_face_width # experimentally measured -165 as the approximate invisible position; subtracting shield_glue_face_width isn't exactly the right formula, but it's an arbitrary number anyway
 glasses_point = forehead_point + vector (66, 0, -10)
 putative_eyeball = forehead_point + vector (35, -15, -35)
@@ -186,7 +187,7 @@ def projected_to_top (point):
 
 shield_source_curve_points = [
   above_temple,
-  projected_to_top (glasses_point + vector (15, 35, 0)),
+  projected_to_top (glasses_point + vector (15, 25, 0)),
   projected_to_top (shield_source_peak),
 ]
 
@@ -972,7 +973,7 @@ save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
 
 
-#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook)
+#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
 
 ########################################################################
 ########  Intake  #######
