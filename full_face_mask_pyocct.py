@@ -105,7 +105,7 @@ Additional notes after prototype #3:
 
 Additional notes after (never-completed) prototype #4:
 – the temple joint needs reinforcing to prevent the upper side rim bending forwards and backwards
-– the "flex but don't twist" wave got in the way of plugging the upper side ran into its whole (that's just plug it lower down)
+– the "flex but don't twist" wave got in the way of plugging the upper side ran into its whole (let's just plug it lower down)
 – the upper side rim needs reinforcing to prevent it from twisting
 – the side joint likewise needs to be reinforced to prevent twisting (once the upper side is no longer the weakest point)
 – one of the forehead elastic hooks broke; also it would be nice to have "flex but don't twist" across the whole forehead, so maybe give up on the elastic hooks and just put the elastic on the human forehead again
@@ -114,6 +114,8 @@ Additional notes after (never-completed) prototype #4:
 – the CPAP grabber was no good (you can't put the mask on while holding both hoses to the back of the head, and also it was unhelpful and thence the overhead strap all over the place); probably just get rid of it and rely on the mask stiffness to handle the hoses
 – the hook and loop fasteners stick to your hair if you're not careful, and also a normal person might put them on wrong; try making a plastic valley around the hooks to help with these
 – for my headphones, it might be nice to have the CPAP intakes about 5mm lower, but I think that might bump into my shoulders too much.
+
+main things that need attention now: temple/upper side reinforcing; hook and loop valley; overhead strap wobble
 
 '''
 
@@ -232,7 +234,7 @@ class ShieldCurveInPlane(SerializeAsVars):
 
 side_curve_source_points = [
   (shield_back, shield_glue_face_width),
-  (shield_back, -80),
+  (shield_back, -55),
   (shield_bottom_peak[1]+0.001, shield_bottom_peak[2])
 ]
 
@@ -528,23 +530,16 @@ def forehead_wave(*distance_range):
 
 
 @run_if_changed
-def make_headband_1():
+def make_curled_headband():
   wire = Wire(Edge(large_forehead_curve))
   shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
   expanded = Face(Offset2D(shifted, min_wall_thickness/2))
   save("curled_headband", flat_to_headband(expanded))
-  
-@run_if_changed
-def make_headband_2():
-  faces = Compound(
-    forehead_wave(fastener_hook_length + 80, large_forehead_curve.distance(closest=temple@Mirror(Right))),
-    forehead_wave(large_forehead_curve.distance(closest=temple), large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length)),
-  )
-  save("curled_headband_wave", flat_to_headband(faces))
 
+ridge_slot_width = overhead_strap_width*2
 def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, prong_side = 0):
   middle = (start + finish)/2
-  positions = subdivisions (-overhead_strap_width, overhead_strap_width, amount = 7)
+  positions = subdivisions (-ridge_slot_width/2, ridge_slot_width/2, amount = 7)
   fractions = [0, 1, 1, 1, 1, 1, 0]
   controls = []
   position_derivatives = [curve.derivatives (distance = middle + position) for position in positions]
@@ -738,7 +733,7 @@ curled_middle_distance = large_forehead_curve.distance (closest = forehead_point
 temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
 curled_temple_block_distance = curled_middle_distance + (temple_block_from_middle_distance)
 
-
+'''
 forehead_elastic_hook_width = 12
 def forehead_elastic_hook(derivatives):
   wire = Wire(FilletedEdges([
@@ -760,12 +755,22 @@ def make_forehead_elastic_hooks():
     else:
       hook = hook @ Translate(Up*headband_bottom)
     hooks.append (hook)
-  save ("forehead_elastic_hooks", Compound (hooks))
+  save ("forehead_elastic_hooks", Compound (hooks))'''
 
 @run_if_changed
 def make_forehead_overhead_strap_joint():
   save("forehead_overhead_strap_joint", ridge_slot(large_forehead_curve, curled_middle_distance-20, curled_middle_distance+20, direction = 1, wall_adjust = min_wall_thickness/2, top = headband_bottom, bottom = headband_top, prong_side = 1))
-
+  
+@run_if_changed
+def make_curled_headband_wave():
+  faces = Compound(
+    forehead_wave(fastener_hook_length + 80, curled_middle_distance - temple_block_from_middle_distance),
+    forehead_wave(curled_middle_distance - (temple_block_from_middle_distance - temple_block_length), curled_middle_distance - ridge_slot_width/2),
+    forehead_wave(curled_middle_distance + ridge_slot_width/2, curled_middle_distance + (temple_block_from_middle_distance - temple_block_length)),
+    forehead_wave(curled_middle_distance + temple_block_from_middle_distance, large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length)),
+  )
+  save("curled_headband_wave", flat_to_headband(faces))
+  
 ########################################################################
 ########  Side rim and stuff #######
 ########################################################################
@@ -1559,7 +1564,10 @@ def make_FDM_printable_headband():
     overhead_strap_slots,
     forehead_overhead_strap_joint,
   ]
-  + reflected ([temple_block_on_curled_headband, forehead_elastic_hooks,]))
+  + reflected ([
+    temple_block_on_curled_headband,
+    #forehead_elastic_hooks,
+  ]))
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
 
