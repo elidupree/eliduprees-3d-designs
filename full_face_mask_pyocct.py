@@ -643,39 +643,6 @@ def make_top_rim():
 
 
 
-'''headband_side_profile = Face(Wire(
-Segment (y = 0),
-Vertex (x = headphones_front + 20, tangent = True),
-Bezier (),
-Vertex (x = headphones_front, tangent = True),
-Segment (y = -6),
-Segment (x = -lots),
-Segment (y = headband_width),
-Segment (x = lots),
-))
-
-headband_side_profile = FreeCAD_shape_builder().build ([
-  start_at(500, 0),
-  horizontal_to(headphones_front + 20),
-  bezier([
-    (headphones_front + 15, 0),
-    (headphones_front + 10, -3),
-    (headphones_front + 5, -6),
-    (headphones_front, -6),
-  ]),
-  horizontal_to(-500),
-  vertical_to(headband_width),
-  horizontal_to(500),
-  close(),
-]).as_yz().to_wire().to_face().fancy_extrude (vector (1, 0, 0), centered(500))
-show_transformed (headband_side_profile, "headband_side_profile", invisible=True)
-headband = headband.common(headband_side_profile)
-
-# using a weird shaped way to attach the elastic for now, just for FDM convenience
-elastic_link_radius = 3
-elastic_link = Part.Circle(vector(), vector(0,0,1), elastic_link_radius + headband_thickness).toShape().to_wire().to_face().cut(Part.Circle(vector(), vector(0,0,1), elastic_link_radius).toShape().to_wire().to_face())'''
-
-
 
 CPAP_grabber_length = 16
 @run_if_changed
@@ -741,29 +708,7 @@ curled_middle_distance = large_forehead_curve.distance (closest = forehead_point
 temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
 curled_temple_block_distance = curled_middle_distance + (temple_block_from_middle_distance)
 
-'''
-forehead_elastic_hook_width = 12
-def forehead_elastic_hook(derivatives):
-  wire = Wire(FilletedEdges([
-    Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*0.5) + Up*stiffer_wall_thickness*0.5),
-    (Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*1.5 + cloth_with_elastic_space) + Up*stiffer_wall_thickness*0.5), stiffer_wall_thickness),
-    Vertex(derivatives.position - derivatives.normal*(stiffer_wall_thickness*1.5 + cloth_with_elastic_space) + Up*headband_width*0.8),
-  ])).offset2D(stiffer_wall_thickness/2)
-  return Face(wire).extrude(derivatives.tangent*forehead_elastic_hook_width, centered=True)
-  
-@run_if_changed
-def make_forehead_elastic_hooks():
-  orientations = [-1,1,-1]
-  distance_radius = temple_block_from_middle_distance - temple_block_length - forehead_elastic_hook_width/2 - cloth_with_elastic_space
-  hooks = []
-  for orientation, distance in zip (orientations, subdivisions (curled_middle_distance + 18, curled_middle_distance + distance_radius, amount = len (orientations))):
-    hook = forehead_elastic_hook (large_forehead_curve.derivatives (distance = distance))
-    if orientation == -1:
-      hook = hook @ Reflect(Up) @ Translate(Up*headband_top)
-    else:
-      hook = hook @ Translate(Up*headband_bottom)
-    hooks.append (hook)
-  save ("forehead_elastic_hooks", Compound (hooks))'''
+
 
 @run_if_changed
 def make_forehead_overhead_strap_joint():
@@ -1068,24 +1013,6 @@ def make_intake():
         
   intake_inner_pairs = intake_edges [1] + intake_edges[2][::-1]
   intake_outer_pairs = intake_edges [0] + intake_edges[3][::-1]
-
-
-        
-  '''
-  for sample in curve_samples(shield_lower_side_curve, 20, intake_middle.curve_distance + intake_flat_width/2, intake_middle.curve_distance - intake_flat_width/2):
-    augment_intake_sample(sample)
-    
-    shift = -0.5*min_wall_thickness*sample.curve_in_surface_normal
-    big_shift = (min_wall_thickness+elastic_holder_depth)*sample.curve_in_surface_normal
-    lower_side_cloth_lip.append (sample.intake_edge_points[3]+shift - big_shift)
-    lower_side_extra_lip_hoops.append (polygon ([
-        sample.intake_edge_points[4]+shift,
-        sample.intake_edge_points[5]+shift,
-        sample.intake_edge_points[5]+shift - big_shift,
-        sample.intake_edge_points[4]+shift - big_shift,
-      ]).to_wire())
-
-  '''
     
 
   chin_cloth_lip_points = (
@@ -1454,39 +1381,6 @@ print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: 
 ########################################################################
 ########  Split/assemble components into printable parts  #######
 ########################################################################
-'''whole_frame = Part.Compound ([
-  headband,
-  top_rim,
-  side_rim,
-  side_plate,
-  side_plate.mirror(vector(), vector (1, 0, 0)),
-  side_hooks,
-  side_hooks.mirror(vector(), vector (1, 0, 0)),
-  intake_solid,
-]+side_elastic_holders)
-
-show_transformed (whole_frame, "whole_frame", invisible=True)'''
-
-'''def reflected (component):
-  return [component, component.mirror (vector(), vector (1, 0, 0))]
-
-whole_headband = Part.Compound ([headband, forehead_elastic_guides] + reflected (temple_block) + reflected (forehead_hook))
-show_transformed (whole_headband, "whole_headband", invisible=pieces_invisible)
-
-whole_top_rim = Part.Compound ([top_rim] + reflected (top_pegs[0]) + reflected (top_pegs[1]) + reflected (top_hook))
-show_transformed (whole_top_rim, "whole_top_rim", invisible=pieces_invisible)
-
-upper_side = Part.Compound ([upper_side_rim, upper_side_rim_lower_block, upper_side_rim_upper_block, side_hook])
-show_transformed (upper_side, "upper_side", invisible=pieces_invisible)
-
-lower_side = Part.Compound ([lower_side_rim, lower_side_extra_lip, intake_solid] + reflected (lower_rim_block) + reflected (side_joint_peg))
-show_transformed (lower_side, "lower_side", invisible=pieces_invisible)
-
-
-joint_test_box = box(centered(22, on=78), centered(40, on=-123), centered(40))
-show_transformed (Part.Compound([foo.common(joint_test_box) for foo in upper_side.Solids]), "upper_side_joint_test", invisible=pieces_invisible)
-show_transformed (whole_top_rim.common(joint_test_box), "top_rim_joint_test", invisible=pieces_invisible)
-show_transformed (whole_headband.common(joint_test_box), "headband_joint_test", invisible=pieces_invisible)'''
 
 def reflected (components):
   return components + [component@Reflect(Right) for component in components]
