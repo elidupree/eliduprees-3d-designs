@@ -784,60 +784,8 @@ def make_curled_headband_wave():
 ########################################################################
 
 
-side_plate_bottom_z = -82
-Vertex(0, shield_back + shield_glue_face_width + contact_leeway, side_curve_source_points[1][2]-contact_leeway).point()
-save ("lower_rim_cut", Vertex(
-  0,
-  shield_back + shield_glue_face_width + contact_leeway,
-  side_curve_source_points[1][2]-contact_leeway
-).extrude(Right*lots, centered=True).extrude(Front*lots).extrude(Up*lots))
-
-
 def upper_side_lip_tip(sample):
   return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
-  
-#print(shield_upper_side_curve.plane)
-  
-@run_if_changed
-def make_upper_side_rim():
-  upper_side_rim_hoops = []
-  top_curve_start = putative_eyeball [2] + 15
-  forehead_exclusion = Face(standard_forehead_curve).extrude(Down*lots, centered=True)
-  forehead_size = standard_forehead_curve.value (closest = temple) [0]
-  for sample in curve_samples(shield_upper_side_curve, amount = 20):
-    glue_width = shield_glue_face_width
-    highness = (sample.position [2] - top_curve_start)/(headband_top - top_curve_start)
-    if highness > 0:
-      glue_width += 30 * (1 - math.sqrt(1 - highness**2))
-    front_edge = sample.position - glue_width*sample.curve_in_surface_normal
-    
-    if sample.position [2] < side_curve_source_points [1][2]:
-      front_edge = CurveSample (shield_lower_side_inner_curve, intersecting = Plane (sample.position, sample.curve_tangent), which = 1).position
-    conservative_eyeball = putative_eyeball + Front*20
-    towards_eye_normal = Direction (Vector(front_edge, conservative_eyeball).projected_perpendicular (sample.curve_tangent))
-    adjusted_forehead_exclusion = forehead_exclusion
-    required_solid_x = sample.position [0] - min_wall_thickness
-    if required_solid_x < forehead_size:
-      scale = Scale(required_solid_x/forehead_size, center = Point(0, temple[1], 0))
-      adjusted_forehead_exclusion = adjusted_forehead_exclusion @ scale
-    
-    face = Face(Wire([
-      #sample.position,
-      front_edge,
-      front_edge + towards_eye_normal*50,
-      sample.position - sample.normal_in_plane*30 - sample.plane_normal*min_wall_thickness,
-      upper_side_lip_tip(sample),
-      sample.position + sample.normal_in_plane*min_wall_thickness,
-    ], loop = True))
-    upper_side_rim_hoops.append(face.cut(adjusted_forehead_exclusion).wire())
-  
-  upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
-  upper_side_rim = upper_side_rim.cut(Face (lower_side_curve_source_surface).extrude (Front*lots))
-  shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
-  upper_side_rim = upper_side_rim.cut(shield_cut)
-  top_rim_exclusion = Solid(Offset (top_rim, contact_leeway))
-  upper_side_rim = upper_side_rim.cut(top_rim_exclusion)
-  save ("upper_side_rim", upper_side_rim)
 
 upper_side_cloth_lip = []
 for sample in curve_samples(shield_upper_side_curve,
@@ -866,7 +814,6 @@ def make_lower_side_rim():
       sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
     ], loop = True))
   lower_side_rim = Loft (lower_side_rim_hoops, solid = True)
-  lower_side_rim = Difference(lower_side_rim, lower_rim_cut)
   save ("lower_side_rim", lower_side_rim)
 
 @run_if_changed
@@ -878,87 +825,86 @@ def make_elastic_tension():
 
   save("elastic_tension", Compound (elastic_tension_hoops))
 
-
-
-
+  
+#print(shield_upper_side_curve.plane)
+  
 @run_if_changed
 def make_side_joint():
-  side_joint_peg_flat = Face(Wire([
-    Point(-1, shield_glue_face_width, 0),
-    Point(-4, shield_glue_face_width, 0),
-    Point(-3, shield_glue_face_width-3, 0),
-    Point(-1, shield_glue_face_width-3, 0),
-  ], loop = True))
+  def side_peg (sample, length):
+    return Edge (
+      sample.position - (shield_glue_face_width - 4)*sample.curve_in_surface_normal_unit_height_from_plane,
+      sample.position - (shield_glue_face_width)*sample.curve_in_surface_normal_unit_height_from_plane
+    ).extrude (-sample.normal_in_plane*5).extrude (sample.curve_tangent*3, centered = True)
+  
+  side_pegs = [side_peg(sample, length) for length, sample in zip([4, 8], curve_samples (shield_lower_side_curve, 10, 24, amount = 2))]
+  save ("side_peg_holes", Compound ([Solid(Offset(a, contact_leeway)) for a in side_pegs]))
+  save ("side_pegs", Compound (side_pegs))
+  
 
-  side_joint_peg = side_joint_peg_flat.extrude(Up*13)@Translate(Down*5)
-  sample = CurveSample (shield_lower_side_curve, distance = 0)
-  matrix = GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
-  side_joint_peg = side_joint_peg@matrix
-  side_joint_peg_hole = Offset(side_joint_peg, contact_leeway)
-  side_joint_peg_neighborhood = Offset(side_joint_peg, contact_leeway + min_wall_thickness)
-  save ("side_joint_peg", side_joint_peg)
-  save ("side_joint_peg_hole", side_joint_peg_hole)
-
-
-  lower_rim_block = Loft ([
-    Wire([
-      Point(0, shield_glue_face_width, 0),
-      Point(-3.7, shield_glue_face_width, 0),
-      Point(-2.9, shield_glue_face_width-3, 0),
-      Point(0, shield_glue_face_width-3, 0),
-    ], loop = True)@GeometryTransform (sample.normal_in_plane_unit_height_from_shield, -sample.curve_in_surface_normal_unit_height_from_plane, sample.curve_tangent, sample.position)
-
-    for sample in curve_samples(shield_lower_side_curve, 0, 10, amount = 5)
-  ], solid = True)
-  save ("lower_rim_block", Difference (lower_rim_block, lower_rim_cut))
-
-  upper_side_rim_lower_block = Loft ([
-    Wire([
-      Point(0, shield_glue_face_width, 0),
-      Point(-7, shield_glue_face_width, 0),
-      Point(-7, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
-      Point(0, -min_wall_thickness/sample.curve_in_surface_normal_unit_height_from_plane.length(), 0),
-    ], loop = True)@GeometryTransform (sample.normal_in_plane, -sample.curve_in_surface_normal, sample.curve_tangent, sample.position)
-
-    for sample in curve_samples(shield_upper_side_curve, shield_upper_side_curve.length() - 9, shield_upper_side_curve.length(), amount = 5)
-  ], solid = True).cut(side_joint_peg_hole).intersection (side_joint_peg_neighborhood)
-  save("upper_side_rim_lower_block", upper_side_rim_lower_block)
 
 @run_if_changed
-def make_temple_block_pegs():
-  sample_heights = [
-    headband_top - stiffer_wall_thickness - contact_leeway,
-    headband_bottom + stiffer_wall_thickness + contact_leeway,
-  ]
-  samples = [CurveSample (shield_upper_side_curve, z=z) for z in sample_heights]
-  peg_direction = -standard_forehead_curve.derivatives (closest = temple).tangent
-  peg_hoops = [
-    Wire([
-      sample.position + a*peg_direction - b*sample.curve_in_surface_normal
-      for a,b in [
-        (0.2, -0.4),
-        (10, -0.4),
-        (10, 3),
-        (0.2, 3),
-      ]
-    ], loop = True)
-    for sample in samples
-  ]
-  side_peg = Loft (peg_hoops, solid = True)
-  
-  
+def make_temple_block_pegs():  
   def top_peg (sample):
     return Edge (
       sample.position - (stiffer_wall_thickness - min_wall_thickness + contact_leeway)*sample.curve_in_surface_normal_unit_height_from_plane,
       sample.position - (shield_glue_face_width)*sample.curve_in_surface_normal_unit_height_from_plane
     ).extrude (-sample.normal_in_plane*10).extrude (sample.curve_tangent*3, centered = True)
   
-  
   top_pegs = [top_peg(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length - 14, shield_top_curve_length - temple_block_length + 2, amount = 2)]
   
-  save ("temple_side_peg", side_peg)
   save ("temple_top_pegs", Compound (top_pegs))
-  save ("temple_block", Difference (temple_block_uncut, [Offset(a, contact_leeway) for a in [side_peg] + top_pegs]))
+  save ("top_peg_holes", Compound ([Solid(Offset(a, contact_leeway)) for a in top_pegs]))
+  save ("temple_block", Difference (temple_block_uncut, [Offset(a, contact_leeway) for a in top_pegs]))
+
+
+@run_if_changed
+def make_upper_side_rim():
+  upper_side_rim_hoops = []
+  top_curve_start = putative_eyeball [2] + 15
+  forehead_exclusion = Face(standard_forehead_curve).extrude(Down*lots, centered=True)
+  forehead_size = standard_forehead_curve.value (closest = temple) [0]
+  for sample in curve_samples(shield_upper_side_curve, amount = 20):
+    glue_width = shield_glue_face_width
+    highness = (sample.position [2] - top_curve_start)/(headband_top - top_curve_start)
+    if highness > 0:
+      glue_width += 30 * (1 - math.sqrt(1 - highness**2))
+    front_edge = sample.position - glue_width*sample.curve_in_surface_normal
+    
+    # note: the math for the part at the bottom is a bit inelegant, which will reduce maintainability. Part of the reason for this is that I couldn't use a Loft if I allowed the little shield-holder ridge to be cut off. TODO: improve upon this troublesome thing
+    if sample.position [2] < side_curve_source_points [1][2]:
+      front_edge = CurveSample (shield_lower_side_inner_curve, intersecting = Plane (sample.position, sample.curve_tangent), which = 1).position
+    conservative_eyeball = putative_eyeball + Front*20
+    towards_eye_normal = Direction (Vector(front_edge, conservative_eyeball).projected_perpendicular (sample.curve_tangent))
+    adjusted_forehead_exclusion = forehead_exclusion
+    required_solid_x = sample.position [0] - min_wall_thickness
+    if required_solid_x < forehead_size:
+      scale = Scale(required_solid_x/forehead_size, center = Point(0, temple[1], 0))
+      adjusted_forehead_exclusion = adjusted_forehead_exclusion @ scale
+    
+    face = Face(Wire([
+      #sample.position,
+      front_edge,
+      front_edge + towards_eye_normal*50,
+      sample.position - sample.normal_in_plane*30 - sample.plane_normal*min_wall_thickness,
+      upper_side_lip_tip(sample),
+      sample.position + sample.normal_in_plane*min_wall_thickness,
+    ], loop = True))
+    upper_side_rim_hoops.append(face.cut(adjusted_forehead_exclusion).wire())
+  
+  upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
+  upper_side_rim = upper_side_rim.cut(Face (lower_side_curve_source_surface @ Translate(lower_side_curve_source_surface.normal(0,0)*-min_wall_thickness)).extrude (Front*lots))
+  shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
+  upper_side_rim = upper_side_rim.cut(shield_cut)
+  top_rim_exclusion = Solid(Offset (top_rim, contact_leeway))
+  upper_side_rim = upper_side_rim.cut(top_rim_exclusion)
+  lower_side_rim_exclusion = Solid(Offset (lower_side_rim, contact_leeway))
+  upper_side_rim = upper_side_rim.cut(lower_side_rim_exclusion)
+  upper_side_rim = upper_side_rim.cut(top_peg_holes)
+  upper_side_rim = upper_side_rim.cut(side_peg_holes)
+  save ("upper_side_rim", upper_side_rim)
+
+
+
   
 @run_if_changed
 def make_temple_block_on_curled_headband():
@@ -966,17 +912,14 @@ def make_temple_block_on_curled_headband():
   s1 = standard_forehead_curve.value(distance = temple_block_start_distance - temple_block_length)
   c0 = large_forehead_curve.value(distance = curled_temple_block_distance)
   c1 = large_forehead_curve.value(distance = curled_temple_block_distance - temple_block_length)
-  temple_block_on_curled_headband = (
-    temple_block
-    @ Rotate (
+  transform = Rotate (
       Axis(s0, Up),
       radians = -Direction(s0,s1).Angle(Direction(c0, c1))
-    )
-    @ Translate (
+    ) @ Translate (
       s0, c0
     )
-  )
-  save("temple_block_on_curled_headband", temple_block_on_curled_headband)
+  save("temple_block_on_curled_headband", temple_block@transform)
+  save("upper_side_rim_on_curled_headband", upper_side_rim@transform)
   
 
   
@@ -1004,7 +947,7 @@ save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
 
 
-preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
+#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
 
 ########################################################################
 ########  Intake  #######
@@ -1553,11 +1496,11 @@ def make_FDM_printable_lower_side():
   lower_side = Compound ([
     lower_side_rim,
   ]
-  + reflected ([lower_side_extra_lip, intake_solid, lower_rim_block, side_joint_peg]))
+  + reflected ([lower_side_extra_lip, intake_solid, side_pegs]))
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
 
-@run_if_changed
+'''@run_if_changed
 def make_FDM_printable_upper_side():
   upper_side = Compound ([
     upper_side_rim.cut(side_joint_peg_hole),
@@ -1566,7 +1509,7 @@ def make_FDM_printable_upper_side():
     upper_side_rim_lower_block,
   ])
   save("upper_side", upper_side)
-  save_STL("upper_side", upper_side)
+  save_STL("upper_side", upper_side)'''
   
 
 @run_if_changed
@@ -1592,6 +1535,7 @@ def make_FDM_printable_headband():
   ]
   + reflected ([
     temple_block_on_curled_headband,
+    upper_side_rim_on_curled_headband,
     #forehead_elastic_hooks,
   ]))
   save("headband_final", headband_final)
@@ -1604,15 +1548,12 @@ preview(
 preview (
   standard_headband,
   temple_top_pegs,
-  temple_side_peg,
   temple_block,
   top_rim,
   upper_side_rim,
   upper_side_rim@Reflect(Right),
   
-  upper_side_rim_lower_block,
-  side_joint_peg,
-  lower_rim_block,
+  side_pegs,
   
   lower_side_rim,
   lower_side_extra_lip,
