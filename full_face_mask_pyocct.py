@@ -1366,11 +1366,20 @@ def top_outer_rim_sample(sample):
       
 @run_if_changed
 def make_forehead_cloth():
-  forehead_top_curve = standard_forehead_curve.translated(vector(0,0,headband_top - standard_forehead_curve.StartPoint()[2]))
+  # Move the middle of the forehead inwards.
+  # When the headband is put on a wider head, the headband pulls back farther than the top rim does, so we need some extra length.
+  # I think 5 is enough; using 10 for some leeway.
+  forehead_top_curve = BSplineCurve(
+    [a + Up*headband_top + Front*((a-temple)[1])*10/(forehead_point-temple)[1] for a in standard_forehead_poles],
+    BSplineDimension (periodic = True),
+  )
+  save("forehead_cloth_virtual_curve", forehead_top_curve)
+  #forehead_top_curve = standard_forehead_curve.translated(vector(0,0,headband_top - standard_forehead_curve.StartPoint()[2]))
   forehead_cloth = RimHeadCloth(
     (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length/2, top_hook_front.curve_distance, amount = math.floor(shield_top_curve_length * 2))),
     forehead_top_curve,
-    min_curvature = 1/120
+    target_head_multiplier=99,
+    min_curvature = 1/130
   )
   
   save ("forehead_cloth", forehead_cloth)
@@ -1384,6 +1393,9 @@ def make_forehead_cloth():
   save_inkscape_svg("forehead_cloth", Wire(forehead_cloth_points, loop=True))
 
 print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
+reached = forehead_cloth_virtual_curve.value(distance = forehead_cloth_virtual_curve.distance(closest=forehead_point) + forehead_cloth.source_head_length/2)
+original_forehead_length = standard_forehead_curve.distance(closest=reached) - standard_forehead_curve.distance(closest=reached@Reflect(Right))
+print(f"original_forehead_length: {original_forehead_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/original_forehead_length}")
 
 
 ########################################################################
