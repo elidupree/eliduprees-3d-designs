@@ -572,7 +572,7 @@ def make_hook_skirt():
     
   save("hook_skirt", Loft(sections, solid =True))
 
-ridge_slot_width = overhead_strap_width*2
+ridge_slot_width = overhead_strap_width*2.5
 def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, prong_side = 0):
   middle = (start + finish)/2
   positions = subdivisions (-ridge_slot_width/2, ridge_slot_width/2, amount = 7)
@@ -584,7 +584,7 @@ def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, p
     derivatives.adjusted_position = derivatives.position + derivatives.adjusted_normal*wall_adjust
     return derivatives
   position_derivatives = [augmented_derivatives(position) for position in positions]
-  control_offset_distance = min_wall_thickness + ridge_thickness + contact_leeway*2
+  control_offset_distance = min_wall_thickness + ridge_thickness + contact_leeway*2 + 0.2
   for derivatives, fraction in zip (position_derivatives, fractions):
     controls.append (derivatives.adjusted_position + derivatives.adjusted_normal*fraction*control_offset_distance)
   slot_curve = BSplineCurve (controls)
@@ -622,7 +622,7 @@ def make_headband_3():
     overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, direction = -1, wall_adjust = -min_wall_thickness/2, top = headband_bottom, bottom = headband_top))
   save ("overhead_strap_slots", Compound (overhead_strap_slots))
   
-'''overhead_strap_slot_test_region = flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (45, -196, 0), Up), 15)))))
+'''overhead_strap_slot_test_region = flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (47, -198, 0), Up), 20)))))
 save ("overhead_strap_slot_test", Intersection (
   Compound (overhead_strap_slots, curled_headband, ),
   overhead_strap_slot_test_region, 
