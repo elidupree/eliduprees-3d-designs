@@ -425,7 +425,8 @@ overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
   (-173, 60),
   (-191, 21),
   (-195, 0),
-  (-195, -102),
+  (-195, -50),
+  (-186, -102),
 ]]
 
 save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
@@ -621,14 +622,14 @@ def make_headband_3():
     overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, direction = -1, wall_adjust = -min_wall_thickness/2, top = headband_bottom, bottom = headband_top))
   save ("overhead_strap_slots", Compound (overhead_strap_slots))
   
-'''
+'''overhead_strap_slot_test_region = flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (45, -196, 0), Up), 15)))))
 save ("overhead_strap_slot_test", Intersection (
-  Compound (overhead_strap_slots, curled_headband),
-  flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (50, -186, 0), Up), 15)))))
+  Compound (overhead_strap_slots, curled_headband, ),
+  overhead_strap_slot_test_region, 
 ))
 save_STL ("overhead_strap_slot_test", overhead_strap_slot_test)
-#preview (overhead_strap_slot_test)'''
-#preview (large_forehead_curve, curled_headband, curled_headband_wave, standard_headband_2D, overhead_strap_slots)
+preview (overhead_strap_slot_test)
+#preview (large_forehead_curve, curled_headband, curled_headband_wave, standard_headband_2D, overhead_strap_slots)'''
 
 def overhead_strap_ridges_face(start, finish):
   ridge_points = []
