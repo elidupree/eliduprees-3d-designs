@@ -1161,95 +1161,6 @@ def make_intake():
   )).complemented())
 
 
-########################################################################
-########  SVG bureaucracy  #######
-########################################################################
-
-def to_svg_data(contents):
-  '''if type(contents) is list:
-    return "\n".join(to_svg_data(foo) for foo in contents)
-  elif type(contents) is str:
-    return contents
-  else:
-  '''
-  return "" #Drawing.projectToSVG(contents)
-
-def save_inkscape_svg(filename, contents):
-  contents = to_svg_data(contents)
-  file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
-<svg
- xmlns:dc="http://purl.org/dc/elements/1.1/"
- xmlns:cc="http://creativecommons.org/ns#"
- xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
- xmlns:svg="http://www.w3.org/2000/svg"
- xmlns="http://www.w3.org/2000/svg"
- xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
- xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
- width="8.5in"
- height="11in"
- viewBox="0 0 215.9 279.4"
- version="1.1"
- id="svg8"
- inkscape:version="0.91 r13725"
- sodipodi:docname="'''+filename+'''">
-<defs
-   id="defs2" />
-<sodipodi:namedview
-   id="base"
-   pagecolor="#ffffff"
-   bordercolor="#666666"
-   borderopacity="1.0"
-   inkscape:pageopacity="0.0"
-   inkscape:pageshadow="2"
-   inkscape:zoom="0.35"
-   inkscape:cx="437.51443"
-   inkscape:cy="891.42856"
-   inkscape:document-units="mm"
-   inkscape:current-layer="layer1"
-   showgrid="false"
-   inkscape:window-width="1328"
-   inkscape:window-height="1022"
-   inkscape:window-x="363"
-   inkscape:window-y="123"
-   inkscape:window-maximized="0"
-   units="in" />
-<metadata
-   id="metadata5">
-  <rdf:RDF>
-    <cc:Work
-       rdf:about="">
-      <dc:format>image/svg+xml</dc:format>
-      <dc:type
-         rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-      <dc:title></dc:title>
-    </cc:Work>
-  </rdf:RDF>
-</metadata>
-<g
-   inkscape:label="Layer 1"
-   inkscape:groupmode="layer"
-   id="layer1">
-    '''+contents+'''
-</g>
-</svg>'''
-  #with open(os.path.join(data_path, "full_face_mask_svgs/", filename), "w") as file:
-  #  file.write(file_data)
-
-def center_vertices_on_letter_paper(vertices):
-  if type(vertices) is list:
-    v = vertices
-    vertices = lambda: v
-  offset = vector(
-    (215.9 - (max (vertex [0] for vertex in vertices()) + min (vertex [0] for vertex in vertices())))/2,
-    (-279.4 - (max (vertex [1] for vertex in vertices()) + min (vertex [1] for vertex in vertices())))/2,
-    0,
-  )
-  for vertex in vertices():
-    vertex[0] += offset[0]
-    vertex[1] += offset[1]
-
 
 ########################################################################
 ########  Unrolled shield shape  #######
@@ -1329,7 +1240,7 @@ def make_unrolled_shield():
     segments (unrolled_side) + segments (unrolled_top) + [Edge(unrolled_side[0][1], unrolled_top[-1][1])]
   )
   save("unrolled_shield_wire", unrolled_shield_wire)
-  save_inkscape_svg("unrolled_shield.svg", unrolled_shield_wire)
+  save_inkscape_svg("unrolled_shield", unrolled_shield_wire)
 
 
 ########################################################################
@@ -1507,7 +1418,7 @@ def make_forehead_cloth():
   )
   center_vertices_on_letter_paper(forehead_cloth_points)
   save("forehead_cloth_wire", Wire(forehead_cloth_points, loop=True))
-  save_inkscape_svg("forehead_cloth.svg", Wire(forehead_cloth_points, loop=True))
+  save_inkscape_svg("forehead_cloth", Wire(forehead_cloth_points, loop=True))
 
 print(f"source_forehead_length: {forehead_cloth.source_head_length}, cloth_forehead_length: {forehead_cloth.cloth_head_length}, ratio: {forehead_cloth.cloth_head_length/forehead_cloth.source_head_length}")
 
@@ -1550,7 +1461,7 @@ def make_chin_cloth():
   )
   center_vertices_on_letter_paper(chin_cloth_points)
   save ("chin_cloth_wire", Wire (chin_cloth_points, loop=True))
-  save_inkscape_svg("chin_cloth.svg", Wire (chin_cloth_points, loop=True))
+  save_inkscape_svg("chin_cloth", Wire (chin_cloth_points, loop=True))
 
 print(f"source_neck_length: {chin_cloth.source_head_length}, cloth_neck_length: {chin_cloth.cloth_head_length}, ratio: {chin_cloth.cloth_head_length/chin_cloth.source_head_length}")
 

@@ -633,7 +633,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
     handle_shape_type(typename)
     
   simple_override(Vertex, "point", lambda self: BRep.BRep_Tool.Pnt_(self))
-  simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.Point(), index))
+  simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.point(), index))
   simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
   simple_override(Face, "outer_wire", BRepTools.BRepTools.OuterWire_)
   simple_override(Face, "surface", lambda self: BRep.BRep_Tool.Surface_(self))

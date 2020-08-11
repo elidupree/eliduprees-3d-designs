@@ -587,6 +587,101 @@ def save_STL (key, shape):
   BuildMesh (shape)
   SaveSTL_raw (_path_base (key) + ".stl", shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
+  
+  
+########################################################################
+########  SVG bureaucracy  #######
+########################################################################
+
+
+def save_inkscape_svg(key, wire):
+  contents = "\n".join([
+    f'<path d="M {edge.vertices()[0][0]} {edge.vertices()[0][1]} L {edge.vertices()[1][0]} {edge.vertices()[1][1]}" />'
+    for edge in wire.edges()
+  ])
+  filename = _path_base (key)+".svg"
+  file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:cc="http://creativecommons.org/ns#"
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:svg="http://www.w3.org/2000/svg"
+ xmlns="http://www.w3.org/2000/svg"
+ xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+ xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+ width="8.5in"
+ height="11in"
+ viewBox="0 0 215.9 279.4"
+ version="1.1"
+ id="svg8"
+ inkscape:version="0.91 r13725"
+ sodipodi:docname="'''+filename+'''">
+<defs
+   id="defs2" />
+<sodipodi:namedview
+   id="base"
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1.0"
+   inkscape:pageopacity="0.0"
+   inkscape:pageshadow="2"
+   inkscape:zoom="0.35"
+   inkscape:cx="437.51443"
+   inkscape:cy="891.42856"
+   inkscape:document-units="mm"
+   inkscape:current-layer="layer1"
+   showgrid="false"
+   inkscape:window-width="1328"
+   inkscape:window-height="1022"
+   inkscape:window-x="363"
+   inkscape:window-y="123"
+   inkscape:window-maximized="0"
+   units="in" />
+<metadata
+   id="metadata5">
+  <rdf:RDF>
+    <cc:Work
+       rdf:about="">
+      <dc:format>image/svg+xml</dc:format>
+      <dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      <dc:title></dc:title>
+    </cc:Work>
+  </rdf:RDF>
+</metadata>
+<g
+   inkscape:label="Layer 1"
+   inkscape:groupmode="layer"
+   id="layer1">
+   <g fill="none"
+      stroke="rgb(0, 0, 0)"
+      stroke-linecap="butt"
+      stroke-linejoin="miter"
+      stroke-width="1.0"
+      transform="scale(1,-1)"
+      >
+    '''+contents+'''
+    </g>
+</g>
+</svg>'''
+  with open(filename, "w") as file:
+    file.write(file_data)
+
+def center_vertices_on_letter_paper(vertices):
+  if type(vertices) is list:
+    v = vertices
+    vertices = lambda: v
+  offset = vector(
+    (215.9 - (max (vertex [0] for vertex in vertices()) + min (vertex [0] for vertex in vertices())))/2,
+    (-279.4 - (max (vertex [1] for vertex in vertices()) + min (vertex [1] for vertex in vertices())))/2,
+    0,
+  )
+  for vertex in vertices():
+    vertex[0] += offset[0]
+    vertex[1] += offset[1]
+
         
 ################################################################
 ###########################  UI  ###############################
