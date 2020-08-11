@@ -425,24 +425,21 @@ def _globals_in_code(code):
     return key not in globals() and not hasattr(_cache_globals["__builtins__"], key)
   return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if ignore_predefined_filter(match))
 
-class _Recursive:
+class _OutputHashError(Exception):
   pass
-class OutputHashError(Exception):
-  pass
-def _output_hash (key):
+def _output_hash (key, stack = []):
   #print("output_hash called", key)
   in_memory = _cache_info_by_global_key.get(key)
-  if in_memory is _Recursive:
-    raise OutputHashError(f"the system currently can't handle recursive functions ({key})")
+  if key in stack:
+    raise _OutputHashError(f"the system currently can't handle recursive functions ({key}, {stack})")
+  stack = stack + [key]
   if in_memory is not None:
     if "output_hash" not in in_memory:
-      raise OutputHashError("tried to get output hash of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
+      raise _OutputHashError("tried to get output hash of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
     return in_memory ["output_hash"]
   
-  _cache_info_by_global_key [key] = _Recursive
-  
   if key not in _cache_globals:
-    raise OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")  
+    raise _OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")  
   value = _cache_globals [key]
   
   code, code2 = _get_code (value)
@@ -457,7 +454,7 @@ def _output_hash (key):
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
     for key2 in _globals_in_code (code):
-      hasher.update (_output_hash (key2).encode ("utf-8"))
+      hasher.update (_output_hash (key2, stack).encode ("utf-8"))
     result = hasher.hexdigest()
         
   #print(f"Info: decided that output hash of {key} is {result}")
@@ -485,7 +482,7 @@ def _stored_cache_info_if_valid (key, source_hash):
         try: 
           if _output_hash (key2) != value:
             return None
-        except OutputHashError:
+        except _OutputHashError:
           return None
         
   except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):

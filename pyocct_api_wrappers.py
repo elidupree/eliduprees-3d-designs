@@ -524,6 +524,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def curve_intersections (self, other, tolerance = default_tolerance):
     if isinstance (other, Surface):
       return surface_intersections(other, self)
+    '''if isinstance (other, Curve):
+      builder = IntTools.IntTools_EdgeEdge (Edge (self), Edge (other))
+      builder.Perform()
+      print ([(part.VertexParameter1(), part.VertexParameter2()) for part in builder.CommonParts()])'''
     raise RuntimeError (f"don't know how to intersect a curve with {other}")
   def surface_intersections (self, other, tolerance = default_tolerance):
     if isinstance (other, Curve):

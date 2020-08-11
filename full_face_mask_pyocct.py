@@ -577,22 +577,42 @@ def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, p
   positions = subdivisions (-ridge_slot_width/2, ridge_slot_width/2, amount = 7)
   fractions = [0, 1, 1, 1, 1, 1, 0]
   controls = []
-  position_derivatives = [curve.derivatives (distance = middle + position) for position in positions]
+  def augmented_derivatives(offset):
+    derivatives = curve.derivatives (distance = middle + offset)
+    derivatives.adjusted_normal = derivatives.tangent@Rotate (Up, degrees = 90*direction)
+    derivatives.adjusted_position = derivatives.position + derivatives.adjusted_normal*wall_adjust
+    return derivatives
+  position_derivatives = [augmented_derivatives(position) for position in positions]
   control_offset_distance = min_wall_thickness + ridge_thickness + contact_leeway*2
   for derivatives, fraction in zip (position_derivatives, fractions):
-    derivatives.adjusted_normal = derivatives.tangent@Rotate (Up, degrees = 90*direction)
-    controls.append (derivatives.position + derivatives.adjusted_normal*(wall_adjust + fraction*control_offset_distance))
-  slot = Wire (Edge (BSplineCurve (controls)))
+    controls.append (derivatives.adjusted_position + derivatives.adjusted_normal*fraction*control_offset_distance)
+  slot_curve = BSplineCurve (controls)
+  slot = Wire (Edge (slot_curve))
   slot = Face (Offset2D (slot, min_wall_thickness/2))
   slot = (slot@Translate(Up*bottom)).extrude (Up*(top - bottom))
-  prong = Edge (position_derivatives[2].position, position_derivatives [-3].position)
+  prong = Edge (position_derivatives[2].adjusted_position, position_derivatives [-3].adjusted_position)
   middle_derivatives = position_derivatives [len (position_derivatives)//2]
   prong_length = min_wall_thickness/2 + ridge_thickness - min_wall_thickness
   prong = prong.extrude (middle_derivatives.adjusted_normal*prong_length).extrude (Up*1.5*math.copysign(1, top - bottom))
-  prong = prong@Translate (middle_derivatives.adjusted_normal*wall_adjust + Up*bottom)
+  prong = prong@Translate (Up*bottom)
   if prong_side == 1:
     prong = prong@Translate (middle_derivatives.adjusted_normal*(control_offset_distance - prong_length))
-  return Compound(slot, prong)
+  guides = []
+  for side in [-1, 1]:
+    derivatives = augmented_derivatives(side*(overhead_strap_width/2 + contact_leeway))
+    points = [
+      derivatives.adjusted_position,
+      #slot_curve.intersections(Line (derivatives.adjusted_position, derivatives.adjusted_normal)) [0]
+      slot_curve.intersections (Plane (derivatives.adjusted_position, derivatives.tangent)).point()
+    ]
+    if prong_side == 1:
+      points.reverse()
+    delta = points [1] - points [0]
+    space = min_wall_thickness*1.5 if prong_side == 0 else min_wall_thickness*2
+    guide_flat = Edge (points [1], points [0] + Direction (delta)*space).extrude (derivatives.tangent*side*min_wall_thickness)
+    guides.append ((guide_flat@Translate(Up*bottom)).extrude (Up*(top - bottom)))
+    
+  return Compound(slot, prong, guides)
 
 @run_if_changed
 def make_headband_3():
