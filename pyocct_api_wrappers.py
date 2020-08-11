@@ -21,7 +21,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -621,10 +621,17 @@ def setup(wrap, unwrap, do_export, override_attribute):
     
     #simple_override(c, "__add__", lambda self, v: self @ Translate(v))
 
-    def handle_subtype(subtype, plural):
+    def handle_subtype(subtype_name, plural):
+      subtype = globals() [subtype_name]
       simple_override(c, plural.lower(), lambda self: subshapes (self, subtype))
+      def assume_singleton (self):
+        shapes = subshapes (self, subtype)
+        if len (shapes) != 1:
+          raise RuntimeError (f"Called {subtype_name.lower()}() on {self}, thereby assuming that it has exactly one {subtype_name}, but in fact it had {len (shapes)} ({shapes})")
+        return shapes [0]
+      simple_override(c, subtype_name.lower(), assume_singleton)
     for (other_type, plural) in zip (shape_typenames, shape_typename_plurals):
-      handle_subtype(globals() [other_type], plural)
+      handle_subtype(other_type, plural)
       if other_type == typename:
         break
     
@@ -730,6 +737,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
         return original()
       if len(args) == 1 and isinstance(args[0], Surface):
         args = [args[0], default_tolerance]
+      if len(args) == 1 and isinstance(args[0], Curve):
+        args = [Wire(args[0])]
       if len(args) == 1 and isinstance(args[0], Edge):
         args = [Wire(args[0])]
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
@@ -954,6 +963,11 @@ def setup(wrap, unwrap, do_export, override_attribute):
     builder = BRepAlgoAPI.BRepAlgoAPI_Cut()
     builder.SetArguments (ListOfShape (recursive_flatten (first)))
     builder.SetTools (ListOfShape (recursive_flatten (second)))
+    return finish_Boolean (builder)
+  
+  @export
+  def Section (first, second):
+    builder = BRepAlgoAPI.BRepAlgoAPI_Section(first, second)
     return finish_Boolean (builder)
   
   def Extrude (first, direction,*, centered = False):

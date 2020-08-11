@@ -234,30 +234,32 @@ class ShieldCurveInPlane(SerializeAsVars):
     return getattr(self.curve, name)
 
 side_curve_source_points = [
-  (shield_back, shield_glue_face_width),
-  (shield_back, -55),
-  (shield_bottom_peak[1]+0.001, shield_bottom_peak[2])
+  Point (0, shield_back, shield_glue_face_width),
+  Point (0, shield_back, -55),
+  Point (0, shield_bottom_peak[1]+0.001, shield_bottom_peak[2])
 ]
 
 save ("side_curve_source_surface", BSplineSurface([
-    [Point (-100, y, z) for y,z in side_curve_source_points],
-    [Point (100, y, z) for y,z in side_curve_source_points],
+    [point + Left*100 for point in side_curve_source_points],
+    [point + Right*100 for point in side_curve_source_points],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
 ))
 
+upper_side_curve_source_points = side_curve_source_points[0:2]
+upper_side_curve_source_points[1] = upper_side_curve_source_points[1] + Down*30
 save ("upper_side_curve_source_surface", BSplineSurface([
-    [Point (0, y, z) for y,z in side_curve_source_points[0:2]],
-    [Point (100, y, z) for y,z in side_curve_source_points[0:2]],
+    upper_side_curve_source_points,
+    [point + Right*100 for point in upper_side_curve_source_points],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
 ))
 
 save ("lower_side_curve_source_surface", BSplineSurface([
-    [Point (-100, y, z) for y,z in side_curve_source_points[1:3]],
-    [Point (100, y, z) for y,z in side_curve_source_points[1:3]],
+    [point + Left*100 for point in side_curve_source_points[1:3]],
+    [point + Right*100 for point in side_curve_source_points[1:3]],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 1),
@@ -795,28 +797,42 @@ def upper_side_lip_tip(sample):
 @run_if_changed
 def make_upper_side_rim():
   upper_side_rim_hoops = []
-  support_base = Edge (standard_forehead_curve).intersection (Box (
-    Point (0, temple [1] - min_wall_thickness, - lots), Point (lots, temple [1]+shield_glue_face_width, lots)
-  ))
-  support_base = support_base.extrude (Direction (*(v.point() for v in support_base.vertices()))@Rotate(Up, degrees=90)*min_wall_thickness).wires()[0]
-  support_hoops = []
+  top_curve_start = putative_eyeball [2] + 15
+  forehead_exclusion = Face(standard_forehead_curve).extrude(Down*lots, centered=True)
+  forehead_size = standard_forehead_curve.value (closest = temple) [0]
   for sample in curve_samples(shield_upper_side_curve, amount = 20):
-    upper_side_rim_hoops.append(Wire([
-      sample.position,
-      sample.position - shield_glue_face_width*sample.curve_in_surface_normal,
-      sample.position - shield_glue_face_width*sample.curve_in_surface_normal - sample.normal*min_wall_thickness,
-      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-      sample.position - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness - sample.plane_normal*min_wall_thickness,
+    glue_width = shield_glue_face_width
+    highness = (sample.position [2] - top_curve_start)/(headband_top - top_curve_start)
+    if highness > 0:
+      glue_width += 30 * (1 - math.sqrt(1 - highness**2))
+    front_edge = sample.position - glue_width*sample.curve_in_surface_normal
+    conservative_eyeball = putative_eyeball + Front*20
+    towards_eye_normal = Direction (Vector(front_edge, conservative_eyeball).projected_perpendicular (sample.curve_tangent))
+    adjusted_forehead_exclusion = forehead_exclusion
+    required_solid_x = sample.position [0] - min_wall_thickness
+    if required_solid_x < forehead_size:
+      scale = Scale(required_solid_x/forehead_size, center = Point(0, temple[1], 0))
+      adjusted_forehead_exclusion = adjusted_forehead_exclusion @ scale
+      
+    face = Face(Wire([
+      #sample.position,
+      front_edge,
+      front_edge + towards_eye_normal*50,
+      sample.position - sample.normal_in_plane*30 - sample.plane_normal*min_wall_thickness,
       upper_side_lip_tip(sample),
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ], loop = True))
-    support_hoops.append (support_base@Translate(temple, sample.position))
-  upper_side_rim = Union (
-    Loft (upper_side_rim_hoops, solid = True),
-    Loft (support_hoops, solid = True).cut (HalfSpace (Point (0, 0, headband_bottom - contact_leeway), Up)),
-  )
+    upper_side_rim_hoops.append(face.cut(adjusted_forehead_exclusion).wire())
+    #preview(upper_side_rim_hoops[-1])
+  #preview(upper_side_rim_hoops)
+  shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
+  upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
+  upper_side_rim = upper_side_rim.cut(shield_cut)
+  top_rim_exclusion = Solid(Offset (top_rim, contact_leeway))
+  upper_side_rim = upper_side_rim.cut(top_rim_exclusion)
+  preview(upper_side_rim)
   save ("upper_side_rim", upper_side_rim)
-
+#preview ()
 
 upper_side_cloth_lip = []
 for sample in curve_samples(shield_upper_side_curve, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width, amount = 20):
@@ -980,7 +996,7 @@ save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
 
 
-#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
+preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
 
 ########################################################################
 ########  Intake  #######
