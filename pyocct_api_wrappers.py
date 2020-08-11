@@ -654,6 +654,36 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return curve.length(a, b)
   simple_override(Edge, "length", edge_length)
   
+  def compounded_shapes (compound):
+    if not isinstance (compound, Compound):
+      return [compound]
+    iterator = TopoDS.TopoDS_Iterator (compound, True, True)
+    results = []
+    while iterator.More():
+      child = iterator.Value()
+      iterator.Next()
+      results.extend (compounded_shapes (child))
+    
+    return results
+    
+  def decompose_compound (compound):
+    results = compounded_shapes (compound)
+    if len (results) == 1:
+      return results [0]
+    return Compound (results)
+    
+  simple_override(Compound, "decompose", decompose_compound)
+  simple_override(Shape, "decompose_if_compound", decompose_compound)
+  
+  def recursive_flatten_compounded (*arguments):
+    return [value for argument in recursive_flatten(*arguments) for value in compounded_shapes (argument)]
+
+  def recursive_decompose (*arguments):
+    results = recursive_flatten_compounded (*arguments)
+    if len (results) == 1:
+      return results [0]
+    return Compound (results)
+  
   def is_shape(obj):
     return isinstance(obj, Shape)
   def read_brep (path):
@@ -953,20 +983,20 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return builder.Shape()
   
   def Union (*shapes):
-    shapes = recursive_flatten (shapes)
+    shapes = recursive_flatten_compounded (shapes)
     builder = BRepAlgoAPI.BRepAlgoAPI_Fuse()
     builder.SetArguments (ListOfShape (shapes [:1]))
     builder.SetTools (ListOfShape (shapes [1:]))
     return finish_Boolean (builder)
     
   def Intersection (first, second):
-    builder = BRepAlgoAPI.BRepAlgoAPI_Common(first, second)
+    builder = BRepAlgoAPI.BRepAlgoAPI_Common(first.decompose_if_compound(), second.decompose_if_compound())
     return finish_Boolean (builder)
   
   def Difference (first, second):
     builder = BRepAlgoAPI.BRepAlgoAPI_Cut()
-    builder.SetArguments (ListOfShape (recursive_flatten (first)))
-    builder.SetTools (ListOfShape (recursive_flatten (second)))
+    builder.SetArguments (ListOfShape (recursive_flatten_compounded (first)))
+    builder.SetTools (ListOfShape (recursive_flatten_compounded (second)))
     return finish_Boolean (builder)
   
   @export
