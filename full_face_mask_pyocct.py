@@ -163,6 +163,7 @@ min_head_circumference = 500
 max_head_circumference = 650
 min_overhead_strap_length = 250
 fastener_hook_length = 40
+fastener_hook_skirt_width = 20
 
 
 ########################################################################
@@ -417,7 +418,7 @@ overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
   (-173, 60),
   (-191, 21),
   (-195, 0),
-  (-195, -140),
+  (-195, -102),
 ]]
 
 save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
@@ -445,7 +446,7 @@ Also, all users must have the slots for the overhead strap be able to be in the 
 '''
 overhead_strap_slots_width = head_variability + overhead_strap_width
 headband_left_length = max_head_circumference/2 + overhead_strap_width/2
-headband_right_length = (max_head_circumference + fastener_hook_length) - headband_left_length
+headband_right_length = (max_head_circumference + fastener_hook_length + fastener_hook_skirt_width) - headband_left_length
 
 def curled_forehead_points(total_distance, offset_distance):
   result = []
@@ -483,9 +484,9 @@ def curled_forehead_points(total_distance, offset_distance):
   counterpoint = previous.output_position@Reflect (Right) + Left*offset_distance*2
   curve = Interpolate ([
       point,
-      Between (point, counterpoint, 0.25) + Front*(100 + offset_distance),
-      Between (point, counterpoint) + Front*(110 + offset_distance),
-      Between (point, counterpoint, 0.75) + Front*(100 + offset_distance),
+      Between (point, counterpoint, 0.25) + Front*(105 + offset_distance),
+      Between (point, counterpoint) + Front*(115 + offset_distance),
+      Between (point, counterpoint, 0.75) + Front*(105 + offset_distance),
       counterpoint
     ],
     tangents = [Vector (current_adjusted_tangent), Vector (current_adjusted_tangent@Reflect (Front))])
@@ -586,6 +587,7 @@ def overhead_strap_ridges_face(start, finish):
   return Face(Wire(ridge_points + ridge_back_points[::-1], loop=True))
 
 
+print("Overhead strap curve length:", overhead_strap_curve.length())
 @run_if_changed
 def make_overhead_strap():
   strap_face = Face(Offset2D(Wire(Edge(overhead_strap_curve)), min_wall_thickness/2))
