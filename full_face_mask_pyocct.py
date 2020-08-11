@@ -248,7 +248,7 @@ save ("side_curve_source_surface", BSplineSurface([
 ))
 
 upper_side_curve_source_points = side_curve_source_points[0:2]
-upper_side_curve_source_points[1] = upper_side_curve_source_points[1] + Down*30
+upper_side_curve_source_points[1] = upper_side_curve_source_points[1] + Down*25
 save ("upper_side_curve_source_surface", BSplineSurface([
     upper_side_curve_source_points,
     [point + Right*100 for point in upper_side_curve_source_points],
@@ -265,6 +265,8 @@ save ("lower_side_curve_source_surface", BSplineSurface([
   BSplineDimension (degree = 1),
 ))
 
+save ("lower_side_curve_inner_plane", Plane (lower_side_curve_source_surface.value (0, 0) + lower_side_curve_source_surface.normal (0, 0)*shield_glue_face_width, lower_side_curve_source_surface.normal (0, 0)))
+
 @run_if_changed
 def make_shield_curves():
   save ("shield_side_curve", shield_surface.intersections (
@@ -272,6 +274,8 @@ def make_shield_curves():
   )[0])
   save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
   save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
+  save ("shield_lower_side_inner_curve", ShieldCurveInPlane(lower_side_curve_inner_plane))
+  
   save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
   
 shield_side_curve_length = shield_side_curve.length()
@@ -781,11 +785,11 @@ def make_curled_headband_wave():
 
 
 side_plate_bottom_z = -82
-Vertex(0, shield_back + shield_glue_face_width + contact_leeway, side_curve_source_points[1][1]-contact_leeway).point()
+Vertex(0, shield_back + shield_glue_face_width + contact_leeway, side_curve_source_points[1][2]-contact_leeway).point()
 save ("lower_rim_cut", Vertex(
   0,
   shield_back + shield_glue_face_width + contact_leeway,
-  side_curve_source_points[1][1]-contact_leeway
+  side_curve_source_points[1][2]-contact_leeway
 ).extrude(Right*lots, centered=True).extrude(Front*lots).extrude(Up*lots))
 
 
@@ -806,6 +810,9 @@ def make_upper_side_rim():
     if highness > 0:
       glue_width += 30 * (1 - math.sqrt(1 - highness**2))
     front_edge = sample.position - glue_width*sample.curve_in_surface_normal
+    
+    if sample.position [2] < side_curve_source_points [1][2]:
+      front_edge = CurveSample (shield_lower_side_inner_curve, intersecting = Plane (sample.position, sample.curve_tangent), which = 1).position
     conservative_eyeball = putative_eyeball + Front*20
     towards_eye_normal = Direction (Vector(front_edge, conservative_eyeball).projected_perpendicular (sample.curve_tangent))
     adjusted_forehead_exclusion = forehead_exclusion
@@ -813,7 +820,7 @@ def make_upper_side_rim():
     if required_solid_x < forehead_size:
       scale = Scale(required_solid_x/forehead_size, center = Point(0, temple[1], 0))
       adjusted_forehead_exclusion = adjusted_forehead_exclusion @ scale
-      
+    
     face = Face(Wire([
       #sample.position,
       front_edge,
@@ -823,19 +830,20 @@ def make_upper_side_rim():
       sample.position + sample.normal_in_plane*min_wall_thickness,
     ], loop = True))
     upper_side_rim_hoops.append(face.cut(adjusted_forehead_exclusion).wire())
-    #preview(upper_side_rim_hoops[-1])
-  #preview(upper_side_rim_hoops)
-  shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
+  
   upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
+  upper_side_rim = upper_side_rim.cut(Face (lower_side_curve_source_surface).extrude (Front*lots))
+  shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
   upper_side_rim = upper_side_rim.cut(shield_cut)
   top_rim_exclusion = Solid(Offset (top_rim, contact_leeway))
   upper_side_rim = upper_side_rim.cut(top_rim_exclusion)
-  preview(upper_side_rim)
   save ("upper_side_rim", upper_side_rim)
-#preview ()
 
 upper_side_cloth_lip = []
-for sample in curve_samples(shield_upper_side_curve, 0, shield_upper_side_curve.length() + min_wall_thickness - headband_width, amount = 20):
+for sample in curve_samples(shield_upper_side_curve,
+    CurveSample (shield_upper_side_curve, z = side_curve_source_points [1][2]).curve_distance,
+    shield_upper_side_curve.length() + min_wall_thickness - headband_width,
+    amount = 20):
   upper_side_cloth_lip.append (upper_side_lip_tip(sample))
   
 def augment_lower_curve_sample(sample):
