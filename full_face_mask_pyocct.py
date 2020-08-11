@@ -163,7 +163,8 @@ min_head_circumference = 500
 max_head_circumference = 650
 min_overhead_strap_length = 250
 fastener_hook_length = 40
-fastener_hook_skirt_width = 20
+fastener_hook_skirt_width = 10
+fastener_loop_extra_width = 4
 
 
 ########################################################################
@@ -450,6 +451,7 @@ I'm initially assuming that the fastener hooks will be at the center of the back
 
 Also, all users must have the slots for the overhead strap be able to be in the middle of the back of the head; for maximum sized heads, the rightmost slot would be exactly in the center. If we don't want to make the headband any longer than needed, we actually want to put the fastener hooks all the way at the right end of the slots, meaning that, if they are shorter than the slots, they would be significantly to the right of the back on the average head. That's okay.
 '''
+fastener_loop_width = headband_width + fastener_loop_extra_width
 overhead_strap_slots_width = head_variability + overhead_strap_width
 headband_left_length = max_head_circumference/2 + overhead_strap_width/2
 headband_right_length = (max_head_circumference + fastener_hook_length + fastener_hook_skirt_width) - headband_left_length
@@ -541,7 +543,33 @@ def make_curled_headband():
   wire = Wire(Edge(large_forehead_curve))
   shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
   expanded = Face(Offset2D(shifted, min_wall_thickness/2))
-  save("curled_headband", flat_to_headband(expanded))
+  solid = flat_to_headband(expanded)
+  
+  def fastener_part(a, b):
+    curve = TrimmedCurve (large_forehead_curve, a, b)
+    wire = Wire (Edge (curve))
+    shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
+    expanded = Face(Offset2D(shifted, min_wall_thickness/2))
+    return (expanded@Translate (Up*headband_top)).extrude (Down*fastener_loop_width)
+  save("curled_headband", Compound (
+    solid,
+    fastener_part(large_forehead_curve.parameter (distance = large_forehead_curve.length() - fastener_loop_length), large_forehead_curve.LastParameter()),
+    fastener_part(0, large_forehead_curve.parameter (distance = fastener_hook_length + fastener_hook_skirt_width*2))),
+  )
+
+@run_if_changed
+def make_hook_skirt():
+  sections = []
+  for distance in subdivisions (0, fastener_hook_length + fastener_hook_skirt_width*2, amount = 20):
+    derivatives = large_forehead_curve.derivatives (distance = distance)
+    sections.append (Wire ([derivatives.position + Up*headband_top + a for a in [
+      (Up - derivatives.normal)*fastener_hook_skirt_width,
+      Vector(0,0,0),
+      Down*fastener_loop_width,
+      Down*fastener_loop_width + (Down - derivatives.normal)*fastener_hook_skirt_width
+    ]]).offset2D (min_wall_thickness/2))
+    
+  save("hook_skirt", Loft(sections, solid =True))
 
 ridge_slot_width = overhead_strap_width*2
 def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, prong_side = 0):
@@ -643,7 +671,7 @@ def make_top_rim():
 
 
 
-
+'''
 CPAP_grabber_length = 16
 @run_if_changed
 def make_CPAP_grabber():
@@ -677,7 +705,8 @@ def make_CPAP_grabber():
     slot,
   ])
   save("CPAP_grabber", CPAP_grabber_assembled)
-  save_STL("CPAP_grabber", CPAP_grabber_assembled)
+  save_STL("CPAP_grabber", CPAP_grabber_assembled)'''
+
 
 
 temple_block_length = 36
@@ -1438,6 +1467,7 @@ def make_FDM_printable_headband():
 preview(
   headband_final,
   overhead_strap,
+  hook_skirt,
 )
 preview (
   standard_headband,
