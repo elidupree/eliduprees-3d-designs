@@ -1492,6 +1492,7 @@ def make_FDM_printable_headband():
   + reflected ([
     temple_block_on_curled_headband,
     upper_side_rim_on_curled_headband,
+    side_hook,
     #forehead_elastic_hooks,
   ]))
   save("headband_final", headband_final)
