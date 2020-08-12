@@ -117,6 +117,16 @@ Additional notes after (never-completed) prototype #4:
 
 main things that need attention now: temple/upper side reinforcing; hook and loop valley; overhead strap wobble
 
+
+
+
+Additional notes after prototype #5:
+– we had some plastic deformation issues:
+– – at the top of the 3 ridges at the front of the overhead strap (this was just some sort of 3D printing artifact)
+– – between the overhead strap slots in the back (I had worried about this, but it seems practical to address by just stiffening it more
+– The chin cloth piece came out a little too small (I slightly messed up cutting/sewing it, but I should investigate whether there's a design problem as well)
+– the rear overhead strap slot was too stiff (you could damage the strap while trying to insert it, and it was hard to adjust by just one tick at a time)
+– thanks to the foam taking up space, the head sizing needs to be adjusted 
 '''
 
 import math
