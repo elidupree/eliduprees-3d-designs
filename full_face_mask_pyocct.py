@@ -1497,6 +1497,10 @@ def make_FDM_printable_headband():
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
 
+@run_if_changed
+def make_FDM_printable_hook_skirt():
+  save_STL("hook_skirt", hook_skirt)
+
 preview(
   headband_final,
   overhead_strap,
