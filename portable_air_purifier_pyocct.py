@@ -200,14 +200,17 @@ def make_fan_to_strong_filter():
   filter_inset = vector(xy= strong_filter_airspace_wall_inset)
   center_to_corner = (strong_filter_size).projected_perpendicular (Up)/2
   center_to_inset = center_to_corner - filter_inset
+  center_to_mid = vector(50, 20, 0)
     
   spines = []
   for corner in corner_transforms:
     bottom = fan_exit_center [2]-(fan_exit_length - contact_leeway)
+    mid = fan_exit_center [2]
     spines.append ([
       (fan_exit_center + (fan_exit_size/2 + vector(xy=contact_leeway - 0.2))@corner),
       (fan_exit_center + (fan_exit_size/2 + vector(xy=contact_leeway + 0.2))@corner).with_z(bottom),
-      (strong_filter_center + (center_to_inset + vector(xy=wall_thickness - 1))@corner).with_z (bottom),
+      (strong_filter_center + (center_to_mid)@corner).with_z (bottom),
+      (strong_filter_center + (center_to_inset + vector(xy=wall_thickness - 2))@corner).with_z (mid),
       (strong_filter_center + (center_to_inset + vector(xy=wall_thickness))@corner).with_z (strong_filter_min [2] - wall_thickness),
       (strong_filter_center + (center_to_corner + vector(xy=wall_thickness + contact_leeway - 0.4))@corner).with_z (strong_filter_min [2] - wall_thickness),
       (strong_filter_center + (center_to_corner + vector(xy=wall_thickness + contact_leeway + 0.4))@corner).with_z (strong_filter_min [2] + strong_filter_cover_depth),
@@ -215,26 +218,33 @@ def make_fan_to_strong_filter():
   print("a")
   print ("\n".join(repr(a) for a in spines[0]))
   sections = [Wire(points, loop=True) for points in zip (*spines)]
-  lofts = [Loft (pair, ruled = True) for pair in [sections[0:2][::-1], sections[2:4][::-1], sections[4:6][::-1]]]
+  lofts = [Loft (pair[::-1], ruled = True) for pair in
+    [sections[0:2], sections[2:4], sections[3:5], sections[5:7]]
+  ]
   loft_faces = [face for loft in lofts for face in loft.faces()]
+  #preview (sections)
   faces = loft_faces + [
     Face(sections[2], holes=sections[1].complemented()),
-    Face(sections[4], holes=sections[3].complemented()),
+    Face(sections[5], holes=sections[4].complemented()),
   ]
   #preview (faces)
   pointy_shell = Shell(faces)
+  #preview (pointy_shell)
   
   def loft_verticals(index):
     return [edge for edge in lofts [index].edges() if not all_equal (vertex [2] for vertex in edge.vertices())]
   shell = Fillet (pointy_shell,
     [(edge, min_corner_radius_outer) for edge in sections[1].edges()]
-    + [(edge, 5) for edge in sections[2].edges()]
-    + [(edge, min_corner_radius_inner) for edge in sections[3].edges()]
-    + [(edge, min_corner_radius_outer) for edge in sections[4].edges()]
+    + [(edge, 10) for edge in sections[2].edges()]
+    + [(edge, 5) for edge in sections[3].edges()]
+    + [(edge, min_corner_radius_inner) for edge in sections[4].edges()]
+    + [(edge, min_corner_radius_outer) for edge in sections[5].edges()]
     + [(edge, min_corner_radius_inner) for edge in loft_verticals (0)]
-    + [(edge, min_corner_radius_outer, 5) for edge in loft_verticals (1)]
-    + [(edge, min_corner_radius_outer) for edge in loft_verticals (2)]
+    + [(edge, 15) for edge in loft_verticals (1)]
+    + [(edge, min_corner_radius_outer, 5) for edge in loft_verticals (2)]
+    + [(edge, min_corner_radius_outer) for edge in loft_verticals (3)]
   )
+  preview(shell)
   #preview(shell, Offset (shell, wall_thickness, ))
   solid = Offset (shell, wall_thickness, fill = True)
   
