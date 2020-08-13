@@ -6,9 +6,9 @@ initialize_system (globals())
 
 wall_thickness = 0.6
 
-# extra leeway in addition to the wall expansion, for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit.
-# 0.15 is a good amount generically, but I happen to know that my diagonal printing process adds about 0.25 on each side as well
-tight_leeway = 0.15 + 0.25
+# extra leeway for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit.
+# we generally want to rely on slightly springy parts rather than exact sizing; with a perfect fabrication process, I would use 0.0 for this. The positive number exists to compensate for my diagonal printing process adding some unnecessary thickness
+contact_leeway = 0.4
 
 strong_filter_length = 151.9
 strong_filter_width = 101
@@ -17,21 +17,25 @@ strong_filter_seal_depth_expanded = 2
 strong_filter_seal_squish_distance = 0.5
 strong_filter_seal_depth_squished = strong_filter_seal_depth_expanded - strong_filter_seal_squish_distance
 strong_filter_depth_with_seal = strong_filter_depth_without_seal + strong_filter_seal_depth_squished
- 
-fan_thickness = 28 + tight_leeway*2
-fan_width = 79.7 + tight_leeway*2
-fan_length = 78.9 + tight_leeway*2
-fan_exit_width = 26 + tight_leeway*2
+strong_filter_rim_inset = 6
+strong_filter_airspace_wall_inset = strong_filter_rim_inset
+
+fan_thickness = 28
+fan_width = 79.7
+fan_length = 78.9
+fan_exit_width = 26
 fan_exit_length = 8
 fan_intake_circle_measured_radius = 24.4
-fan_intake_circle_center_from_front = tight_leeway + 40.3
-fan_intake_circle_center_from_left = tight_leeway + 44
+fan_intake_circle_center_from_front = 40.3
+fan_intake_circle_center_from_left = 44
 fan_intake_circle_center_to_back = fan_length - fan_intake_circle_center_from_front
 fan_intake_circle_center_to_right = fan_width - fan_intake_circle_center_from_left
 
-battery_thickness = 27.8 + tight_leeway*2
-battery_width = 85.5 + tight_leeway*2
-battery_length = 144.2 + tight_leeway*2
+plenty_airspace = 11
+
+battery_thickness = 27.8
+battery_width = 85.5
+battery_length = 144.2
 battery_cord_diameter = 3.5
 battery_socket_diameter = 11.4
 battery_socket_length = 38.2
@@ -39,10 +43,15 @@ battery_socket_length = 38.2
 fan_cord_socket_slit_width = 15
 fan_cord_socket_slit_length = 40
 
+CPAP_outer_radius = (22/2)
+CPAP_inner_radius = CPAP_outer_radius-wall_thickness
+
 lots = 500
 
-strong_filter_rim_inset = 6
-strong_filter_airspace_wall_inset = strong_filter_rim_inset
+min_corner_radius_inner = wall_thickness*0.5
+min_corner_radius_outer = wall_thickness*1.5
+
+
 strong_filter_size = Vector (
   strong_filter_length,
   strong_filter_width,
@@ -53,13 +62,19 @@ strong_filter_max = strong_filter_min + strong_filter_size
 strong_filter_center = strong_filter_min + (strong_filter_size/2)
 strong_filter_seal_bottom = strong_filter_max[2] - strong_filter_seal_depth_squished
 
-CPAP_outer_radius = (22/2)
-CPAP_inner_radius = CPAP_outer_radius-wall_thickness
+fan_exit_center = Point(strong_filter_center[0], strong_filter_center[1], strong_filter_min [2] - plenty_airspace)
+fan_exit_size = vector (fan_exit_width, fan_thickness, 0)
 
 
 # only go one third of the way down, so there's a small airgap, meaning that any leakage around the intake side of the filter will be released into the unfiltered air instead of sneaking forward into the air that should be filtered
 strong_filter_cover_depth = strong_filter_depth_with_seal/3
 
+corner_transforms = [
+    Mirror(Origin),
+    Mirror(Back),
+    Transform(),
+    Mirror(Right),
+  ]
 
 def approximate_edges(edges):
   result = []
@@ -71,9 +86,7 @@ def approximate_edges(edges):
 
 @run_if_changed
 def make_strong_filter_to_CPAP_wall():
-  wall_inner_radius = wall_thickness*0.5
-  wall_outer_radius = wall_thickness*1.5
-  filter_inset = vector(all = strong_filter_airspace_wall_inset).projected_perpendicular (Up)
+  filter_inset = vector(xy= strong_filter_airspace_wall_inset)
   center_to_corner = (strong_filter_size).projected_perpendicular (Up)/2
   center_to_inset = center_to_corner - filter_inset
   base_point = strong_filter_center.projected(Plane(Origin, Up))
@@ -82,31 +95,26 @@ def make_strong_filter_to_CPAP_wall():
   flat_before_upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 6, 0, 7)
   upstep_vertex = Vertex (-strong_filter_airspace_wall_inset - 1, 0, 5)
   inset_vertex = Vertex (-strong_filter_airspace_wall_inset, 0, 0)
-  corner_vertex = Vertex (-0.2, 0, 0)
-  cover_vertex = Vertex (0.8, 0, -strong_filter_cover_depth)
+  corner_vertex = Vertex (contact_leeway - 0.6, 0, 0)
+  cover_vertex = Vertex (contact_leeway + 0.4, 0, -strong_filter_cover_depth)
   skirt_vertex = Vertex (5, 0, -strong_filter_depth_with_seal)
   profile = approximate_edges(FilletedEdges([
     flat_before_upstep_vertex,
-    (upstep_vertex, wall_inner_radius + 3),
-    (inset_vertex, wall_outer_radius + 1),
-    (corner_vertex, wall_inner_radius),
-    (cover_vertex, wall_outer_radius + 10),
+    (upstep_vertex, min_corner_radius_inner + 3),
+    (inset_vertex, min_corner_radius_outer + 1),
+    (corner_vertex, min_corner_radius_inner),
+    (cover_vertex, min_corner_radius_outer + 10),
     skirt_vertex,
   ])[1:])
   
-  corners = [
-    Mirror(Origin),
-    Mirror(Back),
-    Transform(),
-    Mirror(Right),
-  ]
+  
   rim = approximate_edges(FilletedEdges([
-    (base_point + center_to_corner@corner_trans, wall_inner_radius)
-    for corner_trans in corners
+    (base_point + center_to_corner@corner_trans, min_corner_radius_inner)
+    for corner_trans in corner_transforms
   ], loop = True))
   inset_rim = approximate_edges(FilletedEdges([
-    (base_point + center_to_inset@corner_trans, wall_inner_radius)
-    for corner_trans in corners
+    (base_point + center_to_inset@corner_trans, min_corner_radius_inner)
+    for corner_trans in corner_transforms
   ], loop = True))
   #preview(Wire((Vertex(a) for a in rim)))
   
@@ -156,7 +164,7 @@ def make_strong_filter_to_CPAP_wall():
   #preview (face)
   
   #thick = thicken_solid(solid, [f for f in solid.faces() if all_equal(v[2] for v in f.vertices())], wall_thickness)
-  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True).complemented()
+  thick = Offset(face, wall_thickness, tolerance = 0.01, fill = True)
   half_thick = Intersection(thick, HalfSpace(strong_filter_center, Left))
   mirrored = half_thick @ Mirror(Axes(strong_filter_center, Right))
   #preview (thick)
@@ -184,6 +192,56 @@ def make_strong_filter_output_part():
   edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])'''
   
   save ("strong_filter_output_part", strong_filter_to_CPAP_wall)
+
+
+
+@run_if_changed
+def make_fan_to_strong_filter():
+  filter_inset = vector(xy= strong_filter_airspace_wall_inset)
+  center_to_corner = (strong_filter_size).projected_perpendicular (Up)/2
+  center_to_inset = center_to_corner - filter_inset
+    
+  spines = []
+  for corner in corner_transforms:
+    bottom = fan_exit_center [2]-(fan_exit_length - contact_leeway)
+    spines.append ([
+      (fan_exit_center + (fan_exit_size/2 + vector(xy=contact_leeway - 0.2))@corner),
+      (fan_exit_center + (fan_exit_size/2 + vector(xy=contact_leeway + 0.2))@corner).with_z(bottom),
+      (strong_filter_center + (center_to_inset + vector(xy=wall_thickness - 1))@corner).with_z (bottom),
+      (strong_filter_center + (center_to_inset + vector(xy=wall_thickness))@corner).with_z (strong_filter_min [2] - wall_thickness),
+      (strong_filter_center + (center_to_corner + vector(xy=wall_thickness + contact_leeway - 0.4))@corner).with_z (strong_filter_min [2] - wall_thickness),
+      (strong_filter_center + (center_to_corner + vector(xy=wall_thickness + contact_leeway + 0.4))@corner).with_z (strong_filter_min [2] + strong_filter_cover_depth),
+    ])
+  print("a")
+  print ("\n".join(repr(a) for a in spines[0]))
+  sections = [Wire(points, loop=True) for points in zip (*spines)]
+  lofts = [Loft (pair, ruled = True) for pair in [sections[0:2][::-1], sections[2:4][::-1], sections[4:6][::-1]]]
+  loft_faces = [face for loft in lofts for face in loft.faces()]
+  faces = loft_faces + [
+    Face(sections[2], holes=sections[1].complemented()),
+    Face(sections[4], holes=sections[3].complemented()),
+  ]
+  #preview (faces)
+  pointy_shell = Shell(faces)
+  
+  def loft_verticals(index):
+    return [edge for edge in lofts [index].edges() if not all_equal (vertex [2] for vertex in edge.vertices())]
+  shell = Fillet (pointy_shell,
+    [(edge, min_corner_radius_outer) for edge in sections[1].edges()]
+    + [(edge, 5) for edge in sections[2].edges()]
+    + [(edge, min_corner_radius_inner) for edge in sections[3].edges()]
+    + [(edge, min_corner_radius_outer) for edge in sections[4].edges()]
+    + [(edge, min_corner_radius_inner) for edge in loft_verticals (0)]
+    + [(edge, min_corner_radius_outer, 5) for edge in loft_verticals (1)]
+    + [(edge, min_corner_radius_outer) for edge in loft_verticals (2)]
+  )
+  #preview(shell, Offset (shell, wall_thickness, ))
+  solid = Offset (shell, wall_thickness, fill = True)
+  
+  save ("fan_to_strong_filter_part", solid)
+  preview (solid, strong_filter_output_part)
+  
+
 
 '''@cached_STL
 def strong_filter_output_part_mesh():

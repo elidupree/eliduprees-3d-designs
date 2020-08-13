@@ -21,7 +21,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepFilletAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -174,12 +174,18 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return Vector (*args, **kwargs)
 
   def make_Vector(original):
-    def derived(cls, *args, all=None):
+    def derived(cls, *args, all=None, xy=None, yz=None, xz=None):
       #if type(args[0]) is Point:
       if len(args) == 1 and isinstance(args[0], Vector):
-        return args[0]
+        args = [args[0].XYZ()]
       if all is not None:
         args = [all, all, all]
+      if xy is not None:
+        args = [xy, xy, 0]
+      if yz is not None:
+        args = [0, yz, yz]
+      if xz is not None:
+        args = [xz, 0, xz]
       if len(args) == 3:
         return original(*(float (value) for value in args))
       return original(*args)
@@ -189,12 +195,20 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def make_Direction(original):
     def derived(cls, *args):
       if len(args) == 1 and isinstance(args[0], Direction):
-        return args[0]
+        args = [args[0].XYZ()]
       if len(args) == 2 and isinstance(args[0], Point) and isinstance(args[1], Point):
         args = [Vector(*args)]
       return original(*args)
     return classmethod(derived)
   override_attribute(Direction, "__new__", make_Direction)
+  
+  def make_Point(original):
+    def derived(cls, *args):
+      if len(args) == 1 and isinstance(args[0], Point):
+        args = [args[0].XYZ()]
+      return original(*args)
+    return classmethod(derived)
+  override_attribute(Point, "__new__", make_Point)
   
   def Vector_str(self):
     return f"Vector({self.X()}, {self.Y()}, {self.Z()})"
@@ -218,6 +232,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
     if index == 2:
       return self.SetZ(value)
     raise IndexError("point/vector can only be indexed with 0-2")
+  def Vector_withindex(self, index, value):
+    result = self.clone()
+    result[index] = value
+    return result
     
   def vector_if_direction (value):
     if isinstance (value, Direction):
@@ -235,6 +253,11 @@ def setup(wrap, unwrap, do_export, override_attribute):
   for whatever in [Vector, Point, Direction, Vector2, Point2, Direction2]:
     simple_override(whatever, "__getitem__", Vector_index)
     simple_override(whatever, "__setitem__", Vector_setindex)
+    simple_override(whatever, "clone", lambda self: wrap(unwrap(self).__class__)(self))
+    simple_override(whatever, "with_coordinate", Vector_withindex)
+    simple_override(whatever, "with_x", lambda self, value: self.with_coordinate(0, value))
+    simple_override(whatever, "with_y", lambda self, value: self.with_coordinate(1, value))
+    simple_override(whatever, "with_z", lambda self, value: self.with_coordinate(2, value))
   
   simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)
@@ -910,6 +933,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
     #shell = Shell (faces)
     sewing = BRepBuilderAPI.BRepBuilderAPI_Sewing(tolerance)
     for shell in shells:
+      if offset > 0:
+        shell = shell.complemented()
       sewing.Add(shell)
     sewing.Perform()
     complete_shell = sewing.SewedShape()
@@ -930,7 +955,14 @@ def setup(wrap, unwrap, do_export, override_attribute):
         builder.AddWire (section)
     builder.Build()
     return builder.Shape()
-
+  
+  @export
+  def Fillet(shape, edges_info):
+    builder = BRepFilletAPI.BRepFilletAPI_MakeFillet (shape)
+    for info in edges_info:
+      builder.Add (*info[1:], info [0])
+    builder.Build()
+    return builder.Shape()
   
   
   def FilletedEdges(input, loop = False):
@@ -954,7 +986,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
         v0 = previous_edge.vertices()
         v1 = new_edge.vertices()
         arbitrary_point = v0[1].point()
-        plane_normal = Direction(v0[1].point() - v0[0].point()).cross (Direction(v1[1].point() - v1[0].point()))
+        plane_normal = Direction((v0[1].point() - v0[0].point()).cross (v1[1].point() - v1[0].point()))
         builder = ChFi2d.ChFi2d_FilletAlgo (previous_edge, new_edge, Plane(arbitrary_point, plane_normal).Pln())
         builder.Perform(radius)
         new_joiner = builder.Result (arbitrary_point, previous_edge, new_edge)

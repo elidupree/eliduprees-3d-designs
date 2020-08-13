@@ -92,6 +92,7 @@ def _setup_wrappers():
     
   class Wrapper:
     def __init__(self, wrapped_object):
+      assert(type (wrapped_object) not in types_not_to_wrap)
       self.wrapped_object = wrapped_object
     def __call__(self, *args, **kwargs):
       inner = self.wrapped_object
