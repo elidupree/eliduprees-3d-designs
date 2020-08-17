@@ -348,10 +348,10 @@ def setup(wrap, unwrap, do_export, override_attribute):
     
   override_attribute(Transform, "__new__", make_Transform)
   simple_override(Transform, "__matmul__", lambda self, other: other.Multiplied(self))
-  simple_override(Transform, "inverse", Transform.Inverted)
+  simple_override(Transform, "inverse", lambda self: self.Inverted())
   override_attribute(GeometryTransform, "__new__", make_GeometryTransform)
   simple_override(GeometryTransform, "__matmul__", lambda self, other: other.Multiplied(self))
-  simple_override(GeometryTransform, "inverse", GeometryTransform.Inverted)
+  simple_override(GeometryTransform, "inverse", lambda self: self.Inverted())
     
   def transform_direction (self, transform):
     if abs(transform.ScaleFactor()) != 1.0:
@@ -1065,8 +1065,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return BRepPrimAPI.BRepPrimAPI_MakeHalfSpace(Face(plane), reference).Solid()
     
     
-  def BuildMesh (shape):
-    builder = BRepMesh.BRepMesh_IncrementalMesh (shape, 0.01, False, 0.1, True)
+  def BuildMesh (shape, linear_deflection = 0.01, angular_deflection = 0.1):
+    builder = BRepMesh.BRepMesh_IncrementalMesh (shape, linear_deflection, False, angular_deflection, True)
     builder.Perform()
   
   def SaveSTL_raw (path, shape):

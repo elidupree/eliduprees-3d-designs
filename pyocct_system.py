@@ -581,8 +581,8 @@ def save (key, value = _SaveByName):
   _load_cache (key)
   
   
-def save_STL (key, shape):
-  BuildMesh (shape)
+def save_STL (key, shape, **kwargs):
+  BuildMesh (shape, **kwargs)
   SaveSTL_raw (_path_base (key) + ".stl", shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
   

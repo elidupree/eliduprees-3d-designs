@@ -124,7 +124,7 @@ Additional notes after prototype #5:
 – we had some plastic deformation issues:
 – – at the top of the 3 ridges at the front of the overhead strap (this was just some sort of 3D printing artifact)
 – – between the overhead strap slots in the back (I had worried about this, but it seems practical to address by just stiffening it more
-– The chin cloth piece came out a little too small (I slightly messed up cutting/sewing it, but I should investigate whether there's a design problem as well). Likewise, the forehead cloth ended up SLIGHTLY too small, leaking a little at my forehead.
+– The chin cloth piece came out a little too small (I slightly messed up cutting/sewing it, but I should investigate whether there's a design problem as well). Likewise, the forehead cloth ended up SLIGHTLY too small, leaking a little at my forehead. (That one was because it didn't account for the foam thickness.) And the shield was visible around the bottom edge, also because of the foam thickness.
 – the rear overhead strap slot was too stiff (you could damage the strap while trying to insert it, and it was hard to adjust by just one tick at a time)
 – thanks to the foam taking up space, the head sizing needs to be adjusted 
 '''
@@ -907,24 +907,6 @@ def make_upper_side_rim():
   upper_side_rim = upper_side_rim.cut(top_peg_holes)
   upper_side_rim = upper_side_rim.cut(side_peg_holes)
   save ("upper_side_rim", upper_side_rim)
-
-
-
-  
-@run_if_changed
-def make_temple_block_on_curled_headband():
-  s0 = standard_forehead_curve.value(distance = temple_block_start_distance)
-  s1 = standard_forehead_curve.value(distance = temple_block_start_distance - temple_block_length)
-  c0 = large_forehead_curve.value(distance = curled_temple_block_distance)
-  c1 = large_forehead_curve.value(distance = curled_temple_block_distance - temple_block_length)
-  transform = Rotate (
-      Axis(s0, Up),
-      radians = -Direction(s0,s1).Angle(Direction(c0, c1))
-    ) @ Translate (
-      s0, c0
-    )
-  save("temple_block_on_curled_headband", temple_block@transform)
-  save("upper_side_rim_on_curled_headband", upper_side_rim@transform)
   
 
   
@@ -950,6 +932,25 @@ top_hook_forwards = Direction (top_hook_front.position - top_hook_back.position)
 save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness)))
 
 save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
+
+
+
+  
+@run_if_changed
+def make_temple_block_on_curled_headband():
+  s0 = standard_forehead_curve.value(distance = temple_block_start_distance)
+  s1 = standard_forehead_curve.value(distance = temple_block_start_distance - temple_block_length)
+  c0 = large_forehead_curve.value(distance = curled_temple_block_distance)
+  c1 = large_forehead_curve.value(distance = curled_temple_block_distance - temple_block_length)
+  transform = Rotate (
+      Axis(s0, Up),
+      radians = -Direction(s0,s1).Angle(Direction(c0, c1))
+    ) @ Translate (
+      s0, c0
+    )
+  save("temple_block_on_curled_headband", temple_block@transform)
+  save("upper_side_rim_on_curled_headband", upper_side_rim@transform)
+  save("side_hook_on_curled_headband", side_hook@transform)
 
 
 #preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
@@ -1502,7 +1503,7 @@ def make_FDM_printable_headband():
   + reflected ([
     temple_block_on_curled_headband,
     upper_side_rim_on_curled_headband,
-    side_hook,
+    side_hook_on_curled_headband,
     #forehead_elastic_hooks,
   ]))
   save("headband_final", headband_final)
@@ -1511,6 +1512,22 @@ def make_FDM_printable_headband():
 @run_if_changed
 def make_FDM_printable_hook_skirt():
   save_STL("hook_skirt", hook_skirt)
+
+
+@run_if_changed
+def make_combined():
+  combined = Compound ([
+    headband_final @ Translate(0,0,-headband_top) @ Rotate(Front, degrees=180),
+    top_rim_final @ Translate(0,0,-headband_top) @ Rotate(Front, degrees=180) @ Translate(0, -30, 13),
+    overhead_strap @ Translate(overhead_strap_width/2, 0, 0)@Rotate (Front, degrees=90)@Rotate (Up, degrees=80)@Translate(-100, -110, 0),
+    lower_side @(
+      Transform(Right, Direction(side_curve_source_points[1], side_curve_source_points[2]), Right.cross(Direction(side_curve_source_points[1], side_curve_source_points[2])), Vector(Origin, side_curve_source_points[1])).inverse()
+    ) @ Rotate(Front, degrees=180) @ Translate(0, -152, 18),
+    
+  ])
+  save("combined_final", combined)
+  save_STL("combined_final", combined, linear_deflection = 0.02, angular_deflection = 0.2)
+  preview(combined)
 
 preview(
   headband_final,
