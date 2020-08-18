@@ -537,11 +537,20 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override (Curve, "parameter", curve_parameter_function (lambda curve, parameter: parameter))
   simple_override (Curve, "distance", curve_parameter_function (lambda curve, parameter: curve.length(0, parameter)))
   
-  class CurveSurfaceIntersections (ArbitraryFields):
+  class GeomIntersections:
+    def __init__(self, *, points=[], curves=[]):
+      self.points = points
+      self.curves = curves
+      
     def point(self):
       if len (self.points) != 1:
-        raise RuntimeError (f"assumed that curve surface intersection had exactly one point, but it actually had {self.points}")
-      return self.points [0]
+        raise RuntimeError (f"assumed that intersection had exactly one point, but it actually had {self.points}")
+      return self.points[0]
+    
+    def curve(self):
+      if len (self.curves) != 1:
+        raise RuntimeError (f"assumed that intersection had exactly one curve, but it actually had {self.curves}")
+      return self.curves[0]
   
   
   def curve_intersections (self, other, tolerance = default_tolerance):
@@ -556,13 +565,13 @@ def setup(wrap, unwrap, do_export, override_attribute):
     if isinstance (other, Curve):
       builder = GeomAPI.GeomAPI_IntCS (other, self)
       
-      return CurveSurfaceIntersections (
+      return GeomIntersections(
         points = [builder.Point (index + 1) for index in range ( builder.NbPoints())],
-        segments = [builder.Segment (index + 1) for index in range ( builder.NbSegments())],
+        curves = [builder.Segment (index + 1) for index in range ( builder.NbSegments())],
       )
     if isinstance (other, Surface):
       builder = GeomAPI.GeomAPI_IntSS (self, other, tolerance)
-      return [builder.Line (index + 1) for index in range ( builder.NbLines())]
+      return GeomIntersections(curves = [builder.Line (index + 1) for index in range ( builder.NbLines())])
     raise RuntimeError (f"don't know how to intersect a surface with {other}")
 
   simple_override (Surface, "intersections", surface_intersections)

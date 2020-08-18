@@ -239,7 +239,7 @@ shield_bottom_peak = shield_surface.intersections (Line(Point(0,0,rim_bottom_z),
 class ShieldCurveInPlane(SerializeAsVars):
   def __init__(self, plane):
     self.plane = plane
-    self.curve = shield_surface.intersections (plane)[0]
+    self.curve = shield_surface.intersections (plane).curve()
     
   def __getattr__(self, name):
     return getattr(self.curve, name)
@@ -282,7 +282,7 @@ save ("lower_side_curve_inner_plane", Plane (lower_side_curve_source_surface.val
 def make_shield_curves():
   save ("shield_side_curve", shield_surface.intersections (
     side_curve_source_surface
-  )[0])
+  ).curve())
   save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
   save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
   save ("shield_lower_side_inner_curve", ShieldCurveInPlane(lower_side_curve_inner_plane))
