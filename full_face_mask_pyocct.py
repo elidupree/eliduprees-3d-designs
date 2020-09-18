@@ -126,7 +126,8 @@ Additional notes after prototype #5:
 – – between the overhead strap slots in the back (I had worried about this, but it seems practical to address by just stiffening it more
 – The chin cloth piece came out a little too small (I slightly messed up cutting/sewing it, but I should investigate whether there's a design problem as well). Likewise, the forehead cloth ended up SLIGHTLY too small, leaking a little at my forehead. (That one was because it didn't account for the foam thickness.) And the shield was visible around the bottom edge, also because of the foam thickness.
 – the rear overhead strap slot was too stiff (you could damage the strap while trying to insert it, and it was hard to adjust by just one tick at a time)
-– thanks to the foam taking up space, the head sizing needs to be adjusted 
+– thanks to the foam taking up space, the head sizing needs to be adjusted
+– we got some fogging at the bottom in outdoor temperatures below 70F; it seems that the air is blown in at a position significantly above the place you exhale to, so the exhale target gets to remain moist
 '''
 
 import math
