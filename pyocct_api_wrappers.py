@@ -972,6 +972,14 @@ def setup(wrap, unwrap, do_export, override_attribute):
       builder.Add (*info[1:], info [0])
     builder.Build()
     return builder.Shape()
+    
+  @export
+  def Chamfer(shape, edges_info):
+    builder = BRepFilletAPI.BRepFilletAPI_MakeChamfer (shape)
+    for info in edges_info:
+      builder.Add (*info[1:], info [0])
+    builder.Build()
+    return builder.Shape()
   
   
   def FilletedEdges(input, loop = False):
