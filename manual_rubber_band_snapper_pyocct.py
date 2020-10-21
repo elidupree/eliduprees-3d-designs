@@ -12,7 +12,7 @@ band_thickness = 1
 band_leeway = 1.5
 
 device_width = 90
-strut_thickness = 5
+strut_thickness = 7
 finger_leeway = band_width
 miss_leeway_slope = 0.2
 miss_leeway = band_leeway + miss_leeway_slope * (strut_thickness + finger_leeway)
@@ -24,6 +24,9 @@ grip_slot_wall_min_thickness = 2
 band_space_height = band_width + band_leeway*2
 band_space_width = band_thickness + band_leeway*2
 cylinder_radius = 5
+
+handle_radius = 6
+handle_length = 90
 
 
 
@@ -43,7 +46,11 @@ def make():
     holes = side_struts_outer_wire.offset2D(-strut_thickness).complemented()
   )
   side_struts = side_struts_face.extrude(Up*strut_thickness)
-  side_struts = Chamfer(side_struts, [(e, strut_rounding) for e in side_struts.edges() if not all(v[2] == strut_thickness for v in e.vertices())])
+  side_struts = Chamfer(side_struts, [
+    (e, strut_rounding if any(abs(v[0]) != side_struts_height/2 or abs(v[1]) != device_width/2 for v in e.vertices()) or not all_equal((v[0], v[1]) for v in e.vertices()) else strut_thickness*0.7)
+    for e in side_struts.edges()
+    if not all(v[2] == strut_thickness for v in e.vertices())
+  ])
   
   cylinder_outer_point = Point(
       0,
@@ -106,10 +113,25 @@ def make():
   
   cylinder_etc = Compound(cylinder, cylinder_block, side_wall, bottom_wall, top_wall, bottom_filler)
   
-  solid = Compound(side_struts, cylinder_etc, cylinder_etc @ Reflect(Front))
+  
+  handle_direction = Direction(1, 0, 1)
+  handle_perpendicular = Direction(-1, 0, 1)
+  handle_base_point = Point(
+      target_space_height/2 + strut_thickness/3,
+      0,
+      strut_thickness/3
+    )
+  handle = Face(Wire(Edge(Circle(Axes (
+    handle_base_point, handle_direction
+  ), handle_radius)))).extrude(handle_direction*handle_length)
+  handle = Fillet(handle, [(e, handle_radius * 0.99) for e in handle.edges() if e.bounds().min()[2] > handle_length/3])
+  handle = handle.intersection(HalfSpace(Origin, Up)).intersection(HalfSpace(Origin+(Right*target_space_height/2), Right))
+  
+    
+  solid = Compound(side_struts, cylinder_etc, cylinder_etc @ Reflect(Front), handle)
 
   save ("manual_rubber_band_snapper", solid)
-  #save_STL("manual_rubber_band_snapper", solid)
+  save_STL("manual_rubber_band_snapper", solid)
   
   
     
