@@ -47,7 +47,7 @@ def make():
   )
   side_struts = side_struts_face.extrude(Up*strut_thickness*2)
   side_struts = Fillet(side_struts, [
-    (e, strut_rounding if any(abs(v[0]) != side_struts_height/2 for v in e.vertices()) else strut_thickness*0.7)
+    (e, strut_rounding if any(abs(v[0]) != side_struts_height/2 for v in e.vertices()) else strut_thickness*0.76)
     for e in side_struts.edges()
     if all_equal((v[0], v[1]) for v in e.vertices())
   ])
@@ -57,6 +57,7 @@ def make():
     if all(v[2] == 0 for v in e.vertices())
   ])
   side_struts = side_struts.intersection(HalfSpace(Origin+Up*strut_thickness, Direction(0.2, 0, -1)))
+  side_struts = Fillet(side_struts, [(e, 1) for e in side_struts.edges() if e.bounds().max()[2] > 1])
   
   cylinder_outer_point = Point(
       0,
@@ -107,21 +108,26 @@ def make():
     bottom_wall_base + Right*(band_space_height/2 + grip_slot_wall_min_thickness),
     loop = True,
     )).extrude(Back*(grip_slot_wall_min_thickness + grip_slot_width + cylinder_radius*2))
+    
+  side_wall = Fillet(side_wall, [(e, 0.5) for e in side_wall.edges()])
 
   top_wall = (bottom_wall @ Reflect(Left)).intersection(HalfSpace(cylinder_outer_point, Back))
   
   bottom_filler = Face(Wire(
     bottom_wall_base + Up*cylinder_radius + Right*band_space_height/2,
-    bottom_wall_base + Right*band_space_height/2,
-    bottom_wall_base + Right*(band_space_height/2 + grip_slot_wall_min_thickness),
+    bottom_wall_base - Up*cylinder_radius + Right*band_space_height/2,
+    bottom_wall_base - Up*cylinder_radius + Right*(band_space_height/2 + grip_slot_wall_min_thickness),
     bottom_wall_base + Up*cylinder_radius + Right*(band_space_height/2 + grip_slot_wall_min_thickness),
     loop = True,
     )).extrude(Back*(grip_slot_wall_min_thickness + grip_slot_width + 1))
 
   
   cylinder_etc = Compound(cylinder, cylinder_block, side_wall, bottom_wall, top_wall, bottom_filler)
+  cylinder_etc = Fillet(cylinder_etc , [
+    (e, 0.7)
+    for e in cylinder_etc.edges()])
   
-  fillet_top = cylinder_outer_point[2] + cylinder_radius
+  '''fillet_top = cylinder_outer_point[2] + cylinder_radius
   fillet_center_x = band_space_height/2
   fillet_radius = grip_slot_wall_min_thickness
   fillet_center_z = fillet_top - fillet_radius
@@ -151,12 +157,12 @@ def make():
     ),
   )).extrude(Front*100, centered=True)
   
-  cylinder_etc = cylinder_etc.cut(fillet_profile)
+  cylinder_etc = cylinder_etc.cut(fillet_profile)'''
 
   handle_direction = Direction(1, 0, 1)
   handle_perpendicular = Direction(-1, 0, 1)
   handle_base_point = Point(
-      target_space_height/2 + strut_thickness/3,
+      target_space_height/2 + strut_thickness/30,
       0,
       strut_thickness/3
     )
@@ -165,6 +171,8 @@ def make():
   ), handle_radius)))).extrude(handle_direction*handle_length)
   handle = Fillet(handle, [(e, handle_radius * 0.99) for e in handle.edges() if e.bounds().min()[2] > handle_length/3])
   handle = handle.intersection(HalfSpace(Origin, Up)).intersection(HalfSpace(Origin+(Right*target_space_height/2), Right))
+  handle = handle.intersection(HalfSpace(handle_base_point + handle_perpendicular*handle_radius/2, -handle_perpendicular))
+  handle = Fillet(handle, [(e, 1.5) for e in handle.edges() if e.bounds().max()[2] > 1])
   
     
   solid = Compound(side_struts, cylinder_etc, cylinder_etc @ Reflect(Front), handle)
