@@ -281,7 +281,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Point, "__sub__", lambda self, other: Vector(other, self) if isinstance(other, Point) else self.translated (other*-1))
   
   def Between (first, second, fraction = 0.5):
-    return first + Vector (first, second)*fraction
+    #return first + Vector (first, second)*fraction
+    return first + (second - first) * fraction
   
   simple_override(Direction, "__add__", lambda self, other: Vector(self) + vector_if_direction (other))
   simple_override(Direction, "__sub__", lambda self, other: Vector(self) - vector_if_direction (other))
