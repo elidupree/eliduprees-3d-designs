@@ -15,10 +15,8 @@ bottom_nose_length = 25
 #cloth_leeway = 3
 wing_length = 80
 
-wall_thickness = 1.0
 
-
-def control_points(height_fraction, thickness_fraction=1):
+def control_points(height_fraction, thickness_fraction):
   corner_curvyness = 0.5
   nose_coordinates = [
     (-1 - corner_curvyness, 0),
@@ -47,25 +45,37 @@ def control_points(height_fraction, thickness_fraction=1):
   )
   nose_points = nose_points + [p@Reflect(Right) for p in nose_points[::-1]]
   
-  if height_fraction == 0.0 or height_fraction == 1.0:
-    curve = BSplineCurve(nose_points)
-    for i, point in enumerate(nose_points):
-      normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=-90)
-      if normal is not None:
-        nose_points[i] = point - normal * (2.0 if point[1] > 1 else 1.0)
-  return nose_points
+  curve = BSplineCurve(nose_points)
+  resampled = [curve.value(distance = d) for d in subdivisions(0, curve.length(), amount = 120)]
+  
+  
+  for i, point in enumerate(resampled):
+    normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
+    if normal is not None:
+      q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - wing_length/6) / (wing_length/3))
+      here_thickness = (1-q*0.45)
+
+      resampled[i] = point + normal * thickness_fraction * here_thickness
+      if height_fraction == 0.0 or height_fraction == 1.0:
+        resampled[i] = resampled[i] + normal * here_thickness * 2.0
+
+  return resampled
     
   
 
 
 @run_if_changed
 def make():
-  surface = BSplineSurface([
-    control_points(fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
-  ])
-  #preview(surface)
+  faces = [Face(BSplineSurface([
+    control_points(fraction, thickness_fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
+  ])) for thickness_fraction in [0, 1]]
   
-  solid = Offset(Face(surface), wall_thickness, fill=True)
+  #preview(surface)
+  #preview(Compound(faces[0], faces[1], Loft(faces[0].outer_wire(), faces[1].outer_wire(), ruled=True).faces()))
+  
+  shell = Shell(faces[0].complemented(), faces[1], Loft(faces[0].outer_wire(), faces[1].outer_wire(), ruled=True).faces())
+  
+  solid = Solid(shell)
   solid = Difference(solid, HalfSpace(Origin+Up*object_height, Up))
   solid = Difference(solid, HalfSpace(Origin, Down))
   
@@ -87,4 +97,3 @@ def make():
   
     
 
-preview(manual_rubber_band_snapper)
