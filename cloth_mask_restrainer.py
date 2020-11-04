@@ -18,8 +18,8 @@ wing_length = 80
 wall_thickness = 1.0
 
 
-def control_points(fraction):
-  corner_curvyness = 0.3
+def control_points(height_fraction, thickness_fraction=1):
+  corner_curvyness = 0.5
   nose_coordinates = [
     (-1 - corner_curvyness, 0),
     (-1, 0),
@@ -27,22 +27,27 @@ def control_points(fraction):
     (-0.6, 0.9),
     (-0.1, 1),
   ]
-  x_scale = Between(bottom_nose_width, top_nose_width, fraction)/2.0
-  y_scale = Between(bottom_nose_length, top_nose_length, fraction)
-  z = Between(-1, object_height + 1, fraction)
+  x_scale = Between(bottom_nose_width, top_nose_width, height_fraction)/2.0
+  y_scale = Between(bottom_nose_length, top_nose_length, height_fraction)
+  z = Between(-1, object_height + 1, height_fraction)
   nose_points = [Point(x*x_scale, y*y_scale, z) for x,y in nose_coordinates]
+  wing_dir_1 = Left @ Rotate(Up, degrees = 10)
+  wing_degrees_2 = 45
+  wing_dir_2 = Left @ Rotate(Up, degrees = wing_degrees_2)
+  nose_points = [nose_points[0] + wing_dir_1 * (wing_length/2)] + nose_points
+  nose_points = [nose_points[0] + wing_dir_2 * (wing_length/2)] + nose_points
   left_end_coordinates = [
     (0,0),
-    (-2, 0),
-    (-5, 8),
+    (-5, 0),
+    (-8, 8),
   ]
   nose_points = (
-    [nose_points[0] + Left*wing_length + Vector(x, y, 0) for x,y in left_end_coordinates[::-1]]
+    [nose_points[0] + Vector(x, y, 0) @ Rotate(Up, degrees = wing_degrees_2) for x,y in left_end_coordinates[::-1]]
     + nose_points
   )
   nose_points = nose_points + [p@Reflect(Right) for p in nose_points[::-1]]
   
-  if fraction == 0.0 or fraction == 1.0:
+  if height_fraction == 0.0 or height_fraction == 1.0:
     curve = BSplineCurve(nose_points)
     for i, point in enumerate(nose_points):
       normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=-90)
