@@ -7,13 +7,20 @@ from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided
 
 
 
-object_height = 15
+object_height = 12
 top_nose_width = 23
 top_nose_length = 24
 bottom_nose_width = 29
 bottom_nose_length = 29
 #cloth_leeway = 3
 wing_length = 80
+wing_dir_1 = Left @ Rotate(Up, degrees = 12)
+wing_degrees_2 = 60
+wing_dir_2 = Left @ Rotate(Up, degrees = wing_degrees_2)
+wing_corner_frac = 0.6
+wing_base = Point(-bottom_nose_width/2, 0, 0)
+wing_offset_1 = wing_dir_1 * (wing_length*wing_corner_frac)
+wing_offset_2 = wing_dir_2 * (wing_length*(1-wing_corner_frac))
 
 
 def control_points(height_fraction, thickness_fraction):
@@ -22,27 +29,23 @@ def control_points(height_fraction, thickness_fraction):
     (-1 - corner_curvyness, 0),
     (-1, 0),
     (-1, corner_curvyness),
-    (-0.6, 0.9),
-    (-0.1, 1),
+    (-0.5, 0.95),
+    (-0.2, 1),
   ]
   x_scale = Between(bottom_nose_width, top_nose_width, height_fraction)/2.0
   y_scale = Between(bottom_nose_length, top_nose_length, height_fraction)
   z = Between(-1, object_height + 1, height_fraction)
   nose_points = [Point(x*x_scale, y*y_scale, z) for x,y in nose_coordinates]
-  wing_dir_1 = Left @ Rotate(Up, degrees = 10)
-  wing_degrees_2 = 55
-  wing_dir_2 = Left @ Rotate(Up, degrees = wing_degrees_2)
-  wing_base = Point(-bottom_nose_width/2, 0, z)
-  wing_corner_frac = 0.6
-  nose_points = [wing_base + wing_dir_1 * (wing_length*wing_corner_frac)] + nose_points
-  nose_points = [nose_points[0] + wing_dir_2 * (wing_length*(1-wing_corner_frac))] + nose_points
+  nose_points = [wing_base + vector(0,0,z) + wing_offset_1] + nose_points
+  nose_points = [nose_points[0] + wing_offset_2] + nose_points
+  on_edge = height_fraction == 0.0 or height_fraction == 1.0
   left_end_coordinates = [
-    (0,0),
-    (-5, 0),
-    (-8, 8),
+    vector(0,0,0),
+    vector(-5, 0, 0),
+    vector(-5, 0, 0) + vector(-3, 8, 0)*(0.6 if on_edge else 1.0),
   ]
   nose_points = (
-    [nose_points[0] + Vector(x, y, 0) @ Rotate(Up, degrees = wing_degrees_2) for x,y in left_end_coordinates[::-1]]
+    [nose_points[0] + v @ Rotate(Up, degrees = wing_degrees_2) for v in left_end_coordinates[::-1]]
     + nose_points
   )
   nose_points = nose_points + [p@Reflect(Right) for p in nose_points[::-1]]
@@ -55,10 +58,10 @@ def control_points(height_fraction, thickness_fraction):
     normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
     if normal is not None:
       q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - wing_length/6) / (wing_length/3))
-      here_thickness = (1-q*0.45)
+      here_thickness = (1-q*0.3)
 
       resampled[i] = point + normal * thickness_fraction * here_thickness
-      if height_fraction == 0.0 or height_fraction == 1.0:
+      if on_edge:
         resampled[i] = resampled[i] + normal * here_thickness * 2.0
 
   return resampled
@@ -67,7 +70,7 @@ def control_points(height_fraction, thickness_fraction):
 
 
 @run_if_changed
-def make():
+def make_solid():
   faces = [Face(BSplineSurface([
     control_points(fraction, thickness_fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
   ])) for thickness_fraction in [0, 1]]
@@ -80,21 +83,25 @@ def make():
   solid = Solid(shell)
   solid = Difference(solid, HalfSpace(Origin+Up*object_height, Up))
   solid = Difference(solid, HalfSpace(Origin, Down))
+  save ("solid", solid)
+
+@run_if_changed
+def make_final():
   
-  hole = Difference(
-    Box(
-      Point(-500, 3.0, 2.0),
-      Point(500, 6.0, object_height - 2.0),
-    ),
-    Box(
-      Point(-bottom_nose_width, -500, -500),
-      Point(bottom_nose_width, 500, 500),
+  hole_border_thickness = 2
+  hole = (
+    Vertex(wing_base + wing_offset_1 + wing_offset_2 + vector(0,0,hole_border_thickness))
+      .extrude(Up*(object_height-hole_border_thickness*2))
+      .extrude((Left*50) @ Rotate(Up, degrees = wing_degrees_2))
+      .extrude((Back*3) @ Rotate(Up, degrees = wing_degrees_2))
+      @ Translate((Back*3) @ Rotate(Up, degrees = wing_degrees_2))
     )
-  )
-  #solid = Difference(solid, hole)
-  preview(solid)
-  save ("cloth_mask_restrainer", solid)
-  save_STL("cloth_mask_restrainer", solid)
+  hole = Fillet(hole, [(edge, 1.0) for edge in hole.edges()])
+  hole = Union(hole, hole @ Reflect(Right))
+  final = Difference(solid, hole)
+  preview(final)
+  save ("cloth_mask_restrainer", final)
+  save_STL("cloth_mask_restrainer", final, linear_deflection = 0.02, angular_deflection = 0.2)
   
   
     
