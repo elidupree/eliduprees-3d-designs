@@ -11,7 +11,7 @@ object_height = 12
 top_nose_width = 23
 top_nose_length = 24
 bottom_nose_width = 29
-bottom_nose_length = 29
+bottom_nose_length = 28
 #cloth_leeway = 3
 wing_length = 80
 wing_dir_1 = Left @ Rotate(Up, degrees = 12)
