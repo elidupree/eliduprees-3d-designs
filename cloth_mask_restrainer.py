@@ -14,8 +14,8 @@ bottom_nose_width = 29
 bottom_nose_length = 28
 #cloth_leeway = 3
 wing_length = 80
-wing_dir_1 = Left @ Rotate(Up, degrees = 12)
-wing_degrees_2 = 60
+wing_dir_1 = Left @ Rotate(Up, degrees = 15)
+wing_degrees_2 = 65
 wing_dir_2 = Left @ Rotate(Up, degrees = wing_degrees_2)
 wing_corner_frac = 0.6
 wing_base = Point(-bottom_nose_width/2, 0, 0)
@@ -58,11 +58,14 @@ def control_points(height_fraction, thickness_fraction):
     normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
     if normal is not None:
       q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - wing_length/6) / (wing_length/3))
-      here_thickness = (1-q*0.3)
+      r = min(1, max(0, (point[1] - top_nose_length/2) / (top_nose_length/3)))
+      thick = 1.2
+      thin = 0.7
+      here_thickness = (thick-max(q, r)*(thick - thin))
 
       resampled[i] = point + normal * thickness_fraction * here_thickness
       if on_edge:
-        resampled[i] = resampled[i] + normal * here_thickness * 2.0
+        resampled[i] = resampled[i] + normal * (-2 + q*3)
 
   return resampled
     
