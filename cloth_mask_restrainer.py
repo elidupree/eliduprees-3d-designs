@@ -9,9 +9,9 @@ from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided
 
 object_height = 12
 top_nose_width = 25
-top_nose_length = 25
+top_nose_length = 26
 bottom_nose_width = 31
-bottom_nose_length = 29
+bottom_nose_length = 30
 #cloth_leeway = 3
 wing_length = 80
 wing_dir_1 = Left @ Rotate(Up, degrees = 15)
@@ -26,8 +26,8 @@ wing_offset_2 = wing_dir_2 * (wing_length*(1-wing_corner_frac))
 def control_points(height_fraction, thickness_fraction):
   corner_curvyness = 0.5
   nose_coordinates = [
-    (-1 - corner_curvyness, 0),
-    (-1, 0),
+    #(-1 - corner_curvyness, 0),
+    (-1- corner_curvyness/5, corner_curvyness/5),
     (-1, corner_curvyness),
     (-0.5, 0.95),
     (-0.2, 1),
@@ -36,6 +36,7 @@ def control_points(height_fraction, thickness_fraction):
   y_scale = Between(bottom_nose_length, top_nose_length, height_fraction)
   z = Between(-1, object_height + 1, height_fraction)
   nose_points = [Point(x*x_scale, y*y_scale, z) for x,y in nose_coordinates]
+  nose_points = [nose_points[0] + wing_dir_1*x_scale*corner_curvyness] + nose_points
   nose_points = [wing_base + vector(0,0,z) + wing_offset_1] + nose_points
   nose_points = [nose_points[0] + wing_offset_2] + nose_points
   on_edge = height_fraction == 0.0 or height_fraction == 1.0
