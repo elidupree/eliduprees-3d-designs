@@ -8,10 +8,10 @@ from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided
 
 
 object_height = 12
-top_nose_width = 23
-top_nose_length = 24
-bottom_nose_width = 29
-bottom_nose_length = 28
+top_nose_width = 25
+top_nose_length = 25
+bottom_nose_width = 31
+bottom_nose_length = 29
 #cloth_leeway = 3
 wing_length = 80
 wing_dir_1 = Left @ Rotate(Up, degrees = 15)
@@ -57,7 +57,7 @@ def control_points(height_fraction, thickness_fraction):
   for i, point in enumerate(resampled):
     normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
     if normal is not None:
-      q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - wing_length/6) / (wing_length/3))
+      q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - 4) / (15))
       r = min(1, max(0, (point[1] - top_nose_length/2) / (top_nose_length/3)))
       thick = 1.2
       thin = 0.7
@@ -102,10 +102,11 @@ def make_final():
   hole = Fillet(hole, [(edge, 1.0) for edge in hole.edges()])
   hole = Union(hole, hole @ Reflect(Right))
   final = Difference(solid, hole)
-  preview(final)
+
   save ("cloth_mask_restrainer", final)
   save_STL("cloth_mask_restrainer", final, linear_deflection = 0.02, angular_deflection = 0.2)
   
+preview(cloth_mask_restrainer)
   
     
 
