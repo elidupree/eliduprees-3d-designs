@@ -22,8 +22,13 @@ wing_base = Point(-bottom_nose_width/2, 0, 0)
 wing_offset_1 = wing_dir_1 * (wing_length*wing_corner_frac)
 wing_offset_2 = wing_dir_2 * (wing_length*(1-wing_corner_frac))
 
+class Ender3: pass
+class Shapeways: pass
+target_printing_system = Ender3
+target_printing_system = Shapeways
 
-def control_points(height_fraction, thickness_fraction):
+
+def control_points(height_fraction):
   corner_curvyness = 0.5
   nose_coordinates = [
     #(-1 - corner_curvyness, 0),
@@ -53,7 +58,7 @@ def control_points(height_fraction, thickness_fraction):
   
   curve = BSplineCurve(nose_points)
   resampled = [curve.value(distance = d) for d in subdivisions(0, curve.length(), amount = 120)]
-  
+  result = []
   
   for i, point in enumerate(resampled):
     normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
@@ -61,23 +66,38 @@ def control_points(height_fraction, thickness_fraction):
       q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - 4) / (15))
       r = min(1, max(0, (point[1] - top_nose_length/2) / (top_nose_length/3)))
       thick = 1.2
-      thin = 0.7
+      thin = 0.71
       here_thickness = (thick-max(q, r)*(thick - thin))
 
-      resampled[i] = point + normal * thickness_fraction * here_thickness
       if on_edge:
-        resampled[i] = resampled[i] + normal * (-2 + q*3)
+        point = point + normal * (-2 + q*3)
+      result.append((point, normal, here_thickness))
 
-  return resampled
+  return result
     
   
 
 
 @run_if_changed
 def make_solid():
-  faces = [Face(BSplineSurface([
-    control_points(fraction, thickness_fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
-  ])) for thickness_fraction in [0, 1]]
+  points = [
+    control_points(fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
+  ]
+
+  points_0 = [[a for a,b,c in row] for row in points]
+  surface_0 = BSplineSurface(points_0)
+  if target_printing_system is Ender3:
+    points_1 = [[a + b*c for a,b,c in row] for row in points]
+  if target_printing_system is Shapeways:
+    def q(a,b,c):
+      normal = surface_0.normal(surface_0.parameter(a))
+      assert normal.dot(b) > 0
+      return a + surface_0.normal(surface_0.parameter(a))*c
+    points_1 = [[q(a,b,c) for a,b,c in row] for row in points]
+  faces = [
+    Face(surface_0),
+    Face(BSplineSurface(points_1)),
+  ]
   
   #preview(surface)
   #preview(Compound(faces[0], faces[1], Loft(faces[0].outer_wire(), faces[1].outer_wire(), ruled=True).faces()))
