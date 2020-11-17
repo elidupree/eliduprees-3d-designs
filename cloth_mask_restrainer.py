@@ -60,17 +60,26 @@ def control_points(height_fraction):
   resampled = [curve.value(distance = d) for d in subdivisions(0, curve.length(), amount = 120)]
   result = []
   
+  loop_corner_base = wing_base + wing_offset_1 + wing_offset_2
+  
   for i, point in enumerate(resampled):
     normal = curve.derivatives(closest = point).tangent @ Rotate(Up, degrees=90)
     if normal is not None:
-      q = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - 4) / (15))
-      r = min(1, max(0, (point[1] - top_nose_length/2) / (top_nose_length/3)))
+      cheekness = min(1, max(0, abs(point[0]) - bottom_nose_width/2 - 4) / (15))
+      tipness = min(1, max(0, (point[1] - top_nose_length/2) / (top_nose_length/3)))
+      loopness = -(point - loop_corner_base)[1]
+      loopness = min(1, max(0, (loopness + 10) / 10))
       thick = 1.2
+      tip = 1.0
       thin = 0.71
-      here_thickness = (thick-max(q, r)*(thick - thin))
+      here_thickness = (thin
+        + loopness * (thick - thin)
+        + (1-cheekness) * (thick - thin)
+        + tipness * (tip - thick)
+      )
 
       if on_edge:
-        point = point + normal * (-2 + q*3)
+        point = point + normal * (-2 + cheekness*3 + loopness*1)
       result.append((point, normal, here_thickness))
 
   return result
@@ -112,7 +121,7 @@ def make_solid():
 @run_if_changed
 def make_final():
   
-  hole_border_thickness = 2
+  hole_border_thickness = 2.2
   hole = (
     Vertex(wing_base + wing_offset_1 + wing_offset_2 + vector(0,0,hole_border_thickness))
       .extrude(Up*(object_height-hole_border_thickness*2))
@@ -120,7 +129,7 @@ def make_final():
       .extrude((Back*3) @ Rotate(Up, degrees = wing_degrees_2))
       @ Translate((Back*3) @ Rotate(Up, degrees = wing_degrees_2))
     )
-  hole = Fillet(hole, [(edge, 1.0) for edge in hole.edges()])
+  hole = Fillet(hole, [(edge, 1.3) for edge in hole.edges()])
   hole = Union(hole, hole @ Reflect(Right))
   final = Difference(solid, hole)
 

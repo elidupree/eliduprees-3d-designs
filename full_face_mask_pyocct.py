@@ -128,6 +128,7 @@ Additional notes after prototype #5:
 – the rear overhead strap slot was too stiff (you could damage the strap while trying to insert it, and it was hard to adjust by just one tick at a time)
 – thanks to the foam taking up space, the head sizing needs to be adjusted
 – we got some fogging at the bottom in outdoor temperatures below 70F; it seems that the air is blown in at a position significantly above the place you exhale to, so the exhale target gets to remain moist
+– after 3 month of use, the headband snapped under moderate leverage where it meets the left triangle block (only the flat part snapped, the wave didn't, and then I glued it back together)
 '''
 
 import math
