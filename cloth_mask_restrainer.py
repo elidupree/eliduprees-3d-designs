@@ -7,11 +7,11 @@ from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided
 
 
 
-object_height = 12
+object_height = 8
 top_nose_width = 25
 top_nose_length = 26
-bottom_nose_width = 31
-bottom_nose_length = 30
+bottom_nose_width = 29
+bottom_nose_length = 28
 #cloth_leeway = 3
 wing_length = 80
 wing_dir_1 = Left @ Rotate(Up, degrees = 15)
@@ -90,7 +90,7 @@ def control_points(height_fraction):
 @run_if_changed
 def make_solid():
   points = [
-    control_points(fraction) for fraction in subdivisions(0.0, 1.0, amount=7)
+    control_points(fraction) for fraction in subdivisions(0.0, 1.0, amount=5)
   ]
 
   points_0 = [[a for a,b,c in row] for row in points]
