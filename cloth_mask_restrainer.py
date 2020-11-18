@@ -71,7 +71,7 @@ def control_points(height_fraction):
       loopness = min(1, max(0, (loopness + 10) / 10))
       thick = 1.2
       tip = 1.0
-      thin = 0.71
+      thin = 0.61 if target_printing_system is Ender3 else 0.8
       here_thickness = (thin
         + loopness * (thick - thin)
         + (1-cheekness) * (thick - thin)
