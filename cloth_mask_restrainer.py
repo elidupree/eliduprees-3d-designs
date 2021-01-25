@@ -131,7 +131,7 @@ def make_final():
     )
   hole = Fillet(hole, [(edge, 1.3) for edge in hole.edges()])
   hole = Union(hole, hole @ Reflect(Right))
-  final = Difference(solid, hole)
+  final = solid if target_printing_system is Ender3 else Difference(solid, hole)
 
   save ("cloth_mask_restrainer", final)
   save_STL("cloth_mask_restrainer", final, linear_deflection = 0.02, angular_deflection = 0.2)
