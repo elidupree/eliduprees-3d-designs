@@ -961,24 +961,31 @@ def make_temple_block_on_curled_headband():
 ########  Intake  #######
 ########################################################################
 
+# The thickness of the flat part of the air passage at the thickest point, except not exactly
 intake_flat_air_thickness_base = 12
+
+# The length, along the side curve, of the full intake housing (including the part that covers the cloth on the inside)
 intake_flat_width = 78
-intake_flat_subdivisions = 10
-intake_edge_skip_size = (cloth_with_elastic_space + min_wall_thickness)*2
-
-
 
 
 @run_if_changed
 def make_intake():
+  # a base point on the lower side curve, just inside the shield.
   intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=1)
   augment_lower_curve_sample(intake_middle)
+  
   #intake_skew_factor = 0.8
   #intake_forwards = Direction (intake_middle.curve_in_surface_normal + intake_middle.curve_tangent*intake_skew_factor)
+  
+  # the center of the circle at the far CPAP connector end.
   CPAP_back_center = Point(-72, headphones_front - 40, -110)
+  
+  # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
   intake_flat_back_center_approx = intake_middle.lip_tip + (elastic_holder_depth+4)*intake_middle.curve_in_surface_normal_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2)
+  
   CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
 
+  # the face-center of the lower side curve (not center of intake, but near the chin)
   lower_side_center_sample = CurveSample(shield_lower_side_curve, distance=shield_lower_side_curve.length()/2)
   augment_lower_curve_sample(lower_side_center_sample)
   
@@ -987,24 +994,32 @@ def make_intake():
   intake_edges = ([], [], [], [])
   for sample in curve_samples(shield_lower_side_curve, shield_lower_side_curve.length()-1, shield_lower_side_curve.length()/2+1, amount = 100):
     augment_lower_curve_sample(sample)
+    
+    # Get the offset relative to intake_middle:
     offset = sample.curve_distance - intake_middle.curve_distance
     relative_offset = 2*offset / intake_flat_width
-    outer_edge_from_air = min_wall_thickness+cloth_with_elastic_space
+    
+    reference_edge_from_air = min_wall_thickness+cloth_with_elastic_space
+    
+    # now, compute the shape of furthest edge (closest to the face), in the form of a height from the regular elastic-holder surface (slightly outward of the shield surface)
     if abs(relative_offset) < 1:
       # to make the thing continuous, we need that when this is zero, the END of the air is at the outer lip, so we need to add space to compensate
-      air_thickness = (intake_flat_air_thickness_base + outer_edge_from_air) * math.e * math.exp(1/(relative_offset**2 - 1))
-      air_thickness_derivative = (2 / intake_flat_width) * 2*relative_offset*air_thickness / ((relative_offset**2 - 1)**2)
+      full_thickness = (intake_flat_air_thickness_base + reference_edge_from_air) * math.e * math.exp(1/(relative_offset**2 - 1))
+      full_thickness_derivative = (2 / intake_flat_width) * 2*relative_offset*full_thickness / ((relative_offset**2 - 1)**2)
     else:
-      air_thickness = 0
-      air_thickness_derivative = 0
-    beyond_air_angle = math.atan2(air_thickness_derivative, 1)
+      full_thickness = 0
+      full_thickness_derivative = 0
+    beyond_air_angle = math.atan2(full_thickness_derivative, 1)
     
+    # we need the channel for the cloth to be uniform thickness, but we don't care about the shape of the air channel that much.
+    # so we express these in two parts - an offset from the elastic-holder surface,
+    # and an offset back from the first offset in the direction perpendicular to the curve of the innermost edge 
     edge_distances = [(min_wall_thickness,0),
       (min_wall_thickness*2,0),
-      (air_thickness, -outer_edge_from_air+0),
-      (air_thickness, -outer_edge_from_air+min_wall_thickness),
-      (air_thickness, -outer_edge_from_air+min_wall_thickness+cloth_with_elastic_space),
-      (air_thickness, -outer_edge_from_air+min_wall_thickness*2+cloth_with_elastic_space),
+      (full_thickness, -reference_edge_from_air+0),
+      (full_thickness, -reference_edge_from_air+min_wall_thickness),
+      (full_thickness, -reference_edge_from_air+min_wall_thickness+cloth_with_elastic_space),
+      (full_thickness, -reference_edge_from_air+min_wall_thickness*2+cloth_with_elastic_space),
     ]
     
     intake_edge_offsets = []
@@ -1020,13 +1035,13 @@ def make_intake():
     print_surface_base_point = sample.position - shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane + min_wall_thickness*sample.normal_in_plane_unit_height_from_shield
     elastic_end_base_point = sample.lip_tip + elastic_holder_depth*sample.curve_in_surface_normal_unit_height_from_plane
     
-    if air_thickness > edge_distances[1][0] + 1.5 - edge_distances[2][1]:
+    if full_thickness > edge_distances[1][0] + 1.5 - edge_distances[2][1]:
       for index in [1,2]:
         intake_edges [index].append ((
           print_surface_base_point + intake_edge_offsets [index],
           elastic_end_base_point + intake_edge_offsets [index],
         ))
-    if air_thickness > edge_distances[0][0] + 1 - edge_distances[3][1]:
+    if full_thickness > edge_distances[0][0] + 1 - edge_distances[3][1]:
       for index in [0,3]:
         intake_edges [index].append ((
           print_surface_base_point + intake_edge_offsets [index],
@@ -1068,10 +1083,10 @@ def make_intake():
         limited_project_towards (lip_base_point + leeway, print_surface_base_point+ intake_edge_offsets [2]),
       ], loop = True))
       
-      if air_thickness < 0.001:
+      if full_thickness < 0.001:
         lower_side_cloth_lip.append (lip_base_point + down)
       # a fairly arbitrary approximation, but it's not necessarily worth the effort of computing the points it would realistically be taut across
-      elif air_thickness >= outer_edge_from_air+intake_flat_air_thickness_base*0.5:
+      elif full_thickness >= reference_edge_from_air+intake_flat_air_thickness_base*0.5:
         lower_side_cloth_lip.append (sample.lip_tip + intake_edge_offsets[3] + down)
         
   intake_inner_pairs = intake_edges [1] + intake_edges[2][::-1]
@@ -1468,7 +1483,7 @@ def make_FDM_printable_lower_side():
   + reflected ([lower_side_extra_lip, intake_solid, side_pegs]))
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
-
+preview(lower_side)
 '''@run_if_changed
 def make_FDM_printable_upper_side():
   upper_side = Compound ([
