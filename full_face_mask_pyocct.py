@@ -908,7 +908,7 @@ def make_upper_side_rim():
     upper_side_rim_hoops.append(face.cut(adjusted_forehead_exclusion).wire())
   
   upper_side_rim = Loft (upper_side_rim_hoops, solid = True)
-  upper_side_rim = upper_side_rim.cut(Face (lower_side_curve_source_surface @ Translate(lower_side_curve_source_surface.normal(0,0)*-min_wall_thickness)).extrude (Front*lots))
+  upper_side_rim = upper_side_rim.cut(Face (lower_side_curve_source_surface @ Translate(lower_side_curve_source_surface.normal(0,0)*-(min_wall_thickness+contact_leeway))).extrude (Front*lots))
   
   shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
 
@@ -945,7 +945,7 @@ top_hook_forwards = Direction (top_hook_front.position - top_hook_back.position)
 
 save("top_hook", elastic_hook @ Transform(top_hook_forwards.cross (vector(0,0,1)), -top_hook_forwards, vector(0,0,-1), top_hook_front.position + vector(0,0,min_wall_thickness)))
 
-save("side_hook", elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, -min_wall_thickness, headband_top-elastic_hook_forwards)))
+save("side_hook", (elastic_hook @ Transform(vector(1,0,0), vector(0,0,1), vector(0,1,0), vector(Origin, temple) + vector(0, 0, headband_top-elastic_hook_forwards + 3))).intersection(HalfSpace(Origin + Up*headband_top, Down)))
 
 
 
