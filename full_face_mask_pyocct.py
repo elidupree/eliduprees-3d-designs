@@ -129,6 +129,15 @@ Additional notes after prototype #5:
 – thanks to the foam taking up space, the head sizing needs to be adjusted
 – we got some fogging at the bottom in outdoor temperatures below 70F; it seems that the air is blown in at a position significantly above the place you exhale to, so the exhale target gets to remain moist
 – after 3 month of use, the headband snapped under moderate leverage where it meets the left triangle block (only the flat part snapped, the wave didn't, and then I glued it back together)
+
+
+
+Additional notes after prototype #6:
+– The side hook isn't printable as-is; let's replace it with a nub
+– The top hook should be moved closer to the temple (not a new issue); maybe we can use the same nub for both?
+– The elastic doesn't exert enough torque on the temple block to resist the face shield torquing it the other way (by trying to flatten); this can probably be fixed by moving the elastic attachpoint away from the head along the x axis
+– It was practical to wear with a bike helmet, but that means wearing it about a centimeter farther down than I usually do, which means the shield is significantly farther away from my face (due to both shield_focal_slope and the slope of my forehead). My particular bike helmet dips down at the temples, pushing the temple block down but not requiring the forehead to move, so the mask is slanted in a way that moves the shield even further from the face. The quick fix is to just change putative_chin, making the mask smaller. A fancier solution could theoretically move the temple block downwards in normal usage, allowing the front headband to be higher up than the temple block (and making the top edge of the face shield be a more complex curve). The headband also digs into my forehead a bit more this way because the forehead is shaped differently down there on the eyebrows; I'm not worried about this for the moment.
+
 '''
 
 import math
