@@ -170,7 +170,7 @@ headphones_front = forehead_point[1]-75
 #shield_back = headphones_front + side_plate_width - shield_glue_face_width
 shield_back = headphones_front #+ min_wall_thickness
 back_edge = forehead_point[1] - 96
-putative_chin = forehead_point + vector (0, -9, -135)
+putative_chin = forehead_point + vector (0, -13, -125)
 rim_bottom_z = -165 - shield_glue_face_width # experimentally measured -165 as the approximate invisible position; subtracting shield_glue_face_width isn't exactly the right formula, but it's an arbitrary number anyway
 glasses_point = forehead_point + vector (66, 0, -10)
 putative_eyeball = forehead_point + vector (35, -15, -35)
@@ -215,7 +215,7 @@ def projected_to_top (point):
 
 shield_source_curve_points = [
   above_temple,
-  projected_to_top (glasses_point + vector (15, 25, 0)),
+  projected_to_top (glasses_point + vector (15, 10, 0)),
   projected_to_top (shield_source_peak),
 ]
 
@@ -979,7 +979,7 @@ def make_temple_block_on_curled_headband():
   save("side_hook_on_curled_headband", side_hook@transform)
 
 
-#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers)
+#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers, glasses_edge)
 
 ########################################################################
 ########  Intake  #######
@@ -1008,11 +1008,11 @@ def augment_intake_sample(sample):
 @run_if_changed
 def make_intake():
   # a base point on the lower side curve, just inside the shield.
-  intake_middle = CurveSample(shield_lower_side_curve, z=-110, which=0)
+  intake_middle = CurveSample(shield_lower_side_curve, z=-100, which=0)
   augment_intake_sample(intake_middle)
   
   # the center of the circle at the far CPAP connector end.
-  CPAP_back_center = Point(72, headphones_front - 40, -102)
+  CPAP_back_center = Point(72, headphones_front - 40, -92)
   
   # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
   intake_flat_back_center_approx = intake_middle.position + (elastic_holder_depth+4)*intake_middle.along_intake_flat_unit_height_from_plane - intake_middle.normal*(min_wall_thickness + intake_flat_air_thickness_base/2) + Up*5
@@ -1064,8 +1064,11 @@ def make_intake():
     
     # now, compute the shape of innermost edge (closest to the face), in the form of a height from the shield surface
     full_thickness_base = (intake_flat_air_thickness_base + 2*min_wall_thickness)
-    full_thickness = full_thickness_base * math.cos(relative_offset * math.pi)
-    full_thickness_derivative = -math.pi * full_thickness_base * math.sin(relative_offset * math.pi) / intake_flat_width
+    #full_thickness = full_thickness_base * math.cos(relative_offset * math.pi)
+    #full_thickness_derivative = -math.pi * full_thickness_base * math.sin(relative_offset * math.pi) / intake_flat_width
+    full_thickness = full_thickness_base * math.cos(relative_offset * math.pi)**(2/3)
+    full_thickness_derivative = -(2/3) * math.pi * full_thickness_base * math.sin(relative_offset * math.pi) / math.cos(relative_offset * math.pi)**(1/3) / intake_flat_width
+    
     innermost_edge_normal_angle = math.atan2(full_thickness_derivative, 1)
         
     # we need wall to be uniform thickness, but we don't care about the shape of the air channel that much.
