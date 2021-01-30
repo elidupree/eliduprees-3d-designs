@@ -610,6 +610,13 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   for transformable in [Vector, Point, Curve, Surface]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))
+  
+  @export
+  def Segment(start, end):
+    return BSplineCurve([start, end], BSplineDimension(degree=1))
+  @export
+  def RayIsh(start, direction, length = 9000):
+    return Segment(start, start + direction * length)
 
   export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
