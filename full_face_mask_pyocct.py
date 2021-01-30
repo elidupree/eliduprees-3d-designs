@@ -342,7 +342,10 @@ class CurveSample (ShieldSample):
 def curve_samples(curve, start_distance = None, end_distance = None, **kwargs):
   if start_distance is None:
     start_distance = 0
-    end_distance = curve.precomputed_length
+    try:
+      end_distance = curve.precomputed_length
+    except AttributeError:
+      end_distance = curve.length()
   return (CurveSample(curve, distance=distance) for distance in subdivisions(start_distance, end_distance, **kwargs))
 
 
@@ -904,8 +907,32 @@ for sample in curve_samples(shield_upper_side_curve, amount = 20):
   upper_side_cloth_lip.append (sample.position)
 
 
-preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip))
 
+shield_lower_curve_source_points = [
+  target_shield_convex_corner_below_intake,
+  shield_bottom_peak.position + Right*20,
+  shield_bottom_peak.position,
+]
+shield_lower_curve_source_points = shield_lower_curve_source_points + [a@Mirror(Right) for a in reversed(shield_lower_curve_source_points[:-1])]
+save ("shield_lower_curve_source_surface", BSplineSurface([
+    [point + Front*1 for point in shield_lower_curve_source_points],
+    [point + Back*100+Down*150 for point in shield_lower_curve_source_points],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 3),
+))
+
+@run_if_changed
+def make_shield_lower_curve():
+  save ("shield_lower_curve", shield_surface.intersections (
+    shield_lower_curve_source_surface
+  ).curve())
+  
+lower_curve_cloth_lip = []
+for sample in curve_samples(shield_lower_curve, amount = 50):
+  lower_curve_cloth_lip.append (sample.position)
+
+preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
 '''
   
 @run_if_changed
