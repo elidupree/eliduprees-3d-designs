@@ -188,7 +188,6 @@ putative_eyeball = forehead_point + vector (35, -15, -35)
 air_target = putative_chin + vector(0, 10, 40)
 
 contact_leeway = 0.4
-ridge_thickness = 2
 
 # The corner where the shield surface meets the headband. This is not guaranteed to be placed exactly on the headband curve.
 temple = Point (77, shield_back, 0)
@@ -343,7 +342,7 @@ class CurveSample (ShieldSample):
 def curve_samples(curve, start_distance = None, end_distance = None, **kwargs):
   if start_distance is None:
     start_distance = 0
-    end_distance = curve.length()
+    end_distance = curve.precomputed_length
   return (CurveSample(curve, distance=distance) for distance in subdivisions(start_distance, end_distance, **kwargs))
 
 
@@ -363,6 +362,30 @@ class ShieldCurveInPlane(SerializeAsVars):
     return getattr(self.curve, name)
 
 
+
+@run_if_changed
+def make_shield_top_curve():
+  save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
+  
+@run_if_changed
+def make_shield_cross_sections():
+  shield_top_full_wire = Wire (Edge (shield_top_curve.curve), Edge (shield_top_curve.EndPoint(), shield_top_curve.StartPoint()))
+  shield_region = HalfSpace (Point (0, shield_back, 0), Back)
+  shield_cross_section = Face (shield_top_full_wire)
+  shield_cross_sections = []
+  for offset_distance in (20.0*x for x in range(10)):
+    offset_fraction = offset_distance / -shield_focal_point[2]
+    full_section = shield_cross_section@Scale (1.0 - offset_fraction)@Translate (Vector(Origin,shield_focal_point)*offset_fraction)
+    shield_cross_sections.append(Intersection(full_section, shield_region))
+    
+  save ("shield_cross_sections", Compound (shield_cross_sections))
+
+  
+  
+
+save ("glasses_vertex", Vertex (glasses_point))
+diff = Direction (glasses_point - shield_focal_point)
+save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
 
 
 ########################################################################
@@ -385,7 +408,7 @@ intake_source_direction_1 = Direction(intake_middle_in_build_surface_shield_curv
 intake_source_direction_2 = Direction(air_target, intake_middle_in_build_surface_shield_curve.position)
 
 intake_curve_source_points = [
-  air_target + intake_source_direction_1 * intake_flat_width,
+  air_target + intake_source_direction_1 * intake_flat_width*1.4,
   air_target - intake_source_direction_1 * intake_flat_width,
 ]
 save ("intake_curve_source_surface", BSplineSurface([
@@ -404,13 +427,17 @@ def make_intake_curve():
   save ("intake_curve", ShieldCurveInPlane(intake_curve_source_surface))
 
 
-def augment_intake_sample(sample):
-  sample.along_intake_flat = sample.normal.cross(Up).normalized()
-  sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
-  sample.below_shield_glue_base_point = ShieldSample(closest = sample.position + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane).position
 
 @run_if_changed
 def make_intake():
+  # hack - temporary value to avoid augment_intake_sample circular dependency issue
+  CPAP_forwards = Back
+  def augment_intake_sample(sample):
+    sample.along_intake_flat = sample.normal.cross(Up).normalized()
+    sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
+    sample.below_shield_glue_base_point = ShieldSample(closest = sample.position + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane).position
+    sample.below_elastic_base_point = sample.below_shield_glue_base_point - CPAP_forwards * elastic_holder_depth
+    
   # a base point on the lower side curve, just inside the shield.
   intake_middle = CurveSample(intake_curve, z=intake_middle_z)
   augment_intake_sample(intake_middle)
@@ -430,6 +457,8 @@ def make_intake():
   
   towards_air_target = Direction(intake_middle.position, air_target)
   
+  
+  
   intake_cloth_lip = []
   intake_shield_lip = []
   intake_support_hoops = []
@@ -437,15 +466,8 @@ def make_intake():
   intake_support_exclusion_hoops = []
   intake_edges = ([], [], [], [])
   
-  for sample in curve_samples(intake_curve, 1, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, amount = 20):
+  for sample in curve_samples(intake_curve, 1, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, amount = 10):
     augment_intake_sample(sample)
-    depth = min(
-      elastic_holder_depth/abs (sample.along_intake_flat.dot(sample.plane_normal)),
-      (sample.position[1] - headphones_front)/-sample.along_intake_flat[1],
-    )
-    l = ShieldSample(closest = sample.below_shield_glue_base_point + depth*sample.along_intake_flat).position
-    intake_cloth_lip.append (l)
-    intake_shield_lip.append (l)
     
     thickness = min(sample.curve_distance / 4, intake_support_thickness)
     b = -sample.normal_in_plane_unit_height_from_shield * thickness
@@ -467,6 +489,12 @@ def make_intake():
       sample.below_shield_glue_base_point + a + c + d,
     ], loop = True))
   
+  sample = CurveSample(intake_curve, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
+  augment_intake_sample(sample)
+  save("target_shield_convex_corner_above_intake", sample.below_elastic_base_point)
+  sample = CurveSample(intake_curve, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_point_width)
+  augment_intake_sample(sample)
+  intake_shield_lip.append (sample.below_shield_glue_base_point)
   
   for sample in curve_samples(intake_curve, intake_middle.curve_distance - intake_flat_width/2 + 0.1, intake_middle.curve_distance + intake_flat_width/2 - 0.1, amount = 70):
     augment_intake_sample(sample)
@@ -504,13 +532,13 @@ def make_intake():
         + y*sample.curve_tangent
       )
 
-    below_elastic_base_point = sample.below_shield_glue_base_point - CPAP_forwards * elastic_holder_depth
+    
     if intake_edge_heights[3] > intake_edge_heights[0] + 0.1:
       for index in [0,3]:
         intake_edges [index].append ((
           sample.position + intake_edge_offsets [index],
           sample.below_shield_glue_base_point + intake_edge_offsets [index],
-          below_elastic_base_point + intake_edge_offsets [index],
+          sample.below_elastic_base_point + intake_edge_offsets [index],
         ))
     beyond_air = True
     if intake_edge_heights[2] > intake_edge_heights[1] + 0.1:
@@ -519,14 +547,14 @@ def make_intake():
         intake_edges [index].append ((
           sample.position + intake_edge_offsets [index],
           sample.below_shield_glue_base_point + intake_edge_offsets [index],
-          below_elastic_base_point + intake_edge_offsets [index],
+          sample.below_elastic_base_point + intake_edge_offsets [index],
         ))
     
     
-    intake_shield_lip.append (sample.position)
+    intake_shield_lip.append (sample.below_shield_glue_base_point)
     # a fairly arbitrary approximation, but it's not necessarily worth the effort of computing the points it would realistically be taut across
     if intake_edge_heights[3] > intake_flat_air_thickness_base/2:
-      intake_cloth_lip.append (sample.position + intake_edge_offsets[3] + elastic_holder_depth*sample.along_intake_flat_unit_height_from_plane)
+      intake_cloth_lip.append (sample.below_elastic_base_point + intake_edge_offsets[3])
     
     do_support = offset < 0 and intake_edge_heights[3] - min_wall_thickness / 2 < intake_support_thickness
     if do_support:
@@ -554,34 +582,30 @@ def make_intake():
     if intake_edge_heights[2] > intake_edge_heights[1] + 1 and not do_support:
       q = sample.position + Up*0.01
       b = -sample.normal_in_plane_unit_height_from_shield * 20
-      a = -sample.normal_in_plane_unit_height_from_shield * (min_wall_thickness + 0.1)
+      a = -sample.normal_in_plane_unit_height_from_shield * (min_wall_thickness*2)
+      k = Between(sample.below_shield_glue_base_point, sample.below_elastic_base_point, 0.4)
       intake_air_cut_hoops.append (Wire ([
         q + a,
         q + b,
-        sample.below_shield_glue_base_point + b,
-        sample.below_shield_glue_base_point + a,
+        k + b,
+        k + a,
       ], loop = True))
-    
-    
-    
-  for sample in curve_samples(intake_curve, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width, intake_curve.length()/2-1, amount = 20):
-    augment_intake_sample(sample)
-    lower_side_center_max = min(1.0, abs(sample.position[0])/50)
-    depth = min(
-      elastic_holder_depth/abs (sample.along_intake_flat.dot(sample.plane_normal)),
-      elastic_holder_depth * 1.4 * lower_side_center_max
-    )
-    l = ShieldSample(closest = sample.below_shield_glue_base_point + depth*sample.along_intake_flat).position
-    intake_cloth_lip.append (l)
-    intake_shield_lip.append (l)
+  
+  
+  sample = CurveSample(intake_curve, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_point_width)
+  augment_intake_sample(sample)
+  intake_shield_lip.append (sample.below_shield_glue_base_point)
+  sample = CurveSample(intake_curve, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
+  augment_intake_sample(sample)
+  save("target_shield_convex_corner_below_intake", sample.below_elastic_base_point)
   
   
   fins = []
   for sample in curve_samples(intake_curve, intake_middle.curve_distance - intake_flat_width/2 + 9, intake_middle.curve_distance + intake_flat_width/2 - 11, amount = 6):
     augment_intake_sample(sample)
     perpendicular = towards_air_target.cross(sample.plane_normal)
-    k = (sample.below_shield_glue_base_point - sample.position)*1.2
-    fins.append(Edge((Segment(sample.position, sample.position+k)) @ Translate(towards_air_target * min_wall_thickness/2)).extrude(towards_air_target*20).extrude(perpendicular * min_wall_thickness, centered = True))
+    k = Between(sample.below_shield_glue_base_point, sample.below_elastic_base_point, 0.5)
+    fins.append(Edge((Segment(sample.position, k)) @ Translate(towards_air_target * min_wall_thickness/2)).extrude(towards_air_target*20).extrude(perpendicular * min_wall_thickness, centered = True))
         
         
   intake_inner_ribs = intake_edges [1] + intake_edges[2][::-1]
@@ -647,84 +671,9 @@ def make_intake():
   ))
   save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal(0,0)*min_wall_thickness)).intersection(intake_solid_including_interior))
   
-preview(intake_solid, intake_support, intake_fins, #shield_surface
-)
+#preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
+
   
-  #####################################
-
-
-side_curve_source_points = [
-  Point (0, shield_back, shield_glue_face_width),
-  Point (0, shield_back, -55),
-  Point (0, shield_bottom_peak[1]+0.001, shield_bottom_peak[2])
-]
-
-save ("side_curve_source_surface", BSplineSurface([
-    [point + Left*100 for point in side_curve_source_points],
-    [point + Right*100 for point in side_curve_source_points],
-  ],
-  BSplineDimension (degree = 1),
-  BSplineDimension (degree = 1),
-))
-
-upper_side_curve_source_points = side_curve_source_points[0:2]
-upper_side_curve_source_points[1] = upper_side_curve_source_points[1] + Down*25
-save ("upper_side_curve_source_surface", BSplineSurface([
-    upper_side_curve_source_points,
-    [point + Right*100 for point in upper_side_curve_source_points],
-  ],
-  BSplineDimension (degree = 1),
-  BSplineDimension (degree = 1),
-))
-
-save ("lower_side_curve_source_surface", BSplineSurface([
-    [point + Left*100 for point in side_curve_source_points[1:3]],
-    [point + Right*100 for point in side_curve_source_points[1:3]],
-  ],
-  BSplineDimension (degree = 1),
-  BSplineDimension (degree = 1),
-))
-
-save ("lower_side_curve_inner_plane", Plane (lower_side_curve_source_surface.value (0, 0) + lower_side_curve_source_surface.normal (0, 0)*shield_glue_face_width, lower_side_curve_source_surface.normal (0, 0)))
-
-@run_if_changed
-def make_shield_curves():
-  save ("shield_side_curve", shield_surface.intersections (
-    side_curve_source_surface
-  ).curve())
-  save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
-  save ("shield_lower_side_curve", ShieldCurveInPlane(lower_side_curve_source_surface))
-  save ("shield_lower_side_inner_curve", ShieldCurveInPlane(lower_side_curve_inner_plane))
-  
-  save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0,0,shield_glue_face_width), Up)))
-  
-shield_side_curve_length = shield_side_curve.length()
-
-shield_top_curve_length = shield_top_curve.length()
-
-
-
-save ("glasses_vertex", Vertex (glasses_point))
-diff = Direction (glasses_point - shield_focal_point)
-save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
-
-
-
-
-
-
-@run_if_changed
-def make_shield_cross_sections():
-  shield_top_full_wire = Wire (Edge (shield_top_curve.curve), Edge (shield_top_curve.EndPoint(), shield_top_curve.StartPoint()))
-  shield_region = HalfSpace (Point (0, shield_back, 0), Back)
-  shield_cross_section = Face (shield_top_full_wire)
-  shield_cross_sections = []
-  for offset_distance in (20.0*x for x in range(10)):
-    offset_fraction = offset_distance / -shield_focal_point[2]
-    full_section = shield_cross_section@Scale (1.0 - offset_fraction)@Translate (Vector(Origin,shield_focal_point)*offset_fraction)
-    shield_cross_sections.append(Intersection(full_section, shield_region))
-    
-  save ("shield_cross_sections", Compound (shield_cross_sections))
   
   
 ########################################################################
@@ -734,7 +683,7 @@ def make_shield_cross_sections():
 
 def eye_laser(direction):
   try: 
-    sample = ShieldSample(intersecting = TrimmedCurve(Line (putative_eyeball, direction), 0, lots))
+    sample = ShieldSample(intersecting = TrimmedCurve(Line (putative_eyeball, direction), 0, lots), which = 0)
     further_direction = direction@Reflect (sample.normal)
     return Wire (putative_eyeball, sample.position, sample.position + further_direction*200)
   except IndexError:
@@ -747,6 +696,7 @@ def make_eye_lasers():
     for x in subdivisions (-2, 2, amount = 10)
     for z in subdivisions (-2, 2, amount = 10)
   ]))
+
 
 ########################################################################
 ########  Forehead/headband/top rim  #######
@@ -770,7 +720,6 @@ standard_forehead_points = [forehead_point + vector (a,b,0) for a,b in [
   (15, -195),
   (0, -195),
 ]]
-degree = 3
 standard_forehead_poles = [a@Mirror (Right) for a in reversed(standard_forehead_points[1:-1])] + standard_forehead_points
 save ("standard_forehead_curve", BSplineCurve(
   standard_forehead_poles,
@@ -778,21 +727,6 @@ save ("standard_forehead_curve", BSplineCurve(
 ))
 print(f"Standard forehead circumference: {standard_forehead_curve.length()}")
 
-overhead_strap_points = [forehead_point + vector(0,a,b) for a,b in [
-  (0, headband_bottom),
-  (-2, 10),
-  (-4, 21),
-  (-22, 50),
-  (-70, 75),
-  (-125, 75),
-  (-173, 60),
-  (-191, 21),
-  (-195, 0),
-  (-195, -50),
-  (-186, -102),
-]]
-
-save ("overhead_strap_curve", BSplineCurve(overhead_strap_points))
 
 def flat_to_headband(shape):
   return (shape@Translate (Up*headband_top)).extrude (Down*headband_width)
@@ -807,75 +741,7 @@ def make_standard_headband():
 
 
 head_variability = max_head_circumference - min_head_circumference
-fastener_loop_length = fastener_hook_length + head_variability
-'''
-for someone with the maximum head circumference, the fastener hooks will be lined up with the very end of the fastener loops on the other end of the headband; this still leaves 1 degree of freedom (how far to the left or right, on the back of the head, that position would be)
 
-I'm initially assuming that the fastener hooks will be at the center of the back of the head on an average head (further right on a smaller head, further left on a larger head).
-
-Also, all users must have the slots for the overhead strap be able to be in the middle of the back of the head; for maximum sized heads, the rightmost slot would be exactly in the center. If we don't want to make the headband any longer than needed, we actually want to put the fastener hooks all the way at the right end of the slots, meaning that, if they are shorter than the slots, they would be significantly to the right of the back on the average head. That's okay.
-'''
-fastener_loop_width = headband_width + fastener_loop_extra_width
-overhead_strap_slots_width = head_variability + overhead_strap_width
-headband_left_length = max_head_circumference/2 + overhead_strap_width/2
-headband_right_length = (max_head_circumference + fastener_hook_length + fastener_hook_skirt_width) - headband_left_length
-
-def curled_forehead_points(total_distance, offset_distance):
-  result = []
-  class CurlStep(object):
-    pass
-  
-  previous = None
-  start = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = forehead_point))
-  temple_distance = standard_forehead_curve.length(0, standard_forehead_curve.parameter (closest = temple))
-  circle_center = forehead_point + Front*80
-  for distance in subdivisions (start, temple_distance, max_length = 5):
-    step = CurlStep()
-    step.curve_distance = distance
-    parameter = standard_forehead_curve.parameter (distance = distance)
-    derivatives = step.derivatives = standard_forehead_curve.derivatives (parameter)
-    if previous is None:
-      step.output_position = derivatives.position
-      step.total_radians_change = 0
-    else:
-      offset = Vector (previous.derivatives.position, derivatives.position)
-      tangent_distance = derivatives.tangent.dot(previous.derivatives.tangent)
-      normal_distance = derivatives.tangent.dot(previous.derivatives.normal)
-      observed_radians = math.atan2(normal_distance, tangent_distance)
-      current_adjusted_tangent = derivatives.tangent@Rotate(Up, radians = previous.total_radians_change)
-      target_curvature_change = -0.0005
-      target_radians_change = (distance - previous.curve_distance)*target_curvature_change
-      # if uncurling, arbitrarily restrict it from becoming straight or inverted; not sure if there's an actual need for this
-      radians_change = min(target_radians_change, observed_radians*0.8)
-      step.total_radians_change = previous.total_radians_change + radians_change
-      step.output_position = previous.output_position + offset@Rotate (Up, radians = step.total_radians_change)
-    result.append (step.output_position)
-    previous = step
-  
-  point = previous.output_position
-  counterpoint = previous.output_position@Reflect (Right) + Left*offset_distance*2
-  curve = Interpolate ([
-      point,
-      Between (point, counterpoint, 0.25) + Front*(105 + offset_distance),
-      Between (point, counterpoint) + Front*(115 + offset_distance),
-      Between (point, counterpoint, 0.75) + Front*(105 + offset_distance),
-      counterpoint
-    ],
-    tangents = [Vector (current_adjusted_tangent), Vector (current_adjusted_tangent@Reflect (Front))])
-  for distance in subdivisions (0, total_distance - (temple_distance - start), max_length = 5)[1:]:
-    parameter = curve.parameter (distance = distance)
-    assert(parameter < curve.LastParameter())
-    result.append (curve.value(parameter))
-  
-  return result
-
-@run_if_changed
-def make_curled_forehead():
-  curled_forehead_poles = [a@Mirror (Right) for a in reversed(
-  curled_forehead_points(headband_left_length, 5)[1:])] + curled_forehead_points(headband_right_length, -5)
-  save("large_forehead_curve", BSplineCurve(
-    curled_forehead_poles,
-  ))
 
 def forehead_wave(*distance_range):
   forehead_wave_curves = []
@@ -898,136 +764,15 @@ def forehead_wave(*distance_range):
     ]))
     
   return Face(Offset2D(Wire (Edge(curve) for curve in forehead_wave_curves), min_wall_thickness/2))
-    
-  
 
 
-@run_if_changed
-def make_curled_headband():
-  wire = Wire(Edge(large_forehead_curve))
-  shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
-  expanded = Face(Offset2D(shifted, min_wall_thickness/2))
-  solid = flat_to_headband(expanded)
-  
-  def fastener_part(a, b):
-    curve = TrimmedCurve (large_forehead_curve, a, b)
-    wire = Wire (Edge (curve))
-    shifted = Offset2D(wire, -min_wall_thickness/2, open=True)
-    expanded = Face(Offset2D(shifted, min_wall_thickness/2))
-    return (expanded@Translate (Up*headband_top)).extrude (Down*fastener_loop_width)
-  save("curled_headband", Compound (
-    solid,
-    fastener_part(large_forehead_curve.parameter (distance = large_forehead_curve.length() - fastener_loop_length), large_forehead_curve.LastParameter()),
-    fastener_part(0, large_forehead_curve.parameter (distance = fastener_hook_length + fastener_hook_skirt_width*2))),
-  )
-
-@run_if_changed
-def make_hook_skirt():
-  sections = []
-  for distance in subdivisions (0, fastener_hook_length + fastener_hook_skirt_width*2, amount = 20):
-    derivatives = large_forehead_curve.derivatives (distance = distance)
-    sections.append (Wire ([derivatives.position + Up*headband_top + a for a in [
-      (Up - derivatives.normal)*fastener_hook_skirt_width,
-      Vector(0,0,0),
-      Down*fastener_loop_width,
-      Down*fastener_loop_width + (Down - derivatives.normal)*fastener_hook_skirt_width
-    ]]).offset2D (min_wall_thickness/2))
-    
-  save("hook_skirt", Loft(sections, solid =True))
-
-ridge_slot_width = overhead_strap_width*2.5
-def ridge_slot(curve, start, finish, *, direction, top, bottom, wall_adjust=0, prong_side = 0):
-  middle = (start + finish)/2
-  positions = subdivisions (-ridge_slot_width/2, ridge_slot_width/2, amount = 7)
-  fractions = [0, 1, 1, 1, 1, 1, 0]
-  controls = []
-  def augmented_derivatives(offset):
-    derivatives = curve.derivatives (distance = middle + offset)
-    derivatives.adjusted_normal = derivatives.tangent@Rotate (Up, degrees = 90*direction)
-    derivatives.adjusted_position = derivatives.position + derivatives.adjusted_normal*wall_adjust
-    return derivatives
-  position_derivatives = [augmented_derivatives(position) for position in positions]
-  control_offset_distance = min_wall_thickness + ridge_thickness + contact_leeway*2 + 0.2
-  for derivatives, fraction in zip (position_derivatives, fractions):
-    controls.append (derivatives.adjusted_position + derivatives.adjusted_normal*fraction*control_offset_distance)
-  slot_curve = BSplineCurve (controls)
-  slot = Wire (Edge (slot_curve))
-  slot = Face (Offset2D (slot, min_wall_thickness/2))
-  slot = (slot@Translate(Up*bottom)).extrude (Up*(top - bottom))
-  prong = Edge (position_derivatives[2].adjusted_position, position_derivatives [-3].adjusted_position)
-  middle_derivatives = position_derivatives [len (position_derivatives)//2]
-  prong_length = min_wall_thickness/2 + ridge_thickness - min_wall_thickness
-  prong = prong.extrude (middle_derivatives.adjusted_normal*prong_length).extrude (Up*1.5*math.copysign(1, top - bottom))
-  prong = prong@Translate (Up*bottom)
-  if prong_side == 1:
-    prong = prong@Translate (middle_derivatives.adjusted_normal*(control_offset_distance - prong_length))
-  guides = []
-  for side in [-1, 1]:
-    derivatives = augmented_derivatives(side*(overhead_strap_width/2 + contact_leeway))
-    points = [
-      derivatives.adjusted_position,
-      #slot_curve.intersections(Line (derivatives.adjusted_position, derivatives.adjusted_normal)) [0]
-      slot_curve.intersections (Plane (derivatives.adjusted_position, derivatives.tangent)).point()
-    ]
-    if prong_side == 1:
-      points.reverse()
-    delta = points [1] - points [0]
-    space = min_wall_thickness*1.5 if prong_side == 0 else min_wall_thickness*2
-    guide_flat = Edge (points [1], points [0] + Direction (delta)*space).extrude (derivatives.tangent*side*min_wall_thickness)
-    guides.append ((guide_flat@Translate(Up*bottom)).extrude (Up*(top - bottom)))
-    
-  return Compound(slot, prong, guides)
-
-@run_if_changed
-def make_headband_3():
-  overhead_strap_slots = []
-  for start, finish in pairs (subdivisions (0, overhead_strap_slots_width, max_length = overhead_strap_width*3)):
-    overhead_strap_slots.append (ridge_slot(large_forehead_curve, start, finish, direction = -1, wall_adjust = -min_wall_thickness/2, top = headband_bottom, bottom = headband_top))
-  save ("overhead_strap_slots", Compound (overhead_strap_slots))
-  
-'''overhead_strap_slot_test_region = flat_to_headband(Face(Wire(Edge(Circle (Axes (Point (47, -198, 0), Up), 20)))))
-save ("overhead_strap_slot_test", Intersection (
-  Compound (overhead_strap_slots, curled_headband, ),
-  overhead_strap_slot_test_region, 
-))
-save_STL ("overhead_strap_slot_test", overhead_strap_slot_test)
-preview (overhead_strap_slot_test)
-#preview (large_forehead_curve, curled_headband, curled_headband_wave, standard_headband_2D, overhead_strap_slots)'''
-
-def overhead_strap_ridges_face(start, finish):
-  ridge_points = []
-  ridge_back_points = []
-  for index, ridge_distance in enumerate (subdivisions (start, finish, max_length = 2, require_parity = 1)):
-    derivatives = overhead_strap_curve.derivatives (distance = ridge_distance)
-    offset = (min_wall_thickness/2) if index % 2 == 0 else (ridge_thickness - min_wall_thickness/2)
-    ridge_points.append (derivatives.position - derivatives.normal*offset)
-    ridge_back_points.append (derivatives.position)
-  return Face(Wire(ridge_points + ridge_back_points[::-1], loop=True))
-
-
-print("Overhead strap curve length:", overhead_strap_curve.length())
-@run_if_changed
-def make_overhead_strap():
-  strap_face = Face(Offset2D(Wire(Edge(overhead_strap_curve)), min_wall_thickness/2))
-  combined_face = Union(
-    strap_face,
-    overhead_strap_ridges_face(min_overhead_strap_length, overhead_strap_curve.length()),
-    overhead_strap_ridges_face(0, headband_width*1.2),
-  )
-  save ("overhead_strap", combined_face.extrude(Right*overhead_strap_width, centered = True))
-
-'''save ("overhead_strap_test", Intersection (
-  overhead_strap,
-  Face(Wire(Edge(Circle (Axes (overhead_strap_points[-2], Right), 15)))).extrude(Right*20, centered=True)
-))
-save_STL ("overhead_strap_test", overhead_strap_test)
-preview(overhead_strap_test)'''
+'''
 
 @run_if_changed
 def make_top_rim():
   top_rim_subdivisions = 20
   top_rim_hoops = []
-  for sample in curve_samples(shield_top_curve, shield_top_curve_length/2, shield_top_curve_length, amount=top_rim_subdivisions):
+  for sample in curve_samples(shield_top_curve, shield_top_curve.precomputed_length/2, shield_top_curve.precomputed_length, amount=top_rim_subdivisions):
     coords = [
       (0, -shield_glue_face_width),
       (0, 0),
@@ -1053,7 +798,7 @@ def make_top_rim():
   
   save ("top_rim", Difference(top_rim, [cut, cut@Reflect (Right)]))
 
-
+'''
 
 '''
 CPAP_grabber_length = 16
@@ -1104,7 +849,7 @@ def make_temple_block():
   
   for distance in range (temple_block_length + 1):
     temple_block_inside.append (standard_forehead_curve.value (distance = temple_block_start_distance - distance))
-    sample = CurveSample(shield_top_curve, distance = shield_top_curve_length-distance*1.1)
+    sample = CurveSample(shield_top_curve, distance = shield_top_curve.precomputed_length-distance*1.1)
     
     foo = sample.position
     temple_block_top.append(foo + sample.curve_in_surface_normal_unit_height_from_plane*min_wall_thickness)
@@ -1117,15 +862,8 @@ def make_temple_block():
   save ("temple_block", temple_block)
 
 standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
-curled_middle_distance = large_forehead_curve.distance (closest = forehead_point)
 temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
-curled_temple_block_distance = curled_middle_distance + (temple_block_from_middle_distance)
 
-
-
-@run_if_changed
-def make_forehead_overhead_strap_joint():
-  save("forehead_overhead_strap_joint", ridge_slot(large_forehead_curve, curled_middle_distance-20, curled_middle_distance+20, direction = 1, wall_adjust = min_wall_thickness/2, top = headband_bottom, bottom = headband_top, prong_side = 1))
 
   
 @run_if_changed
@@ -1137,64 +875,38 @@ def make_headband_wave():
   )
   save("standard_headband_wave", flat_to_headband(faces))
 
-@run_if_changed
-def make_curled_headband_wave():
-  faces = Compound(
-    forehead_wave(fastener_hook_length + 80, curled_middle_distance - temple_block_from_middle_distance),
-    forehead_wave(curled_middle_distance - (temple_block_from_middle_distance - temple_block_length), curled_middle_distance - ridge_slot_width/2),
-    forehead_wave(curled_middle_distance + ridge_slot_width/2, curled_middle_distance + (temple_block_from_middle_distance - temple_block_length)),
-    forehead_wave(curled_middle_distance + temple_block_from_middle_distance, large_forehead_curve.length() - (fastener_loop_length - fastener_hook_length)),
-  )
-  save("curled_headband_wave", flat_to_headband(faces))
   
 ########################################################################
 ########  Side rim and stuff #######
 ########################################################################
 
+upper_side_curve_source_points = [
+  Point (0, shield_back, shield_glue_face_width),
+  Point (0, shield_back, target_shield_convex_corner_above_intake[2]),
+]
+save ("upper_side_curve_source_surface", BSplineSurface([
+    upper_side_curve_source_points,
+    [point + Right*100 for point in upper_side_curve_source_points],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 1),
+))
+
+@run_if_changed
+def make_upper_side_curve():
+  save ("shield_upper_side_curve", ShieldCurveInPlane(upper_side_curve_source_surface))
 
 def upper_side_lip_tip(sample):
   return sample.position - sample.plane_normal*min_wall_thickness + sample.normal_in_plane*min_wall_thickness
 
 upper_side_cloth_lip = []
-for sample in curve_samples(shield_upper_side_curve,
-    0,
-    CurveSample (shield_upper_side_curve, z = side_curve_source_points [1][2]).curve_distance,
-    amount = 20):
+for sample in curve_samples(shield_upper_side_curve, amount = 20):
   upper_side_cloth_lip.append (sample.position)
-  
-def augment_lower_curve_sample(sample):
-  sample.lip_direction = Direction (-sample.plane_normal + sample.normal_in_plane*1.5)
-  sample.lip_direction_unit_height_from_shield = sample.lip_direction/sample.lip_direction.dot(sample.normal)
-  sample.curve_in_surface_normal_unit_height_from_lip = sample.curve_in_surface_normal/sample.curve_in_surface_normal.cross(sample.lip_direction).length()
-  sample.lip_tip = sample.position + min_wall_thickness*sample.curve_in_surface_normal_unit_height_from_lip + sample.lip_direction_unit_height_from_shield*min_wall_thickness
 
-@run_if_changed
-def make_lower_side_rim():
-  lower_side_rim_hoops = []
-  for sample in curve_samples(shield_lower_side_curve, amount = 40):
-    augment_lower_curve_sample(sample)
-    lower_side_rim_hoops.append(Wire([
-      sample.position,
-      sample.position - shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane,
-      sample.position - shield_glue_face_width*sample.curve_in_surface_normal_unit_height_from_plane - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness,
-      sample.lip_tip - sample.normal_in_plane_unit_height_from_shield*min_wall_thickness*2,
-      sample.lip_tip,
-      sample.position + sample.lip_direction_unit_height_from_shield*min_wall_thickness,
-    ], loop = True))
-  lower_side_rim = Loft (lower_side_rim_hoops, solid = True)
-  save ("lower_side_rim", lower_side_rim)
 
-@run_if_changed
-def make_elastic_tension():
-  #side_plate_hoops = []
-  elastic_tension_hoops = []
-  for sample in curve_samples(shield_side_curve, amount = 79):
-    elastic_tension_hoops.append (Edge (sample.position, sample.position + sample.curve_normal*10))         
+preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip))
 
-  save("elastic_tension", Compound (elastic_tension_hoops))
-
-  
-#print(shield_upper_side_curve.plane)
+'''
   
 @run_if_changed
 def make_side_joint():
@@ -1208,20 +920,7 @@ def make_side_joint():
   save ("side_peg_holes", Compound ([Solid(Offset(a, contact_leeway)) for a in side_pegs]))
   save ("side_pegs", Compound (side_pegs))
   
-
-
-@run_if_changed
-def make_temple_block_pegs():  
-  def top_peg (sample):
-    return Edge (
-      sample.position - (stiffer_wall_thickness - min_wall_thickness + contact_leeway)*sample.curve_in_surface_normal_unit_height_from_plane,
-      sample.position - (shield_glue_face_width)*sample.curve_in_surface_normal_unit_height_from_plane
-    ).extrude (-sample.normal_in_plane*10).extrude (sample.curve_tangent*3, centered = True)
-  
-  top_pegs = [top_peg(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length - 14, shield_top_curve_length - temple_block_length + 2, amount = 2)]
-  
-  save ("temple_top_pegs", Compound (top_pegs))
-  save ("top_peg_holes", Compound ([Solid(Offset(a, contact_leeway)) for a in top_pegs]))
+'''
   
 
 
