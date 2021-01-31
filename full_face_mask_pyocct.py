@@ -821,7 +821,7 @@ forehead_cloth_start_on_shield = ShieldSample(intersecting = RayIsh(f.position +
 
 @run_if_changed
 def make_temple_block_cuts():
-  temple_block_cuts_depth = 5
+  temple_block_cuts_depth = 4
   forehead_cloth_start_on_headband_derivatives = standard_forehead_curve.derivatives(distance = forehead_cloth_start_on_headband_distance)
   f = forehead_cloth_start_on_headband_derivatives
   g = f.position + Up*headband_top - f.normal*min_wall_thickness
@@ -845,6 +845,14 @@ def make_temple_block_cuts():
   save("temple_block", temple_block_uncut.cut(forehead_cloth_cut_1).cut(forehead_cloth_cut_2))
 
 
+@run_if_changed
+def make_elastic_loop():
+  shield_exclusion = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Left*lots) @ Translate(Left*0.1)
+  c = Point(temple[0] + 8, temple[1] + 15, headband_top)
+  a = Axes(c, Up, Right)
+  r = 7
+  f = Face(Wire(Edge(Circle(a, r))), holes= Wire(Edge(Circle(a, r-1.5))).complemented())
+  save("elastic_loop", f.extrude(Down*3).cut(shield_exclusion))
   
 ########################################################################
 ########  Side rim and stuff #######
@@ -991,7 +999,7 @@ def make_upper_side_rim():
   
 
 
-preview(side_pegs, upper_side_rim, temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(elastic_loop, side_pegs, upper_side_rim, temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
