@@ -807,12 +807,12 @@ temple_block_from_middle_distance = temple_block_start_distance - standard_middl
   
 @run_if_changed
 def make_headband_wave():
-  faces = Compound(
-    forehead_wave(temple_block_start_distance + 16, temple_block_start_distance),
-    forehead_wave(temple_block_start_distance - temple_block_length, standard_middle_distance - (temple_block_from_middle_distance - temple_block_length)),
-    forehead_wave(standard_middle_distance - temple_block_from_middle_distance, standard_middle_distance - temple_block_from_middle_distance - 16),
+  q = temple_block_from_middle_distance - temple_block_length + 0.5
+  face = forehead_wave(
+    standard_middle_distance + q,
+    standard_middle_distance - q,
   )
-  save("standard_headband_wave", flat_to_headband(faces))
+  save("standard_headband_wave", flat_to_headband(face))
   
 
 
@@ -883,14 +883,15 @@ for sample in curve_samples(shield_upper_side_curve, amount = 20):
 
 
 shield_lower_curve_source_points = [
-  target_shield_convex_corner_below_intake,
-  shield_bottom_peak.position + Right*20,
+  ShieldSample(closest = target_shield_convex_corner_below_intake).position,
+ #ShieldSample(closest = shield_bottom_peak.position + Right*5).position,
+  ShieldSample(closest = shield_bottom_peak.position + Right*20).position,
   shield_bottom_peak.position,
 ]
 shield_lower_curve_source_points = shield_lower_curve_source_points + [a@Mirror(Right) for a in reversed(shield_lower_curve_source_points[:-1])]
 save ("shield_lower_curve_source_surface", BSplineSurface([
     [point + Front*0.1 for point in shield_lower_curve_source_points],
-    [point + Back*100+Down*150 for point in shield_lower_curve_source_points],
+    [point + Back*100+Down*100 for point in shield_lower_curve_source_points],
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 3),
@@ -1002,33 +1003,38 @@ def make_upper_side_rim():
   
 
 
-preview(elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+#preview(shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
   
 
 
-#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers, glasses_edge)
+#preview(upper_side_rim, lower_side_rim, top_rim, standard_headband, top_hook, side_hook, eye_lasers, glasses_edge)  
 
-'''
-  chin_cloth_lip_points = (
+
+########################################################################
+########  Combine the parts of shield/cloth lip from above  #######
+########################################################################
+
+side_shield_lip_points = (
     upper_side_cloth_lip
-    + lower_side_cloth_lip
-    + [a@Mirror (Right) for a in lower_side_cloth_lip[::-1]]
+    + intake_shield_lip
+    + lower_curve_cloth_lip
+    + [a@Mirror (Right) for a in intake_shield_lip[::-1]]
     + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
   )
-  side_shield_lip_points = (
+chin_cloth_lip_points = (
     upper_side_cloth_lip
-    + lower_side_shield_lip
-    + [a@Mirror (Right) for a in lower_side_shield_lip[::-1]]
+    + intake_cloth_lip
+    + lower_curve_cloth_lip
+    + [a@Mirror (Right) for a in intake_cloth_lip[::-1]]
     + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
   )
+@run_if_changed
+def make_cloth_lip():
   save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
-  save ("chin_cloth_lip_points", Compound ([Vertex (point) for point in chin_cloth_lip_points]))
-  #save ("side_shield_lip", Interpolate (side_shield_lip_points))
-  save ("side_shield_lip_points", side_shield_lip_points)
-'''
+#save ("side_shield_lip_points", Compound([Vertex(a) for a in side_shield_lip_points])
 
 #preview(intake_solid, intake_support, chin_cloth_lip, Compound ([Vertex (point) for point in side_shield_lip_points]), Edge(air_target, CurveSample(shield_lower_side_curve, z=-100, which=0).position))
 
@@ -1056,7 +1062,7 @@ def make_flat_approximations():
 def flat_approximate_angle (position):
   difference = (position - shield_focal_point)
   projected = CurveSample (shield_top_curve, closest = shield_focal_point + difference*(shield_top_curve.StartPoint()[2] - shield_focal_point[2])/difference [2])
-  adjusted = projected.curve_distance*(flat_approximation_increments -1)/shield_top_curve_length
+  adjusted = projected.curve_distance*(flat_approximation_increments -1)/shield_top_curve.precomputed_length
   #linearly interpolate
   floor = math.floor (adjusted)
   fraction = adjusted - floor
@@ -1099,7 +1105,7 @@ def segments (vertices):
 @run_if_changed
 def make_unrolled_shield():
   unrolled_side = [unrolled (position) for position in reversed(side_shield_lip_points)]
-  unrolled_top = [unrolled (surface.position) for surface in curve_samples (shield_top_curve, 0, shield_top_curve_length, amount=40)]
+  unrolled_top = [unrolled (surface.position) for surface in curve_samples (shield_top_curve, 0, shield_top_curve.precomputed_length, amount=40)]
   print (unrolled_top[0], unrolled_top[-1], unrolled_side[0], unrolled_side[-1])
     
   unrolled_combined = unrolled_top+unrolled_side
@@ -1282,7 +1288,7 @@ def make_forehead_cloth():
   save("forehead_cloth_virtual_curve", forehead_top_curve)
   #forehead_top_curve = standard_forehead_curve.translated(vector(0,0,headband_top - standard_forehead_curve.StartPoint()[2]))
   forehead_cloth = RimHeadCloth(
-    (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, shield_top_curve_length/2, top_hook_front.curve_distance, amount = math.floor(shield_top_curve_length * 2))),
+    (top_outer_rim_sample(sample) for sample in curve_samples (shield_top_curve, shield_top_curve.precomputed_length/2, shield_top_curve.distance(closest = forehead_cloth_start_on_shield), amount = math.floor(shield_top_curve.precomputed_length * 2))),
     forehead_top_curve,
     target_head_multiplier=99,
     min_curvature = 1/130
@@ -1358,60 +1364,25 @@ def make_FDM_printable_lower_side():
   lower_side = Compound ([
     intake_solid,
     intake_support,
+    intake_fins,
     side_pegs,
   ])
   #preview(lower_side)
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
 
-'''@run_if_changed
-def make_FDM_printable_upper_side():
-  upper_side = Compound ([
-    upper_side_rim.cut(side_joint_peg_hole),
-    temple_side_peg,
-    side_hook,
-    upper_side_rim_lower_block,
-  ])
-  save("upper_side", upper_side)
-  save_STL("upper_side", upper_side)'''
-
-
-@run_if_changed
-def make_FDM_printable_top_rim():
-  top_rim_final = Compound ([
-    top_rim,
-  ]
-  + reflected ([temple_top_pegs, top_hook]))
-  save("top_rim_final", top_rim_final)
-  save_STL("top_rim_final", top_rim_final)
-
-
-@run_if_changed
-def make_FDM_printable_overhead_strap():
-  save_STL("overhead_strap", overhead_strap)
 
 @run_if_changed
 def make_FDM_printable_headband():
-  preview(
-    standard_headband.intersection(HalfSpace(temple + Front*16, Back)),
-    standard_headband_wave,
-    temple_block,
-    lower_side,
-    upper_side_rim.cut(intake_support_exclusion),
-    side_hook,
-    top_hook,
-
-)
   headband_final = Compound ([
-    standard_headband.intersection(HalfSpace(temple + Front*16, Back)),
+    standard_headband.intersection(HalfSpace(temple, Back)),
     standard_headband_wave,
   ]
   + reflected ([
     temple_block,
-    upper_side_rim.cut(intake_support_exclusion),
-    side_hook,
-    top_hook,
-    #forehead_elastic_hooks,
+    upper_side_rim,
+    elastic_loop,
+    temple_knob,
   ]))
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
