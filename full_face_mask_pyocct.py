@@ -475,13 +475,15 @@ def make_intake():
   for sample in curve_samples(intake_curve, 1, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, amount = 10):
     augment_intake_sample(sample)
     
-    thickness = min(sample.curve_distance / 4, intake_support_thickness)
-    b = -sample.normal_in_plane_unit_height_from_shield * thickness
+    thickness1 = min(sample.curve_distance / 3, intake_support_thickness)
+    thickness2 = min(sample.curve_distance / 6, intake_support_thickness)
+    b = -sample.normal_in_plane_unit_height_from_shield * thickness1
+    b2 = -sample.normal_in_plane_unit_height_from_shield * thickness2
         
     intake_support_hoops.append (Wire ([
       sample.position,
       sample.position + b,
-      sample.below_shield_glue_base_point + b,
+      sample.below_shield_glue_base_point + b2,
       sample.below_shield_glue_base_point,
     ], loop = True))
     a = contact_leeway * sample.normal_in_plane_unit_height_from_shield
@@ -491,7 +493,7 @@ def make_intake():
     intake_support_exclusion_hoops.append (Wire ([
       sample.position + a - c + d,
       sample.position + b - c + d,
-      sample.below_shield_glue_base_point + b + c + d,
+      sample.below_shield_glue_base_point + b2 + c + d,
       sample.below_shield_glue_base_point + a + c + d,
     ], loop = True))
   
@@ -945,13 +947,14 @@ upper_side_rim_bottom = 47
 def make_side_pegs():
   shield_exclusion = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
   forehead_exclusion = Face(standard_forehead_curve).extrude(Down*lots, centered=True)
+  #build_plate_exclusion = Face(intake_curve.plane).extrude(Back*lots)
   
   def side_peg (sample, expansion):
     return Vertex(
-      sample.position - 4.5*sample.curve_in_surface_normal
-    ).extrude(-sample.normal*10).extrude (sample.curve_tangent*(3+expansion), centered = True).extrude (sample.curve_in_surface_normal*(3+expansion), centered = True)
+      sample.position - 5.5*sample.curve_in_surface_normal
+    ).extrude(-sample.normal*10 + sample.curve_in_surface_normal*7).extrude (sample.curve_tangent*(3+expansion), centered = True).extrude (sample.curve_in_surface_normal*(3+expansion), centered = True)
   
-  side_peg_samples = list(curve_samples (shield_upper_side_curve, upper_side_rim_bottom - 5, upper_side_rim_bottom - 12, amount = 2))
+  side_peg_samples = list(curve_samples (shield_upper_side_curve, upper_side_rim_bottom - 4, upper_side_rim_bottom - 12, amount = 2))
   save ("side_peg_holes", Compound ([side_peg(sample, contact_leeway*2) for sample in side_peg_samples]))
   save ("side_pegs", Compound ([side_peg(sample, 0) for sample in side_peg_samples]).cut(shield_exclusion).cut(forehead_exclusion))
   
@@ -999,7 +1002,7 @@ def make_upper_side_rim():
   
 
 
-preview(elastic_loop, side_pegs, upper_side_rim, temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
