@@ -499,7 +499,8 @@ def make_intake():
   
   sample = CurveSample(intake_curve, distance = intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
   augment_intake_sample(sample)
-  save("target_shield_convex_corner_above_intake", sample.below_elastic_base_point)
+  target_shield_convex_corner_above_intake = sample.below_elastic_base_point
+  save("target_shield_convex_corner_above_intake", target_shield_convex_corner_above_intake)
   sample = CurveSample(intake_curve, distance = intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_point_width)
   augment_intake_sample(sample)
   intake_shield_lip.append (sample.below_shield_glue_base_point)
@@ -560,9 +561,7 @@ def make_intake():
     
     
     intake_shield_lip.append (sample.below_shield_glue_base_point)
-    # a fairly arbitrary approximation, but it's not necessarily worth the effort of computing the points it would realistically be taut across
-    if intake_edge_heights[3] > intake_flat_air_thickness_base/2:
-      intake_cloth_lip.append (sample.below_elastic_base_point + intake_edge_offsets[3])
+
     
     do_support = offset < 0 and intake_edge_heights[3] - min_wall_thickness / 2 < intake_support_thickness
     if do_support:
@@ -605,7 +604,8 @@ def make_intake():
   intake_shield_lip.append (sample.below_shield_glue_base_point)
   sample = CurveSample(intake_curve, distance = intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
   augment_intake_sample(sample)
-  save("target_shield_convex_corner_below_intake", sample.below_elastic_base_point)
+  target_shield_convex_corner_below_intake = sample.below_elastic_base_point
+  save("target_shield_convex_corner_below_intake", target_shield_convex_corner_below_intake)
   
   
   fins = []
@@ -620,7 +620,6 @@ def make_intake():
   intake_outer_ribs = intake_edges [0] + intake_edges[3][::-1]
     
 
-  save("intake_cloth_lip", intake_cloth_lip)
   save("intake_shield_lip", intake_shield_lip)
 
   intake_air_cut = Loft([intake_air_cut_hoops[0], intake_air_cut_hoops[-1]], solid = True, ruled = True)
@@ -679,7 +678,17 @@ def make_intake():
   ))
   save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal(0,0)*min_wall_thickness)).intersection(intake_solid_including_interior))
   
-#preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
+  taut_direction = -intake_middle.normal
+  for frac in subdivisions(0.2, 0.8, amount = 15):
+    base = Between(target_shield_convex_corner_above_intake, target_shield_convex_corner_below_intake, frac)
+    
+    # a fairly arbitrary approximation, but a fully realistic calculation would be way more effort than it'd be worth
+    intake_cloth_lip.append (intake_exterior.surface.intersections(RayIsh(base + taut_direction*1, taut_direction)).point())
+  save("intake_cloth_lip", intake_cloth_lip)
+    
+  
+
+preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
 
   
   
@@ -1003,7 +1012,7 @@ def make_upper_side_rim():
   
 
 
-#preview(shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
