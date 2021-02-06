@@ -141,6 +141,15 @@ Additional notes after prototype #6:
 – A fancier solution could theoretically move the temple block downwards in normal usage, allowing the front headband to be higher up than the temple block (and making the top edge of the face shield be a more complex curve), but this might have problems with torque moving the mask the wrong way in normal usage.
 – Partly related to the bike position issue, it might now be helpful to redirect the air towards the face instead of along the shield surface; this should now be practical given the current design of the intake.
 
+
+
+Additional notes after prototype #7:
+– It finally works well with a bike helmet!!
+– The chin cloth I made for prototype #5 didn't stay on the face shield very well, but the new, sized-for-#7 chin cloth did. This is strong evidence that the shape actually mattered.
+– The positioning of the nub/slot (elastic hook replacement) worked fine, but both were too easy for the elastic to slide off of (even after getting the cloth sizing correct). In the case of the nubs, part of the problem is that they don't stick out far enough past the thickness of the shield itself, which I didn't account for.
+– The mask has the "wants to tilt upwards" problem a bit, but this isn't a big problem (and it's unavoidably tilted with my bike helmet).
+– The air redirection reduced fogging in cold weather by a lot.
+
 '''
 
 import math
