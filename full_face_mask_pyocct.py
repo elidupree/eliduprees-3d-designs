@@ -697,7 +697,7 @@ def make_intake():
     
   
 
-preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
+#preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
 
   
   
@@ -821,6 +821,39 @@ def make_temple_block():
 standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
 temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
 #preview(temple_knob_curve , temple_block_uncut)
+
+
+@run_if_changed
+def make_temple_extender_hack():
+  length = 60
+  width = 10
+  depth = 5
+  hoops = []
+  holes = []
+  for distance in subdivisions(temple_block_start_distance-17, temple_block_start_distance+length, amount=30):
+    d = standard_forehead_curve.derivatives(distance = distance)
+    a = d.position + Up*(headband_top + depth)
+    b = d.position + Up*headband_top
+    k = -d.normal * width
+    j = -d.normal * 2.5
+    l = -d.normal * (width - 2.5)
+    z = Up*1
+    hoops.append(Wire([
+      a, b, b+k, a+k
+    ], loop = True))
+    holes.append(Wire([
+      a+z+j, b-z+j, b-z+l, a+z+l
+    ], loop = True))
+  result = Loft(hoops, solid = True)
+  result = Fillet(result, [(edge, 3.0) for edge in result.edges() if all_equal(v[1] for v in edge.vertices())])
+  for foo in range(3):
+    bar = 11 + foo * 6
+    result = result.cut(Loft(holes[bar:bar + 6], solid= True))
+  
+  save("temple_extender_hack", result)
+  save_STL("temple_extender_hack", result)
+    
+
 
   
 @run_if_changed
@@ -1021,7 +1054,7 @@ def make_upper_side_rim():
   
 
 
-preview(shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender_hack, shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
