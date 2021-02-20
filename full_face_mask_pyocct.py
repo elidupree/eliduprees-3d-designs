@@ -149,6 +149,9 @@ Additional notes after prototype #7:
 – The positioning of the nub/slot (elastic hook replacement) worked fine, but both were too easy for the elastic to slide off of (even after getting the cloth sizing correct). In the case of the nubs, part of the problem is that they don't stick out far enough past the thickness of the shield itself, which I didn't account for.
 – The mask has the "wants to tilt upwards" problem a bit, but this isn't a big problem (and it's unavoidably tilted with my bike helmet).
 – The air redirection reduced fogging in cold weather by a lot.
+– The shield tends to pop off the glue at the intake. This can be resolved by printing a short slot to hold onto it from the outside.
+– Even after getting the chin cloth size correct, it still tended to slide off the shield at the top of the intake. I resolved this by putting a dot of glue on the outside of the shield at the convex corner; I could also resolve it by building a little prong into the 3d printed part (the printing direction isn't ideal but it should work, and I'd have to adjust the shield shape but that's easy enough).
+– (after adding the temple extender hacks) The temple extender hacks seemed to keep it stable on my head much better even without a top strap (vague theory: the y-distance from forehead to end of the extender was about twice the y-distance from forehead to previous elastic attach point, so it could only wobble about half as much). But the temple extenders kept coming unglued, so I'll have to build them into a new full print.
 
 '''
 
