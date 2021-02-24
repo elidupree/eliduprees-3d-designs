@@ -152,6 +152,7 @@ Additional notes after prototype #7:
 – The shield tends to pop off the glue at the intake. This can be resolved by printing a short slot to hold onto it from the outside.
 – Even after getting the chin cloth size correct, it still tended to slide off the shield at the top of the intake. I resolved this by putting a dot of glue on the outside of the shield at the convex corner; I could also resolve it by building a little prong into the 3d printed part (the printing direction isn't ideal but it should work, and I'd have to adjust the shield shape but that's easy enough).
 – (after adding the temple extender hacks) The temple extender hacks seemed to keep it stable on my head much better even without a top strap (vague theory: the y-distance from forehead to end of the extender was about twice the y-distance from forehead to previous elastic attach point, so it could only wobble about half as much). But the temple extenders kept coming unglued, so I'll have to build them into a new full print.
+– I did some experiments and got a more specific understanding of why the temple extenders helped: The primary force tipping the mask upwards comes from the CPAP hose itself. This applies a certain amount of *torque* to the mask. To counteract the torque using upward force at the temples, you need so much force that it actually lifts the forehead strap upwards along my forehead as well. But the temple extenders give you a longer lever, allowing you to exert more *torque* for less *force*.
 
 '''
 
