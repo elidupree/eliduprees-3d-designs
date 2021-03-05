@@ -219,10 +219,10 @@ intake_flat_air_thickness_base = 10.4
 intake_flat_width = 56
 
 # The width of the opening of the triangular corner the elastic should nestle into
-elastic_corner_opening_width = 6
+elastic_corner_opening_width = 4
 
 # The width of the concave point (avoid leaving an air gap by either making it too pointy, so the cloth doesn't go all the way to the point, or too loose, so the cloth doesn't fill it)
-elastic_corner_point_width = 1
+elastic_corner_point_width = 2
 
 # the thickness of the intake support in the direction normal to the shield
 intake_support_thickness = 4
@@ -449,20 +449,25 @@ def make_intake_curve():
 
 @run_if_changed
 def make_intake():
+  # the center of the circle at the far CPAP connector end.
+  CPAP_back_center = Point(72, headphones_front - 40, -92)
+    
   # hack - temporary value to avoid augment_intake_sample circular dependency issue
   CPAP_forwards = Back
   def augment_intake_sample(sample):
     sample.along_intake_flat = sample.normal.cross(Up).normalized()
     sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
     sample.below_shield_glue_base_point = ShieldSample(closest = sample.position + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane).position
-    sample.below_elastic_base_point = sample.below_shield_glue_base_point - CPAP_forwards * elastic_holder_depth
+    
+    forwards = Direction(CPAP_forwards)
+    if sample.position[2] > CPAP_back_center[2]:
+      forwards = Direction(forwards + Up*Direction(CPAP_back_center, sample.position)[2]*1.3)
+    
+    sample.below_elastic_base_point = sample.below_shield_glue_base_point - forwards * elastic_holder_depth
     
   # a base point on the lower side curve, just inside the shield.
   intake_middle = CurveSample(intake_curve, z=intake_middle_z)
   augment_intake_sample(intake_middle)
-  
-  # the center of the circle at the far CPAP connector end.
-  CPAP_back_center = Point(72, headphones_front - 40, -92)
   
   # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
   intake_flat_back_center_approx = (intake_middle.position
