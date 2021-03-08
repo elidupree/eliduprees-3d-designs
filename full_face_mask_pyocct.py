@@ -172,6 +172,7 @@ elastic_holder_depth = 10
 CPAP_outer_radius = 21.5/2
 CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
 CPAP_hose_helix_outer_radius = 22/2
+shield_thickness = 0.5
 headband_thickness = min_wall_thickness
 headband_width = 10
 overhead_strap_width = headband_width
@@ -200,6 +201,10 @@ putative_eyeball = forehead_point + vector (35, -15, -35)
 # The location the air should be directed towards, intended to be just under the nose.
 air_target = putative_chin + vector(0, 10, 40)
 
+# Contact leeway mainly reflects the amount of error in the 3D printing process.
+# My home Ender-3 makes holes smaller than they should be. Also, we are generally gluing
+# stuff into the holes, so we want a little space for glue.
+# For a more precise system (e.g. Shapeways) I would set it to more like 0.1
 contact_leeway = 0.4
 
 # The corner where the shield surface meets the headband. This is not guaranteed to be placed exactly on the headband curve.
@@ -486,6 +491,7 @@ def make_intake():
   intake_cloth_lip = []
   intake_shield_lip = []
   intake_support_hoops = []
+  intake_shield_clip_hoops = []
   intake_air_cut_hoops = []
   intake_support_exclusion_hoops = []
   intake_edges = ([], [], [], [])
@@ -615,6 +621,23 @@ def make_intake():
         k + b,
         k + a,
       ], loop = True))
+    
+    if offset > intake_flat_width * 0.2 and offset < intake_flat_width * 0.48:
+      outwards = sample.normal_in_plane_unit_height_from_shield
+      shield_space = (shield_thickness + contact_leeway*2)
+      thickness = 1.5
+      along_shield = Direction(sample.position, sample.below_shield_glue_base_point)
+      end_leeway = along_shield * contact_leeway
+      b = sample.below_shield_glue_base_point + end_leeway
+      c = b + along_shield * 5
+      intake_shield_clip_hoops.append (Wire ([
+        sample.position + outwards*shield_space,
+        sample.position + outwards*(shield_space+thickness),
+        b + outwards*(shield_space+thickness),
+        c - outwards*3,
+        b - outwards*0.2,
+        b + outwards*shield_space,
+      ], loop = True))
   
   
   sample = CurveSample(intake_curve, distance = intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_point_width)
@@ -695,6 +718,7 @@ def make_intake():
     [Face (a) for a in intake_exterior.ends]
   ))
   save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal(0,0)*min_wall_thickness)).intersection(intake_solid_including_interior))
+  save ("intake_shield_clip", Loft(intake_shield_clip_hoops, solid = True, ruled = True).cut(intake_solid_including_interior))
   
   taut_direction = -intake_middle.normal
   for frac in subdivisions(0.2, 0.8, amount = 15):
@@ -1063,7 +1087,7 @@ def make_upper_side_rim():
   
 
 
-preview(temple_extender_hack, shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender_hack, shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_shield_clip, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
@@ -1424,6 +1448,7 @@ def make_FDM_printable_lower_side():
   lower_side = Compound ([
     intake_solid,
     intake_support,
+    intake_shield_clip,
     intake_fins,
     side_pegs,
   ])
