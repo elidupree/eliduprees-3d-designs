@@ -627,16 +627,17 @@ def make_intake():
       shield_space = (shield_thickness + contact_leeway*2)
       thickness = 1.5
       along_shield = Direction(sample.position, sample.below_shield_glue_base_point)
+      shield_stop_dir = Direction(outwards.cross(along_shield).cross(-along_shield))
       end_leeway = along_shield * contact_leeway
       b = sample.below_shield_glue_base_point + end_leeway
-      c = b + along_shield * 5
+      c = b + along_shield * 6
       intake_shield_clip_hoops.append (Wire ([
         sample.position + outwards*shield_space,
         sample.position + outwards*(shield_space+thickness),
-        b + outwards*(shield_space+thickness),
+        b + shield_stop_dir*(shield_space+thickness) + along_shield * thickness,
         c - outwards*3,
-        b - outwards*0.2,
-        b + outwards*shield_space,
+        b - shield_stop_dir*0.2,
+        b + shield_stop_dir*shield_space,
       ], loop = True))
   
   
