@@ -857,20 +857,22 @@ temple_block_from_middle_distance = temple_block_start_distance - standard_middl
 #preview(temple_knob_curve , temple_block_uncut)
 
 
+temple_extender_width = 6
+
 @run_if_changed
-def make_temple_extender_hack():
+def make_temple_extender():
   length = 60
-  width = 10
-  depth = 5
+  width = temple_extender_width
+  wall_thickness = 1.5
   hoops = []
   holes = []
   for distance in subdivisions(temple_block_start_distance-17, temple_block_start_distance+length, amount=30):
     d = standard_forehead_curve.derivatives(distance = distance)
-    a = d.position + Up*(headband_top + depth)
-    b = d.position + Up*headband_top
+    a = d.position + Up*headband_top
+    b = d.position + Up*headband_bottom
     k = -d.normal * width
-    j = -d.normal * 2.5
-    l = -d.normal * (width - 2.5)
+    j = -d.normal * wall_thickness
+    l = -d.normal * (width - wall_thickness)
     z = Up*1
     hoops.append(Wire([
       a, b, b+k, a+k
@@ -879,13 +881,13 @@ def make_temple_extender_hack():
       a+z+j, b-z+j, b-z+l, a+z+l
     ], loop = True))
   result = Loft(hoops, solid = True)
-  result = Fillet(result, [(edge, 3.0) for edge in result.edges() if all_equal(v[1] for v in edge.vertices())])
+  result = Fillet(result, [(edge, width/2.2) for edge in result.edges() if all_equal(v[1] for v in edge.vertices())])
   for foo in range(3):
     bar = 11 + foo * 6
     result = result.cut(Loft(holes[bar:bar + 6], solid= True))
   
-  save("temple_extender_hack", result)
-  save_STL("temple_extender_hack", result)
+  save("temple_extender", result)
+  #save_STL("temple_extender_hack", result)
     
 
 
@@ -908,7 +910,7 @@ forehead_cloth_start_on_shield = ShieldSample(intersecting = RayIsh(f.position +
 
 @run_if_changed
 def make_temple_block_cuts():
-  temple_block_cuts_depth = 4
+  '''temple_block_cuts_depth = 4
   forehead_cloth_start_on_headband_derivatives = standard_forehead_curve.derivatives(distance = forehead_cloth_start_on_headband_distance)
   f = forehead_cloth_start_on_headband_derivatives
   g = f.position + Up*headband_top - f.normal*min_wall_thickness
@@ -929,9 +931,10 @@ def make_temple_block_cuts():
       a, b, b+c, a+c
     ], loop = True))
   forehead_cloth_cut_2 = Loft(forehead_cloth_cut_2_hoops, solid = True, ruled = True)
-  save("temple_block", temple_block_uncut.cut(forehead_cloth_cut_1).cut(forehead_cloth_cut_2))
+  save("temple_block", temple_block_uncut.cut(forehead_cloth_cut_1).cut(forehead_cloth_cut_2))'''
+  save("temple_block", temple_block_uncut)
 
-
+'''
 @run_if_changed
 def make_elastic_loop():
   shield_exclusion = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Left*lots) @ Translate(Left*0.1)
@@ -939,7 +942,7 @@ def make_elastic_loop():
   a = Axes(c, Up, Right)
   r = 7
   f = Face(Wire(Edge(Circle(a, r))), holes= Wire(Edge(Circle(a, r-1.5))).complemented())
-  save("elastic_loop", f.extrude(Down*3).cut(shield_exclusion))
+  save("elastic_loop", f.extrude(Down*3).cut(shield_exclusion))'''
   
 ########################################################################
 ########  Side rim and stuff #######
@@ -997,11 +1000,11 @@ for sample in curve_samples(shield_lower_curve, amount = 50):
 
 z = -2
 a=0
-b=1.5
-c=3.5
-s=2
-p=4
-q=6
+b=3
+c=5
+s=0
+p=3
+q=5
 r=8
 temple_knob_coordinates = [
   (z, s), (a, s), (a,p), (b,p), (b,s), (c,s), (c,p), (c,q), (c,r), (b,r), (b,q), (a,q), (a,r), (z, r)
@@ -1011,8 +1014,9 @@ def temple_knob_ring(z):
   sample = CurveSample(shield_upper_side_curve, z=z)
   result = []
   for x,y in temple_knob_coordinates:
-    s2 = ShieldSample(intersecting = RayIsh(sample.position - sample.curve_in_surface_normal*y, Left, length=1))
-    result.append(s2.position + s2.normal*x)
+    d = standard_forehead_curve.derivatives(distance = temple_block_start_distance+3-y)
+    #s2 = ShieldSample(intersecting = RayIsh(sample.position - sample.curve_in_surface_normal*y, Left, length=1))
+    result.append(d.position - d.normal*(temple_extender_width + x))
     result[-1][2] = z
   return result
 
@@ -1088,7 +1092,7 @@ def make_upper_side_rim():
   
 
 
-preview(temple_extender_hack, shield_bottom_peak.position, target_shield_convex_corner_below_intake, elastic_loop, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_shield_clip, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_shield_clip, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
@@ -1412,7 +1416,7 @@ neck_points = [
   Point(38, neck_y, -120),
   Point(8, neck_y, -140),
 ]
-#neck_points = [vector(a[0], a[1] + a[2]*0.2, a[2]) for a in neck_points] 
+neck_points = [Point(a[0], a[1] + a[2]*0.2, a[2]) for a in neck_points] 
 neck_points = neck_points + [a@Reflect (Right) for a in reversed(neck_points)]
 save ("neck_curve", BSplineCurve(neck_points))
 
@@ -1466,14 +1470,31 @@ def make_FDM_printable_headband():
   ]
   + reflected ([
     temple_block,
+    temple_extender,
     upper_side_rim,
-    elastic_loop,
     temple_knob,
   ]))
   save("headband_final", headband_final)
   save_STL("headband_final", headband_final)
-preview(lower_side, headband_final)
 
+preview (
+  lower_side,
+  headband_final,
+  neck_curve,
+  chin_cloth_lip,
+
+  Edge(shield_source_curve),
+  Edge(shield_top_curve.curve),
+  shield_source_points,
+  #eye_lasers,
+  #LoadSTL ("private/face5_for_papr.stl"),
+  
+  unrolled_shield_wire@Translate(100, 0, 0),
+  forehead_cloth_wire@Translate(0, 350, 0),
+  chin_cloth_wire@Translate(-300, 0, 0),
+)
+
+'''
 @run_if_changed
 def make_FDM_printable_hook_skirt():
   save_STL("hook_skirt", hook_skirt)
@@ -1528,6 +1549,6 @@ preview (
   forehead_cloth_wire,
   chin_cloth_wire,
 )
-  
+  '''
   
   
