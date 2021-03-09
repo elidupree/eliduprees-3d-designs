@@ -174,7 +174,7 @@ CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
 CPAP_hose_helix_outer_radius = 22/2
 shield_thickness = 0.5
 headband_thickness = min_wall_thickness
-headband_width = 10
+headband_width = 8
 overhead_strap_width = headband_width
 headband_cut_radius = 25
 cloth_with_elastic_space = 3
@@ -241,6 +241,10 @@ lots = 500
 # Estimated minimum and maximum sizes of real people's heads (currently unused, I think)
 min_head_circumference = 500
 max_head_circumference = 650
+
+# add significant leeway to accommodate larger necks, reduce the chance of yanking it off the rim
+neck_offset = 20
+neck_y = shield_back - neck_offset
 
 
 headband_top = shield_glue_face_width + min_wall_thickness
@@ -998,23 +1002,23 @@ for sample in curve_samples(shield_lower_curve, amount = 50):
 
   
 
-z = -2
+z = -1.2
 a=0
 b=3
 c=5
-s=0
-p=3
-q=5
-r=8
+s=-4
+p=-1
+q=1
+r=4
 temple_knob_coordinates = [
   (z, s), (a, s), (a,p), (b,p), (b,s), (c,s), (c,p), (c,q), (c,r), (b,r), (b,q), (a,q), (a,r), (z, r)
 ]
 temple_knob_offset = -4
-def temple_knob_ring(z):
+def temple_knob_ring(z, offset):
   sample = CurveSample(shield_upper_side_curve, z=z)
   result = []
   for x,y in temple_knob_coordinates:
-    d = standard_forehead_curve.derivatives(distance = temple_block_start_distance+3-y)
+    d = standard_forehead_curve.derivatives(distance = temple_block_start_distance+offset-y)
     #s2 = ShieldSample(intersecting = RayIsh(sample.position - sample.curve_in_surface_normal*y, Left, length=1))
     result.append(d.position - d.normal*(temple_extender_width + x))
     result[-1][2] = z
@@ -1022,12 +1026,15 @@ def temple_knob_ring(z):
 
 @run_if_changed
 def make_temple_knob():
-  temple_knob_rings = [temple_knob_ring(a) for a in [headband_top, headband_top - 5]]
-  temple_knob_surface = BSplineSurface(temple_knob_rings, BSplineDimension(degree=1), BSplineDimension(periodic = True))
+  knobs = []
+  for offset in [-1, neck_offset]:
+    temple_knob_rings = [temple_knob_ring(a, offset) for a in [headband_top, headband_top - 5]]
+    temple_knob_surface = BSplineSurface(temple_knob_rings, BSplineDimension(degree=1), BSplineDimension(periodic = True))
+    knobs.append(Solid(Shell(
+        [Face(temple_knob_surface)] + [Face(BSplineCurve(r, BSplineDimension(periodic = True))) for r in temple_knob_rings]
+      )))
   
-  save("temple_knob", Solid(Shell(
-    [Face(temple_knob_surface)] + [Face(BSplineCurve(r, BSplineDimension(periodic = True))) for r in temple_knob_rings]
-  )))
+  save("temple_knob", Compound(knobs))
 
 
 upper_side_rim_bottom = 47
@@ -1403,8 +1410,6 @@ print(f"original_forehead_length: {original_forehead_length}, cloth_forehead_len
 ########  Chin cloth  #######
 ########################################################################
 
-# add significant leeway to accommodate larger necks, reduce the chance of yanking it off the rim
-neck_y = shield_back - 20 #5
 neck_points = [
   Point(75, neck_y, 20),
   Point(75, neck_y, 0),
