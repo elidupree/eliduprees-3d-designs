@@ -51,6 +51,8 @@ lots = 500
 min_corner_radius_inner = wall_thickness*0.5
 min_corner_radius_outer = wall_thickness*1.5
 
+skirt_flare_distance = 5
+
 
 strong_filter_size = Vector (
   strong_filter_length,
@@ -97,7 +99,7 @@ def make_strong_filter_to_CPAP_wall():
   inset_vertex = Vertex (-strong_filter_airspace_wall_inset, 0, 0)
   corner_vertex = Vertex (contact_leeway - 0.6, 0, 0)
   cover_vertex = Vertex (contact_leeway + 0.4, 0, -strong_filter_cover_depth)
-  skirt_vertex = Vertex (5, 0, -strong_filter_depth_with_seal)
+  skirt_vertex = Vertex (skirt_flare_distance, 0, -strong_filter_depth_with_seal)
   profile = approximate_edges(FilletedEdges([
     flat_before_upstep_vertex,
     (upstep_vertex, min_corner_radius_inner + 3),
@@ -249,6 +251,8 @@ def make_fan_to_strong_filter():
   solid = Offset (shell, wall_thickness, fill = True)
   
   save ("fan_to_strong_filter_part", solid)
+  #save_STEP ("fan_to_strong_filter_part_pointy_shell", pointy_shell)
+  #save_STEP ("fan_to_strong_filter_part", solid)
   preview (solid, strong_filter_output_part)
   
 
@@ -263,23 +267,51 @@ rotate_to_diagonal = Rotate(Axis(Origin, Direction(1, -1, 0)), radians=rotate_to
 
 @run_if_changed
 def make_strong_filter_output_part_FDM_printable():
-  bottom_faces = [face for face in strong_filter_to_CPAP_wall.faces() if face.bounds().max() [2] < 1]
-  bottom_corner = strong_filter_output_part.bounds().min()
+  #bottom_faces = [face for face in strong_filter_to_CPAP_wall.faces() if face.bounds().max() [2] < 1]
+  bottom_corner = Point(
+    -skirt_flare_distance-wall_thickness*0.5,
+    -skirt_flare_distance-wall_thickness*0.5,
+    strong_filter_min[2]
+  )
   transform = Translate(bottom_corner, Origin) @ rotate_to_diagonal
   part = strong_filter_output_part @ transform
   
   extra_wall_length = 60
 
-  parts = [part]
+  """parts = [part]
   for bottom_face in bottom_faces:
     print(bottom_face.bounds().min(), bottom_face.bounds().max())
-    support = Extrude (bottom_face@transform, Down*lots)
-    support = Intersection (support, Box(
+    support = Extrude (bottom_face@transform, Down*40)
+    '''support = Intersection (support, Box(
       Point(-extra_wall_length, -extra_wall_length, 0),
       Point(extra_wall_length, extra_wall_length, lots),
-    ))
-    parts.append(support)
-  save("strong_filter_output_part_FDM_printable", Compound (parts))
+    ))'''
+    parts.append(support)"""
+  
+  
+  foo = (bottom_corner + Right*extra_wall_length) @ transform
+  bar = (bottom_corner + Back*extra_wall_length) @ transform
+  baz = (bottom_corner + (Back + Right)*extra_wall_length) @ transform
+  
+  plane = Plane(Origin, Up)
+  profile = Wire([
+    Origin,
+    foo.projected(plane),
+    baz.projected(plane),
+    bar.projected(plane),
+  ], loop = True).offset2D(-0.2).offset2D(0.4, fill=True)
+  
+  limiter = HalfSpace(bottom_corner, Down) @ transform
+  limiter2 = HalfSpace(foo, Direction(-1,-1,-1.1))
+  
+  support = profile.extrude(Up*lots).intersection(limiter).intersection(limiter2)
+  #preview(part, support, foo, bar, baz, Origin)
+  combined = Compound (part, support)
+  test = combined .intersection(HalfSpace(Point(14, 0, 0), Left)@transform)
+  save("strong_filter_output_part_FDM_printable", combined)
+  save_STL("strong_filter_output_part_FDM_printable", combined)
+  save("strong_filter_output_part_FDM_printable_test", test)
+  save_STL("strong_filter_output_part_FDM_printable_test", test)
   
 
-preview(strong_filter_output_part_FDM_printable)
+preview(strong_filter_output_part_FDM_printable_test)

@@ -585,6 +585,9 @@ def save_STL (key, shape, **kwargs):
   BuildMesh (shape, **kwargs)
   SaveSTL_raw (_path_base (key) + ".stl", shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
+    
+def save_STEP (key, shape, **kwargs):
+  SaveSTEP_raw(_path_base (key) + ".step", shape)
   
   
 ########################################################################

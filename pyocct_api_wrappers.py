@@ -21,7 +21,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepFilletAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepFilletAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools,STEPControl")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -1097,6 +1097,12 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def SaveSTL_raw (path, shape):
     StlAPI.StlAPI.Write_ (shape, path)
   
+  @export
+  def SaveSTEP_raw (path, shape):
+    writer = STEPControl.STEPControl_Writer()
+    writer.Transfer(shape, STEPControl.STEPControl_StepModelType.STEPControl_AsIs)
+    writer.Write(path)
+      
   def LoadSTL (path):
     #note: it appears that StlAPI.Read is simply nonfunctional
     '''shape = Shape()
