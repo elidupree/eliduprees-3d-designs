@@ -5,13 +5,21 @@ initialize_system (globals())
 
 
 wall_thickness = 0.6
+plate_thickness = 1.8
 
 
 CPAP_outer_radius = 21.5/2
 CPAP_inner_radius = CPAP_outer_radius - wall_thickness
 
-fan_exit_width = 24
+fan_exit_width = 25
 fan_exit_length = 53
+
+plate_width_left = 12
+plate_width_right = 14
+plate_width_front = 2
+plate_width_back = 4
+plate_length_total = plate_width_left + plate_width_right + fan_exit_length
+plate_width_total = plate_width_front + plate_width_back + fan_exit_width
 
 
 def CPAP_hoops(base, direction):
@@ -47,5 +55,37 @@ def make_fan_to_CPAP():
   o2 = o2 @ Translate(jiggle)
   wall = (Union(o1, o2)).cut(i1).cut(i2)
   save ("fan_to_CPAP", wall)
+
+@run_if_changed
+def make_plate():
+  plate = Vertex(
+    -fan_exit_length/2 - plate_width_left,
+    -fan_exit_width/2 - plate_width_front,
+    0
+  ).extrude(Right*plate_length_total).extrude(Back*plate_width_total).extrude(Up*plate_thickness)
   
-preview(fan_to_CPAP)
+  hole = (Vertex(Origin)
+    .extrude(Right*(fan_exit_length), centered=True)
+    .extrude(Back*(fan_exit_width), centered=True)
+    .extrude(Up*100, centered=True))
+  
+  reinforcement_base = (Vertex(Origin+Up*plate_thickness)
+      .extrude(Right*(fan_exit_length+plate_thickness*2), centered=True)
+      .extrude(Back*(fan_exit_width+plate_thickness*2), centered=True)
+      .outer_wire())
+  
+  reinforcement_top = (Vertex(Origin+Up*10)
+      .extrude(Right*(fan_exit_length+wall_thickness*1.8), centered=True)
+      .extrude(Back*(fan_exit_width+wall_thickness*1.8), centered=True)
+      .outer_wire())
+  
+  reinforcement = Loft([reinforcement_base, reinforcement_top], solid=True)
+  
+  plate = Compound(
+    plate.cut(hole),
+    reinforcement.cut(hole),
+  )
+  save ("plate", plate)
+  
+
+preview(fan_to_CPAP, plate)
