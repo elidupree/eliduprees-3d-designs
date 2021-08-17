@@ -103,6 +103,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   # conveniently allow you to throw together nested lists of shapes
   @export
   def recursive_flatten (arguments):
+    assert(type(arguments) is not str)
     try:
       return [value for argument in arguments for value in recursive_flatten (argument)]
     except AttributeError:
