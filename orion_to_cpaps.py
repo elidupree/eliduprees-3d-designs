@@ -4,20 +4,20 @@ from pyocct_system import *
 initialize_system (globals())
 
 
-wall_thickness = 0.6
+wall_thickness = 0.8
 plate_thickness = 1.8
 
 
 CPAP_outer_radius = 21.5/2
 CPAP_inner_radius = CPAP_outer_radius - wall_thickness
 
-fan_exit_width = 25
+fan_exit_width = 24.8
 fan_exit_length = 53
 
 plate_width_left = 12
 plate_width_right = 14
-plate_width_front = 2
-plate_width_back = 4
+plate_width_front = 1.8
+plate_width_back = 3.9
 plate_length_total = plate_width_left + plate_width_right + fan_exit_length
 plate_width_total = plate_width_front + plate_width_back + fan_exit_width
 
@@ -52,9 +52,25 @@ def make_fan_to_CPAP():
   i2, o2 = fan_to_one_CPAP(Right)
   jiggle = Right*0.02 + Back*0.03 + Up*0.0001
   i2 = i2 @ Translate(jiggle)
-  o2 = o2 @ Translate(jiggle)
-  wall = (Union(o1, o2)).cut(i1).cut(i2)
+  #o2 = o2 @ Translate(jiggle)
+  interior = Compound(i1, i2)
+  wall = Compound(o1.cut(interior), o2.cut(interior))
   save ("fan_to_CPAP", wall)
+  save ("fan_to_CPAP_interior", interior)
+  
+@run_if_changed
+def make_support():
+  corner = Point(0,0,33)
+  lots = 100
+  uncut = Face(Wire([
+    corner,
+    corner + Vector(0,lots,-lots),
+    corner + Vector(0,lots,lots),
+    corner + Vector(0,-lots,lots),
+    corner + Vector(0,-lots,-lots),
+  ], loop = True)).extrude(Right*wall_thickness, centered=True)
+  support = Intersection(uncut, fan_to_CPAP_interior)
+  save ("support", support)
 
 @run_if_changed
 def make_plate():
@@ -86,6 +102,9 @@ def make_plate():
     reinforcement.cut(hole),
   )
   save ("plate", plate)
+  adapter_with_plate = Compound(fan_to_CPAP, plate, support)
+  save("adapter_with_plate", adapter_with_plate)
+  save_STL("adapter_with_plate", adapter_with_plate)
   
 
-preview(fan_to_CPAP, plate)
+preview(adapter_with_plate)
