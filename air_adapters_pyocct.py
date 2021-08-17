@@ -68,7 +68,7 @@ def make_hepa_to_nothing_clips():
   wall_thickness = 1.5
   inset = 4.5
   wall_radius = wall_thickness/2
-  gripped_thickness = 17.0
+  gripped_thickness = 18.0
   gripped_thickness_to_line = gripped_thickness + wall_thickness
   
   c = Origin
@@ -79,8 +79,9 @@ def make_hepa_to_nothing_clips():
   e = d + Back*((gripped_thickness_to_line + 1) - (5+wall_thickness)) + Right*1.7
   f = e + Right*inset + Front*1
   g = e + Back*inset
+  h = g + Left*4
   
-  wire = Wire([a,b,c,d,e,f,g])
+  wire = Wire([a,b,c,d,e,f,g,h])
   solid = Face (wire.offset2D (wall_radius)).extrude (Up*10)
   
   '''
