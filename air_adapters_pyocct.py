@@ -62,6 +62,48 @@ def make_hepa_to_nothing():
   solid = Offset (shell, -wall_thickness, fill = True)
   save ("hepa_to_nothing", solid)
   save_STL("hepa_to_nothing", solid)
-    
+  
+@run_if_changed
+def make_hepa_to_nothing_clips():
+  wall_thickness = 1.5
+  inset = 4
+  wall_radius = wall_thickness/2
+  gripped_thickness = 17.0
+  gripped_thickness_to_line = gripped_thickness + wall_thickness
+  
+  c = Origin
+  b = c + Right*(7 + wall_thickness)
+  a = b + Back*1.5
+  
+  d = c + Back*(gripped_thickness_to_line + 1)
+  e = d + Right*inset + Front*1
+  f = d + Back*inset
+  
+  wire = Wire([a,b,c,d,e,f])
+  solid = Face (wire.offset2D (wall_radius)).extrude (Up*10)
+  
+  '''
+  a = Origin
+  b = a + Right*7
+  c = b + Back*3
+  d = c + Right*wall_thickness
+  e = d + Front*(3+wall_thickness)
+  
+  f = e + Left*(7+wall_thickness)
+  g = f + Back*(gripped_thickness + wall_thickness*2 + inset)
+  h = g + Right*wall_thickness
+  
+  k = a + Back*gripped_thickness
+  j = k + Right*inset
+  i = j + Back*wall_thickness
+  
+  wire = Wire([a,b,c,d,e,f,g,h,i,j,k],loop=True)
+  preview(wire)
+  
+  solid = Face(wire).extrude(Up*10)'''
+  
+  save ("hepa_to_nothing_clips", solid)
+  save_STL ("hepa_to_nothing_clips", solid)
+  
 
-preview(hepa_to_nothing)
+preview(hepa_to_nothing_clips)
