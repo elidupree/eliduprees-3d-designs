@@ -156,7 +156,11 @@ Additional notes after prototype #7:
 
 
 Additional notes after prototype #8:
-– The glue holding together the frame joint on the right side, and the glue holding the face shield to the 2 frame parts on the right side, all fell apart after about 3 weeks of use (perhaps due to cumulative stresses?).
+– The glue holding together the frame joint on the right side, and the glue holding the face shield to the 2 frame parts on the right side, all fell apart after about 3 weeks of use (perhaps due to cumulative stresses?). I should add clips so that it can actually be held in at at least a few places, by tension in the printed part rather than tension in the glue.
+– Feeding it with 2 CPAP hoses symmetrically made the air movement worse (even with slightly higher total airflow, it feels like I'm breathing worse, and the shield fogs up more). A quick test of taping two CPAP hoses on the *same* side suggested that that approach was plenty convenient, so the next version should probably be asymmetric again, with the CPAP connectors only on one side.
+– Without a bike helmet, I wear it with the headband halfway up my forehead, which makes the air be targeted perfectly for my nose, but means the bottom of the face shield cuts off my vision a bit. With a bike helmet, it's forced downwards so the headband is on my eyebrows, which makes the air targeting a bit worse for my nose but better for my mouth (probably good, really). In both cases, the bottom lip of the shield could probably stand to stick out 2-3cm further down.
+– The cloth has an issue with occasionally getting yanked off the face shield, and being nontrivial to put back on; I ended up holding it on with binder clips, which only mostly mitigated the issue. This suggests that I should develop a better way of attaching it. In the case of the chin cloth, the cloth also ended up STILL not being wide enough to have the mask part not tug on the chin-strap part during normal operation (I guess my models still didn't place the chin curve accurately, especially in the "headband halfway up forehead" position?) Also, the chin cloth leaks a little right in front of the ears (it's inherently vulnerable to that issue due to its low curvature at that location, but it might be aggravated by the chin-elastic tension not being well distributed due to the width issue). Note that this will be affected somewhat by extending the bottom of the face shield.
+ 
 
 
 '''
