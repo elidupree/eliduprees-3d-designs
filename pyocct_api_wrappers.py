@@ -1070,15 +1070,17 @@ def setup(wrap, unwrap, do_export, override_attribute):
     builder = BRepAlgoAPI.BRepAlgoAPI_Section(first, second)
     return finish_Boolean (builder)
   
-  def Extrude (first, direction,*, centered = False):
-    infinite = isinstance (direction, Direction)
+  def Extrude (shape, offset, second_offset = None, *, centered = False):
+    infinite = isinstance (offset, Direction)
     if infinite:
-      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction, centered)
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (shape, offset, centered)
+    elif second_offset is not None:
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (shape @ Translate(offset), second_offset - offset)
     else:
-      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (first, direction)
+      builder = BRepPrimAPI.BRepPrimAPI_MakePrism (shape, offset)
     result = builder.Shape()
     if centered and not infinite:
-      result = result@Translate (- direction*0.5)
+      result = result@Translate (- offset*0.5)
     return result
     
   
