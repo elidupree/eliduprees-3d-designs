@@ -41,6 +41,7 @@ battery_length = 144.2
 battery_cord_diameter = 3.5
 battery_plug_diameter = 11.4
 battery_plug_length = 38.2
+cords_space = 25
 
 
 CPAP_outer_radius = (22/2)
@@ -56,7 +57,7 @@ chamber_interior_back = 0
 chamber_interior_top = 0
 chamber_interior_length = battery_width
 battery_right = 0
-battery_back = chamber_interior_back
+battery_back = chamber_interior_back - cords_space
 battery_top = chamber_interior_top
 battery_left = battery_right - battery_thickness
 battery_front = battery_back - battery_width
@@ -69,7 +70,20 @@ batt_plug = Face( Wire (Edge (Circle (Axes (Point (battery_left+13, battery_back
 
 batt_lights = Vertex(battery_right, Between(battery_front, battery_back), battery_bottom + 15).extrude(Front*28, centered=True)
 
-batt_chamber_wall = Vertex(battery_left, chamber_interior_back, chamber_interior_top).extrude(Front*chamber_interior_length).extrude(Down*(battery_length+battery_plug_length)).extrude(Left*flat_wall_thickness)
+c = Vertex(battery_right, battery_back, battery_bottom)
+d = battery_back - batt_plug.bounds().max()[1]
+c2 = Vertex(battery_right, battery_front, battery_bottom)
+batt_holder_1 = Compound(
+  c.extrude(Left*battery_thickness).extrude(Up*battery_length).extrude(Back*flat_wall_thickness),
+  c.extrude(Left*battery_thickness).extrude(Front*d).extrude(Down*flat_wall_thickness),
+  c.extrude(Front*battery_width, Back*(chamber_interior_back - battery_back)).extrude(Up*battery_length).extrude(Right*flat_wall_thickness).cut(batt_lights.extrude(Right*lots).extrude(Down*lots) @ Translate(Up*5)),
+  c2.extrude(Left*battery_thickness).extrude(Up*battery_length).extrude(Front*flat_wall_thickness),
+  c2.extrude(Left*battery_thickness).extrude(Back*d).extrude(Down*flat_wall_thickness),
+)
+
+
+chamber_interior_front_to_airspace_front = strong_filter_depth_without_seal + strong_filter_seal_depth_expanded + plenty_airspace
+batt_chamber_wall = Vertex(battery_left, chamber_interior_back, chamber_interior_top).extrude(Front*(chamber_interior_length + chamber_interior_front_to_airspace_front)).extrude(Down*(battery_length+battery_plug_length)).extrude(Left*flat_wall_thickness)
 
 
 chamber_interior_right = battery_left - flat_wall_thickness
@@ -81,7 +95,7 @@ chamber_interior_width = chamber_interior_right - chamber_interior_left
 
 butt_chamber_wall = Vertex(chamber_interior_right, chamber_interior_back, chamber_interior_top).extrude(Back*flat_wall_thickness).extrude(Down*(battery_length+battery_plug_length)).extrude(Left*chamber_interior_width, Right*battery_thickness)
 
-chamber_interior_wall = Vertex(chamber_interior_wall_right, chamber_interior_back, chamber_interior_top).extrude(Front*chamber_interior_length).extrude(Down*(strong_filter_length)).extrude(Left*flat_wall_thickness)
+chamber_interior_wall = Vertex(chamber_interior_wall_right, chamber_interior_back, chamber_interior_top).extrude(Front*(chamber_interior_length + chamber_interior_front_to_airspace_front)).extrude(Down*(strong_filter_length)).extrude(Left*flat_wall_thickness)
 
 fan_center_height = Between(chamber_interior_top, chamber_interior_bottom)
 fan_exit = Vertex(chamber_interior_wall_right, chamber_interior_back, fan_center_height).extrude(Front*fan_exit_width).extrude(Down*fan_thickness, centered=True).extrude(Left*fan_exit_length)
@@ -98,9 +112,39 @@ out_filter = Vertex(chamber_interior_left, chamber_interior_back, chamber_interi
 
 a = Point (chamber_interior_left, chamber_interior_back, chamber_interior_bottom)
 b = Point (chamber_interior_wall_right, chamber_interior_front, chamber_interior_bottom)
-cpap_approx = Face( Wire (Edge (Circle (Axes (Between(a, b), Up), CPAP_outer_radius)))).extrude(Down*50) @ Translate(out_of_out_filter * (strong_filter_depth_without_seal + CPAP_inner_radius))
+cpap_approx = Face( Wire (Edge (Circle (Axes (Between(a, b, 0.52), Up), CPAP_outer_radius)))).extrude(Down*50) @ Translate(out_of_out_filter * (strong_filter_depth_without_seal + CPAP_inner_radius))
 
 cpaps_approx = Compound(cpap_approx @ Translate(along_out_filter*16), cpap_approx @ Translate(along_out_filter*-16))
 
 
-preview(battery, batt_plug, batt_lights, batt_chamber_wall, Compound(chamber_interior_wall.edges()), Compound(butt_chamber_wall.edges()), fan_exit, fan_body, in_filter, out_filter, cpaps_approx)
+cover_interior_left = chamber_interior_left + (out_of_out_filter*strong_filter_depth_with_seal)[0]
+cover_interior_right = battery_right
+cover_interior_front = chamber_interior_front - chamber_interior_front_to_airspace_front
+cover_interior_back = chamber_interior_back + flat_wall_thickness
+cover_interior_top = chamber_interior_top + flat_wall_thickness
+cover_interior_bottom = battery_plug_bottom
+
+cover_interior = (Vertex(Origin)
+  .extrude(Right*cover_interior_left, Right*cover_interior_right)
+  .extrude(Up*cover_interior_bottom, Up*cover_interior_top)
+  .extrude(Back*cover_interior_front, Back*cover_interior_back)
+  )
+
+cis = cover_interior.bounds().size()
+print("Cover interior bounds: "+str(cis))
+
+preview(
+  battery,
+  batt_plug,
+  batt_holder_1,
+  batt_lights,
+  batt_chamber_wall,
+  Compound(chamber_interior_wall.edges()),
+  Compound(butt_chamber_wall.edges()),
+  fan_exit,
+  fan_body,
+  in_filter,
+  out_filter,
+  cpaps_approx,
+  Compound(cover_interior.edges()),
+  )

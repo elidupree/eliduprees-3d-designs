@@ -425,6 +425,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Plane, "normal", lambda self, *args: self.Axis().Direction())
   simple_override (Bounds, "max", lambda self: self.CornerMax())
   simple_override (Bounds, "min", lambda self: self.CornerMin())
+  simple_override (Bounds, "size", lambda self: self.max() - self.min())
   
   def default_multiplicities(num_poles, degree, periodic):
     if periodic:
