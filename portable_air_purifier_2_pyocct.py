@@ -8,9 +8,6 @@ printed_wall_thickness = 0.6
 
 flat_wall_thickness = 1.0
 
-# extra leeway for rigid parts that need to fit into a slot, so that printing irregularities don't make them not fit.
-# we generally want to rely on slightly springy parts rather than exact sizing; with a perfect fabrication process, I would use 0.0 for this. The positive number exists to compensate for my diagonal printing process adding some unnecessary thickness
-contact_leeway = 0.4
 
 strong_filter_length = 151.9
 strong_filter_width = 101
@@ -132,6 +129,61 @@ cover_interior = (Vertex(Origin)
 
 cis = cover_interior.bounds().size()
 print("Cover interior bounds: "+str(cis))
+
+
+
+
+@run_if_changed
+def make_fan_bracket():
+  outer_diameter = 6.5
+  inner_diameter = 3
+  contact_leeway = 0.3
+  plate_thickness = 0.8
+  
+  a = outer_diameter/2
+  b = 8-a
+  fan_plate = Face(Wire([
+    Point(-b, plate_thickness, 0),
+    Point(b, plate_thickness, 0),
+    Point(0, a, 0),
+  ], loop = True).offset2D(a)).extrude(Up*5).cut(Face(Circle(Axes(Point(0, a, 0), Up), inner_diameter/2 + contact_leeway)).extrude(Up*lots, centered=True))
+  
+  fan_plate = Intersection(fan_plate, HalfSpace(Origin, Back))
+  
+  wall_plate = Vertex(Origin).extrude(Up*16).extrude(Back*plate_thickness).extrude(Right*16, centered=True)
+  
+  bracket = Compound(fan_plate, wall_plate)
+  
+  peg_radius = inner_diameter/2 - contact_leeway
+  peg_length_without_catches = 16
+  catch_length = 3
+  catch_extension = 0.5
+  catch_radius = peg_radius + catch_extension
+  printability_height = peg_radius * 0.5**0.5
+  peg = Face(Circle(Axes(Origin, Right), peg_radius)).extrude(Right*(peg_length_without_catches + 0.01))
+  catch_half = Face(Wire([
+    Point(-catch_length/2, -catch_radius, 0),
+    Point(-catch_length, -peg_radius+0.1, 0),
+    Point(-catch_length, -catch_extension - contact_leeway/4, 0),
+    Point(0, -catch_extension - contact_leeway/4, 0),
+    Point(0, -peg_radius+0.1, 0),
+  ], loop = True)).extrude(Up*(printability_height*2), centered=True)
+  catch = Compound(catch_half, catch_half @ Mirror(Back))
+  
+  peg= Compound(
+    Intersection(peg, HalfSpace(Origin + Down*printability_height, Up)),
+    catch,
+    catch @ Mirror(Right) @ Translate(Right*peg_length_without_catches)
+  )
+  
+  save("fan_bracket", bracket)
+  save_STL("fan_bracket", bracket)
+  preview(bracket)
+  
+  save("fan_bracket_peg", peg)
+  save_STL("fan_bracket_peg", peg)
+  preview(peg)
+
 
 preview(
   battery,
