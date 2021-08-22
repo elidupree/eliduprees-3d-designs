@@ -649,6 +649,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Shape, "intersection", lambda self, *args, **kwargs: Intersection(self, *args, **kwargs))
   simple_override(Shape, "offset", lambda self, *args, **kwargs: Offset (self, *args, **kwargs))
   simple_override(Shape, "offset2D", lambda self, *args, **kwargs: Offset2D (self, *args, **kwargs))
+  simple_override(Shape, "revolve", lambda self, *args, **kwargs: Revolve (self, *args, **kwargs))
+  
   
   shape_typenames = ["Vertex", "Edge", "Wire", "Face", "Shell", "Solid", "CompSolid", "Compound"]
   shape_typename_plurals = ["Vertices", "Edges", "Wires", "Faces", "Shells", "Solids", "CompSolids", "Compounds"]
@@ -962,7 +964,16 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return Solid (complete_shell)
         
       
-    
+  @export
+  def Revolve(shape, axis, *, radians=None, degrees=None):
+    if isinstance (axis, Direction):
+      axis = Axis (Origin, axis)
+    if degrees:
+      radians = degrees * math.tau/360
+    if radians is None:
+      radians = math.tau
+    return BRepPrimAPI.BRepPrimAPI_MakeRevol(shape, axis, radians).Shape()
+  
     
   def Loft (*sections, solid = False, ruled = False):
     sections = recursive_flatten (sections)

@@ -23,7 +23,6 @@ plate_width_total = plate_width_front + plate_width_back + fan_exit_width
 
 
 def CPAP_hoops(base, direction):
-  num = 5
   return [[
     Wire (Edge (Circle (Axes (base + direction*i, direction), radius)))
     for i in subdivisions(0, 25, amount=10)
