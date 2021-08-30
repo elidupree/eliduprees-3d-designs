@@ -133,7 +133,7 @@ def make_hepa_to_nothing_clips():
 @run_if_changed
 def make_flat_wall_to_cpaps():
   wall_thickness = 0.8
-  plate_thickness = 1.8
+  plate_thickness = 1.2
   flat_wall_thickness = 3 # approximate - cardboard thicker than this can be jammed in, sheets thinner than this can be padded with hot glue
   CPAP_inner_radius = CPAP_outer_radius - wall_thickness
   CPAP_smooth_length = 22
