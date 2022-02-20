@@ -87,8 +87,68 @@ ankle_finish_distance = wall_curve.distance (closest =b)
 
 perforated_length = ankle_start_distance - ankle_finish_distance
 num_portholes = round (perforated_length/porthole_width)
+porthole_exact_width = perforated_length/num_portholes
 
 print (ankle_start_distance, ankle_finish_distance, wall_curve_length, perforated_length)
+
+
+def perforated_column (start_distance, finish_distance, parity):
+  start = wall_curve.derivatives (distance = start_distance)
+  finish = wall_curve.derivatives (distance = finish_distance)
+  delta = finish.position - start.position
+  length = finish_distance - start_distance
+  inwards = (delta@Rotate(Up, degrees=90)).normalized()
+  natural_points = [
+    start.position + start.tangent*length/3,
+    finish.position - finish.tangent*length/3,
+  ]
+  straight_points = [
+    start.position + delta/3,
+    finish.position - delta/3,
+  ]
+  cup_points = [a+inwards*porthole_depth for a in straight_points]
+  for l in [natural_points, straight_points, cup_points]:
+    l.insert(0, start.position)
+    l.append(finish.position)
+  
+  def natural_row(height):
+    return [a + Up*height for a in natural_points]
+    
+  def cup_row(height, cup_fraction):
+    return [Between (a,b,smootherstep(cup_fraction)) + Up*height for a,b in zip (natural_points, cup_points)]
+  
+  def straight_row(height, straight_fraction):
+    return [Between (a,b, straight_fraction**2) + Up*height for a,b in zip (natural_points, straight_points)]
+  
+  cup_length = porthole_depth*1.5
+  straight_recovery_length = 3
+  segment_length = cup_length + straight_recovery_length
+    
+  current_height = 0
+  current_rows = []
+  rowses = []
+  if parity > 0:
+    current_height = segment_length/2
+    current_rows.extend (natural_row(height) for height in subdivisions (0, current_height, amount = 5))
+    
+  while current_height < controller_length - segment_length:
+    current_rows.extend (cup_row (current_height + cup_fraction*cup_length, cup_fraction) for cup_fraction in subdivisions (0, 1, amount = 5))
+    current_height += cup_length
+    rowses.append(current_rows)
+    current_rows = [straight_row (current_height + (1-straight_fraction)*straight_recovery_length, straight_fraction) for straight_fraction in subdivisions (1, 0, amount = 5)]
+    current_height += straight_recovery_length
+  
+  current_rows.extend (natural_row(height) for height in subdivisions (current_height, controller_length, amount = 5))
+  rowses.append(current_rows)
+  
+  result = []
+  for rows in rowses:
+    surface = BSplineSurface (rows)
+    offset_surface = BSplineSurface([[p + surface.normal(closest=p)*printed_wall_thickness for p in row] for row in rows])
+    joiner = Loft(Face(surface).outer_wire(), Face(offset_surface).outer_wire())
+    result.append (Solid(Shell(Face(surface).complemented(), Face(offset_surface), joiner.complemented().faces())))
+  return result
+    
 
 def perforated_control_points (layer):
   def control_point (distance):
@@ -108,5 +168,15 @@ def perforated_control_points (layer):
   return [control_point (distance) for distance in subdivisions (0, wall_curve_length, max_length = 2)]
 
 
-preview (controller_board, sensor_boards, power_wire, ground_wire, signal_wires, wall_curve, BSplineCurve (perforated_control_points (0), BSplineDimension (periodic = True)))
+preview (
+  controller_board,
+  sensor_boards,
+  power_wire,
+  ground_wire,
+  signal_wires,
+  wall_curve,
+  BSplineCurve (perforated_control_points (0), BSplineDimension (periodic = True)),
+  perforated_column (ankle_finish_distance, ankle_finish_distance + porthole_exact_width, 0),
+  perforated_column (ankle_finish_distance + porthole_exact_width, ankle_finish_distance + porthole_exact_width*2, 1),
+)
 

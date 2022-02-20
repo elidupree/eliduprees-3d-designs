@@ -145,6 +145,13 @@ def setup(wrap, unwrap, do_export, override_attribute):
     factor = 1/(amount - 1)
     return [start + delta*i*factor for i in range(amount)]
   
+  @export
+  def smootherstep(x, left=0, right=1):
+    f = (x - left) / (right - left)
+    if f <= 0: return 0
+    if f >= 1: return 1
+    return f*f*f*(f*(f*6 - 15) + 10 );
+  
   export_locals ("pairs, all_equal, subdivisions")
   
   ################################################################
@@ -583,13 +590,28 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def surface_parameter (surface, closest):
     analyzer = ShapeAnalysis.ShapeAnalysis_Surface (surface)
     return analyzer.ValueOfUV (closest, default_tolerance)
+    
+  
+  def surface_parameter_function (function):
+    @functools.wraps(function)
+    def wrapped(surface, parameter = None, *, closest = None, **kwargs):
+      if closest is not None:
+        parameter = surface_parameter (surface, closest)
+      
+      if type(parameter) is not list:
+        parameter = [parameter[0], parameter[1]]
+        
+      if len(parameter) != 2:
+        parameter = [parameter[0][0], parameter[0][1]]
+      
+      return function(surface, parameter, **kwargs)
+    return wrapped
+    
 
   simple_override (Surface, "parameter", surface_parameter)
   
-  def uv(*args):
-    return args if len (args) == 2 else [args[0][0], args[0][1]]
-  override_attribute (Surface, "value", lambda original: lambda self, *args: original (*uv(*args)))
-  simple_override (Surface, "normal", lambda self, *args: GeomLProp.GeomLProp_SLProps(self, *uv(*args), 2, default_tolerance).Normal())
+  override_attribute (Surface, "value", lambda original: surface_parameter_function(lambda surface, parameter: original(*parameter)))
+  simple_override (Surface, "normal", surface_parameter_function(lambda surface, parameter: GeomLProp.GeomLProp_SLProps(surface, *parameter, 2, default_tolerance).Normal()))
   
   class CurveDerivatives:
     def __init__(self, curve, parameter, *, derivatives = 2):
