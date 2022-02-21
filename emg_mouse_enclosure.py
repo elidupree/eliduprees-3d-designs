@@ -87,7 +87,7 @@ wall_curve_points = (
 
 wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
 wall_curve_length = wall_curve.length()
-ankle_start_distance = wall_curve.distance (closest =a) - I will 4
+ankle_start_distance = wall_curve.distance (closest =a) - 4
 ankle_finish_distance = wall_curve.distance (closest =b) + 5
 
 perforated_length = ankle_start_distance - ankle_finish_distance
