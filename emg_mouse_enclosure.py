@@ -77,17 +77,22 @@ a = Point (- controller_width/2, controller_back, 0)
 b = Point (- sensor_width/2, sensor_backs [-1] - sensor_board_thickness, 0)
 c = Point (sensor_width/2, sensor_backs [-1] - sensor_board_thickness, 0)
 d = Point (controller_width/2, controller_back, 0)
-wall_curve_points = [Between(a, b, amount) + Left*1.2 for amount in subdivisions (-0.25, 1.2, amount=5)] + [Between(c, d, amount) + Right*(3.4 + porthole_depth) for amount in subdivisions (-0.2, 1.25, amount=3)]
+wall_curve_points = (
+    [Between(a, b, amount) + Left*1.2
+       for amount in subdivisions (-0.25, 1.2, amount=5)]
+  + [Between(c, d, amount) + Right*(3.4 + porthole_depth)
+       for amount in subdivisions (-0.3, 1.35, amount=3)]
+)
 
 
 wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
 wall_curve_length = wall_curve.length()
-ankle_start_distance = wall_curve.distance (closest =a)
-ankle_finish_distance = wall_curve.distance (closest =b)
+ankle_start_distance = wall_curve.distance (closest =a) - I will 4
+ankle_finish_distance = wall_curve.distance (closest =b) + 5
 
 perforated_length = ankle_start_distance - ankle_finish_distance
-num_portholes = round (perforated_length/porthole_width)
-porthole_exact_width = perforated_length/num_portholes
+num_perforated_columns = round (perforated_length/porthole_width)
+porthole_exact_width = perforated_length/num_perforated_columns
 
 print (ankle_start_distance, ankle_finish_distance, wall_curve_length, perforated_length)
 
@@ -150,22 +155,10 @@ def perforated_column (start_distance, finish_distance, parity):
   return result
     
 
-def perforated_control_points (layer):
-  def control_point (distance):
-    derivatives = wall_curve.derivatives (distance = distance)
-    perforated_fraction = (distance - ankle_finish_distance)/perforated_length
-    if 0 < perforated_fraction < 1:
-      portholes_past = perforated_fraction*num_portholes
-      phase = portholes_past % 1
-      portholes_past = math.floor(portholes_past)
-      if portholes_past % 2 == 0:
-        depth = math.sqrt(math.sin(phase * math.pi))*porthole_depth
-        inwards = derivatives.tangent @ Rotate(Up, degrees=90)
-        return derivatives.position + inwards*depth
-    
-    return derivatives.position
-  
-  return [control_point (distance) for distance in subdivisions (0, wall_curve_length, max_length = 2)]
+perforated_columns = [
+  perforated_column (ankle_finish_distance + porthole_exact_width*index, ankle_finish_distance + porthole_exact_width*(index+1), index % 2)
+  for index in range (num_perforated_columns)
+]
 
 
 preview (
@@ -175,8 +168,6 @@ preview (
   ground_wire,
   signal_wires,
   wall_curve,
-  BSplineCurve (perforated_control_points (0), BSplineDimension (periodic = True)),
-  perforated_column (ankle_finish_distance, ankle_finish_distance + porthole_exact_width, 0),
-  perforated_column (ankle_finish_distance + porthole_exact_width, ankle_finish_distance + porthole_exact_width*2, 1),
+  perforated_columns,
 )
 
