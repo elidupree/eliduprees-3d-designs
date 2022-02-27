@@ -615,6 +615,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   
   class CurveDerivatives:
     def __init__(self, curve, parameter, *, derivatives = 2):
+      self.parameter = parameter
       self.position = curve.value (parameter)
       props = GeomLProp.GeomLProp_CLProps(curve, parameter, derivatives, default_tolerance)
       if derivatives > 0:

@@ -4,8 +4,9 @@ from pyocct_system import *
 initialize_system (globals())
 
 
-printed_wall_thickness = 0.6
+printed_wall_thickness = 0.8
 contact_leeway = 0.4
+lots = 100
 
 
 sensor_width = 21.9
@@ -20,6 +21,7 @@ controller_board_thickness = 0.9
 ports_slot_width = 10
 porthole_depth = 5
 porthole_width = porthole_depth*2
+slot_depth = 0.6
 
 controller_contact_inset = 1.2
 controller_contact_spacing = 22.5/9
@@ -74,30 +76,47 @@ signal_wires = [
 ]
 
 a = Point (- controller_width/2, controller_back, 0)
-b = Point (- sensor_width/2, sensor_backs [-1] - sensor_board_thickness, 0)
-c = Point (sensor_width/2, sensor_backs [-1] - sensor_board_thickness, 0)
-d = Point (controller_width/2, controller_back, 0)
+b = Point (- sensor_width/2 - 0.5, sensor_backs [-1] - sensor_board_thickness, 0)
+c = Point (sensor_width/2 + 3.2 + porthole_depth, sensor_backs [-1] - sensor_board_thickness, 0)
+d = Point (controller_width/2 + 3.0, controller_back, 0)
 wall_curve_points = (
-    [Between(a, b, amount) + Left*1.2
+    [Between(a, b, amount) + Left*(printed_wall_thickness + 0.7)
        for amount in subdivisions (-0.25, 1.2, amount=5)]
-  + [Between(c, d, amount) + Right*(3.4 + porthole_depth)
+  + [Between(c, d, amount)
        for amount in subdivisions (-0.3, 1.35, amount=3)]
 )
 
-
-wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
+@run_if_changed
+def make_wall_curve():
+  wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
+  save ("wall_curve", wall_curve)
 wall_curve_length = wall_curve.length()
 ankle_start_distance = wall_curve.distance (closest =a) - 4
 ankle_finish_distance = wall_curve.distance (closest =b) + 5
+control_board_outside_distance = wall_curve.distance (closest =d)
 
-perforated_length = ankle_start_distance - ankle_finish_distance
-num_perforated_columns = round (perforated_length/porthole_width)
-porthole_exact_width = perforated_length/num_perforated_columns
+#perforated_length = ankle_start_distance - ankle_finish_distance
+#num_perforated_columns = round (perforated_length/porthole_width)
+#porthole_exact_width = perforated_length/num_perforated_columns
 
-print (ankle_start_distance, ankle_finish_distance, wall_curve_length, perforated_length)
+#print (ankle_start_distance, ankle_finish_distance, wall_curve_length, perforated_length)
 
+def natural_column (start_distance, finish_distance):
+  start_distance -= 0.05
+  finish_distance += 0.05
+  start = wall_curve.derivatives (distance = start_distance)
+  finish = wall_curve.derivatives (distance = finish_distance)
+  inside_wire = Edge (wall_curve).offset2D (- printed_wall_thickness)
+  return Face (Wire (
+    TrimmedCurve (wall_curve, start.parameter, finish.parameter),
+    finish.position + finish.normal*5,
+    start.position + start.normal*5,
+    loop = True,
+  )).cut (Face (inside_wire)).extrude (Up*controller_length)
 
 def perforated_column (start_distance, finish_distance, parity):
+  start_distance -= 0.05
+  finish_distance += 0.05
   start = wall_curve.derivatives (distance = start_distance)
   finish = wall_curve.derivatives (distance = finish_distance)
   delta = finish.position - start.position
@@ -149,18 +168,67 @@ def perforated_column (start_distance, finish_distance, parity):
   result = []
   for rows in rowses:
     surface = BSplineSurface (rows)
-    offset_surface = BSplineSurface([[p + surface.normal(closest=p)*printed_wall_thickness for p in row] for row in rows])
+    offset_surface = BSplineSurface([[p + (surface.normal(closest=p)*1).projected_perpendicular (Up).normalized()*printed_wall_thickness for p in row] for row in rows])
     joiner = Loft(Face(surface).outer_wire(), Face(offset_surface).outer_wire())
     result.append (Solid(Shell(Face(surface).complemented(), Face(offset_surface), joiner.complemented().faces())))
   return result
+
+@run_if_changed
+def make_perforated_columns ():
+  a = control_board_outside_distance - 3
+  b = control_board_outside_distance + 3
+  perforated_columns = [
+    perforated_column (*pair, index % 2)
+    for index, pair in enumerate (pairs (subdivisions (ankle_finish_distance, a, max_length = porthole_width)))
+  ] + [
+    perforated_column (*pair, (index + 1) % 2)
+    for index, pair in enumerate (pairs (subdivisions (b, ankle_start_distance, max_length = porthole_width)))
+  ] + [
+    natural_column (a, b),
+    natural_column (ankle_start_distance, ankle_finish_distance),
+  ]
+  save ("perforated_columns", perforated_columns)
+  
+
+@run_if_changed
+def make_board_slots():
+  bounding_solid = Face (Wire(wall_curve).offset2D(-printed_wall_thickness*0.9)).extrude (Up*controller_length)
+  
+  def board_slot(width, thickness, back):
+    c = contact_leeway
+    k = contact_leeway + printed_wall_thickness
+    slot_cut_width = c + width + c
+    block    = Vertex (0, back + k, 0).extrude (Front*(k + thickness + k)).extrude (Left*(k + width + k), centered = True).extrude (Up*controller_length)
+    slot_cut = Vertex (0, back + c, 0).extrude (Front*(c + thickness + c)).extrude (Left*slot_cut_width, centered = True).extrude (Up*lots, centered = True)
+    face_cut = Vertex (0, back, 0).extrude (Front*lots, centered = True).extrude (Left*(slot_cut_width - 2*slot_depth), centered = True).extrude (Up*lots, centered = True)
+    strut    = Vertex (0, back - thickness/2, 0).extrude (Front*printed_wall_thickness, centered = True).extrude (Left*lots, centered = True).extrude (Up*controller_length)
     
-
-perforated_columns = [
-  perforated_column (ankle_finish_distance + porthole_exact_width*index, ankle_finish_distance + porthole_exact_width*(index+1), index % 2)
-  for index in range (num_perforated_columns)
-]
-
-
+    return Compound (block.cut ([slot_cut, face_cut]), strut.cut (slot_cut)).intersection (bounding_solid)
+  
+  controller_slot = board_slot (controller_width, controller_board_thickness, controller_back)
+  sensor_slots = [board_slot (sensor_width, sensor_board_thickness, back) for back in sensor_backs]
+  save ("board_slots", Compound (controller_slot, sensor_slots))
+    
+@run_if_changed
+def make_base():
+  solid = Face (wall_curve).extrude (Down*printed_wall_thickness)
+  
+  slot = Edge (
+    Vertex (0, controller_back + 5, 0),
+    Vertex (0, sensor_backs [-1] - 5, 0),
+  ).extrude (Left*ports_slot_width, centered = True).extrude (Up*lots, centered = True)
+  save ("base", solid.cut (slot))
+  
+@run_if_changed
+def make_combined():
+  combined = Compound (
+    perforated_columns,
+    board_slots,
+    base,
+  )
+  save ("combined", combined)
+  save_STL ("combined", combined)
+  
 preview (
   controller_board,
   sensor_boards,
@@ -168,6 +236,6 @@ preview (
   ground_wire,
   signal_wires,
   wall_curve,
-  perforated_columns,
+  combined
 )
 
