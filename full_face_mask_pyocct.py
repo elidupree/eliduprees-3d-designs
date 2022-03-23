@@ -159,7 +159,7 @@ Additional notes after prototype #8:
 – The glue holding together the frame joint on the right side, and the glue holding the face shield to the 2 frame parts on the right side, all fell apart after about 3 weeks of use (perhaps due to cumulative stresses?). I should add clips so that it can actually be held in at at least a few places, by tension in the printed part rather than tension in the glue.
 – Feeding it with 2 CPAP hoses symmetrically made the air movement worse (even with slightly higher total airflow, it feels like I'm breathing worse, and the shield fogs up more). A quick test of taping two CPAP hoses on the *same* side suggested that that approach was plenty convenient, so the next version should probably be asymmetric again, with the CPAP connectors only on one side.
 – Without a bike helmet, I wear it with the headband halfway up my forehead, which makes the air be targeted perfectly for my nose, but means the bottom of the face shield cuts off my vision a bit. With a bike helmet, it's forced downwards so the headband is on my eyebrows, which makes the air targeting a bit worse for my nose but better for my mouth (probably good, really). In both cases, the bottom lip of the shield could probably stand to stick out 2-3cm further down.
-– The cloth has an issue with occasionally getting yanked off the face shield, and being nontrivial to put back on; I ended up holding it on with binder clips, which only mostly mitigated the issue. This suggests that I should develop a better way of attaching it. In the case of the chin cloth, the cloth also ended up STILL not being wide enough to have the mask part not tug on the chin-strap part during normal operation (I guess my models still didn't place the chin curve accurately, especially in the "headband halfway up forehead" position?) Also, the chin cloth leaks a little right in front of the ears (it's inherently vulnerable to that issue due to its low curvature at that location, but it might be aggravated by the chin-elastic tension not being well distributed due to the width issue). Note that this will be affected somewhat by extending the bottom of the face shield.
+– The cloth has an issue with occasionally getting yanked off the face shield, and being nontrivial to put back on; I ended up holding it on with binder clips, which only mostly mitigated the issue. This suggests that I should develop a better way of attaching it. (Later note: I tested simply hot-gluing the cloth to the shield, and it seemed to work just fine - I was worried that it could get yanked off, but it didn't yield to any of my test yanks.) In the case of the chin cloth, the cloth also ended up STILL not being wide enough to have the mask part not tug on the chin-strap part during normal operation (I guess my models still didn't place the chin curve accurately, especially in the "headband halfway up forehead" position?) Also, the chin cloth leaks a little right in front of the ears (it's inherently vulnerable to that issue due to its low curvature at that location, but it might be aggravated by the chin-elastic tension not being well distributed due to the width issue). Note that this will be affected somewhat by extending the bottom of the face shield. 
  
 
 
@@ -363,7 +363,7 @@ class CurveSample (ShieldSample):
     self.curve_in_surface_normal = Direction (self.curve_tangent.cross (self.normal))
     
     if isinstance(curve, ShieldCurveInPlane):
-      self.plane_normal = curve.plane.normal(0,0) # note: the plane is actually a BSplineSurface, so we need to give the parameters
+      self.plane_normal = curve.plane.normal((0,0)) # note: the plane is actually a BSplineSurface, so we need to give the parameters
       self.normal_in_plane = Direction (-self.normal.cross(self.plane_normal).cross(self.plane_normal))
       
       self.normal_in_plane_unit_height_from_shield = self.normal_in_plane/self.normal_in_plane.dot(self.normal)
@@ -731,7 +731,7 @@ def make_intake():
     Face (intake_exterior.surface),
     [Face (a) for a in intake_exterior.ends]
   ))
-  save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal(0,0)*min_wall_thickness)).intersection(intake_solid_including_interior))
+  save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal((0,0))*min_wall_thickness)).intersection(intake_solid_including_interior))
   save ("intake_shield_clip", Loft(intake_shield_clip_hoops, solid = True, ruled = True).cut(intake_solid_including_interior))
   
   taut_direction = -intake_middle.normal
