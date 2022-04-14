@@ -147,32 +147,68 @@ def make_intake():
   intake_faceward_plane = Plane(intake_faceward_middle, intake_middle.normal)
   
 
-  
-  def intake_hoop(CPAP_back_center, CPAP_forwards, inset, fraction):
+  def intake_hoops(CPAP_back_center, CPAP_forwards):
     CPAP_forwards_unit_height_from_build_plane = CPAP_forwards/abs(CPAP_forwards.dot(intake_reference_curve.plane.normal((0,0))))
-    
+        
     corner_reference = intake_faceward_middle - CPAP_forwards_unit_height_from_build_plane * intake_spout_largest_radius
     
-    angle = (fraction*math.tau/4)
-    shieldward_fraction, buildward_fraction = math.sin(angle), math.cos(angle)
+    num_points_long_side = 14
+    num_points_short_side = 5
+    num_points_total = (num_points_long_side + num_points_short_side)*2
     
-    to_largest_curve_point = (shieldward_fraction*-towards_air_target_unit_height_from_shield + buildward_fraction*CPAP_forwards_unit_height_from_build_plane)*intake_spout_largest_radius
-    to_smallest_curve_point = Direction(to_largest_curve_point)*intake_spout_smallest_radius
+    def position(shieldward_distance, buildward_distance):
+      return corner_reference + shieldward_distance*-towards_air_target_unit_height_from_shield + buildward_distance*CPAP_forwards_unit_height_from_build_plane
     
     a = intake_middle.curve_tangent*intake_flat_width/2
+    def square_hoop(p1, p2):
+      corners = [
+        p1 + a,
+        p1 - a,
+        p2 - a,
+        p2 + a,
+      ]
+      
+      return [p for (a,b),amount in zip(pairs(corners, loop=True), [num_points_long_side+2,num_points_short_side+2]*2) for p in subdivisions(a,b, amount=amount)[1:-1]]
+      
+    def CPAP_hoop (frac):
+      offset = (1 - frac) * 20
+      center = CPAP_back_center + CPAP_forwards*offset
+      direction = Direction (CPAP_forwards.cross (CPAP_forwards.cross (towards_air_target)))
+      
+      start_index = (num_points_long_side-1)/2
+      def CPAP_point (index):
+        angle = -(index-start_index)/num_points_total*math.tau
+        return center + (direction*CPAP_outer_radius) @ Rotate(CPAP_forwards, radians=angle)
+      return [CPAP_point (index) for index in range (num_points_total)]
     
-    return Wire ([
-      corner_reference + to_largest_curve_point + a,
-      corner_reference + to_largest_curve_point - a,
-      corner_reference + to_smallest_curve_point - a,
-      corner_reference + to_smallest_curve_point + a,
-    ], loop = True)
+    return [
+      square_hoop(
+        position(0, intake_spout_largest_radius),
+        position(0, intake_spout_smallest_radius),
+      ),
+      square_hoop(
+        position(intake_spout_largest_radius*0.7, intake_spout_largest_radius),
+        position(intake_spout_smallest_radius*0.7, intake_spout_smallest_radius),
+      ),
+      square_hoop(
+        position(intake_spout_largest_radius, intake_spout_largest_radius*0.7),
+        position(intake_spout_smallest_radius, intake_spout_smallest_radius*0.7),
+      ),
+      square_hoop(
+        position(intake_spout_largest_radius, 0),
+        position(intake_spout_smallest_radius, 0),
+      ),
+    ] + [CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
     
-  intake_hoops = [
-    intake_hoop(CPAP_back_center, CPAP_forwards, 0, fraction)
-  for fraction in subdivisions (0, 1, amount = 5)]
+    
+  CPAP_forwards = Direction(CPAP_back_center, intake_middle.position + towards_air_target_unit_height_from_shield * (min_wall_thickness + intake_flat_air_thickness_base/2) - intake_middle.curve_tangent*intake_flat_width/5)
+  new_intake1 = BSplineSurface(intake_hoops(CPAP_back_center, CPAP_forwards), v=BSplineDimension(periodic=True))
   
-  save("new_intake", Loft(intake_hoops))
+  CPAP_back_center_2 = CPAP_back_center + Vector(0, 4, -32)
+  CPAP_forwards_2 = Direction(CPAP_back_center_2, intake_middle.position + towards_air_target_unit_height_from_shield * (min_wall_thickness + intake_flat_air_thickness_base/2) + intake_middle.curve_tangent*intake_flat_width/5)
+      
+  new_intake2 = BSplineSurface(intake_hoops(CPAP_back_center_2, CPAP_forwards_2), v=BSplineDimension(periodic=True))
+  save("new_intake", Compound (Face(new_intake1), Face(new_intake2)))
   
   
   
