@@ -97,7 +97,7 @@ def make_temple_block():
 
 standard_middle_distance = standard_forehead_curve.distance (closest = forehead_point)
 temple_block_from_middle_distance = temple_block_start_distance - standard_middle_distance
-#preview(temple_knob_curve , temple_block_uncut)
+#p review(temple_knob_curve , temple_block_uncut)
 
 
 temple_extender_width = 6
@@ -338,7 +338,7 @@ def make_upper_side_rim():
   
 
 
-preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_support_exclusion, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, new_intake, intake_support, intake_support_exclusion, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 

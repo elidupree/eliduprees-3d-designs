@@ -140,7 +140,7 @@ def make_intake():
   # so we are now working in a coordinate system where the dimensions are:
   # 1) towards_air_target
   # 2) CPAP_forwards
-  # 3) intake_middle.tangent
+  # 3) intake_middle.curve_tangent
   towards_air_target_unit_height_from_shield = towards_air_target/abs(towards_air_target.dot(intake_middle.normal))
   intake_faceward_middle = intake_middle.position + towards_air_target_unit_height_from_shield * intake_spout_largest_radius
   
@@ -149,24 +149,31 @@ def make_intake():
 
   
   def intake_hoop(CPAP_back_center, CPAP_forwards, inset, fraction):
-    CPAP_forwards_unit_height_from_build_plane = CPAP_forwards/abs(CPAP_forwards.dot(intake_reference_curve.plane.normal(0,0)))
+    CPAP_forwards_unit_height_from_build_plane = CPAP_forwards/abs(CPAP_forwards.dot(intake_reference_curve.plane.normal((0,0))))
     
+    corner_reference = intake_faceward_middle - CPAP_forwards_unit_height_from_build_plane * intake_spout_largest_radius
     
-    
-  
     angle = (fraction*math.tau/4)
-    faceward_fraction, CPAPward_fraction = 1-math.sin(angle), 1-math.cos(angle)
-    CPAPward_distance = CPAPward_fraction * intake_spout_largest_radius
-    #faceward_distance = faceward_fraction * intake_spout_largest_radius
+    shieldward_fraction, buildward_fraction = math.sin(angle), math.cos(angle)
     
-    for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2, intake_middle.curve_distance + intake_flat_width/2, amount = 70):
-      if CPAPward_distance < shield_glue_face_width:
-        base_point = Between(sample.position, sample.below_shield_glue_base_point, CPAPward_distance/shield_glue_face_width)
-      else:
-        base_point = sample.below_shield_glue_base_point - CPAP_forwards * (CPAPward_distance - shield_glue_face_width)
-      planed_point = RayIsh(base_point, normal).intersections(intake_faceward_plane).point()
-      base_point = Between (base_point, planed_point, faceward_fraction)
+    to_largest_curve_point = (shieldward_fraction*-towards_air_target_unit_height_from_shield + buildward_fraction*CPAP_forwards_unit_height_from_build_plane)*intake_spout_largest_radius
+    to_smallest_curve_point = Direction(to_largest_curve_point)*intake_spout_smallest_radius
     
+    a = intake_middle.curve_tangent*intake_flat_width/2
+    
+    return Wire ([
+      corner_reference + to_largest_curve_point + a,
+      corner_reference + to_largest_curve_point - a,
+      corner_reference + to_smallest_curve_point - a,
+      corner_reference + to_smallest_curve_point + a,
+    ], loop = True)
+    
+  intake_hoops = [
+    intake_hoop(CPAP_back_center, CPAP_forwards, 0, fraction)
+  for fraction in subdivisions (0, 1, amount = 5)]
+  
+  save("new_intake", Loft(intake_hoops))
+  
   
   
   intake_air_cut_hoops = []
