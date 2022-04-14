@@ -156,7 +156,7 @@ Additional notes after prototype #7:
 
 
 Additional notes after prototype #8:
-– The glue holding together the frame joint on the right side, and the glue holding the face shield to the 2 frame parts on the right side, all fell apart after about 3 weeks of use (perhaps due to cumulative stresses?). I should add clips so that it can actually be held in at at least a few places, by tension in the printed part rather than tension in the glue.
+– The glue holding together the frame joint on the right side, and the glue holding the face shield to the 2 frame parts on the right side, all fell apart after about 3 weeks of use (perhaps due to cumulative stresses?). I initially figured I should add clips so that it can actually be held in at at least a few places, by tension in the printed part rather than tension in the glue. Later, I determined that I can just embed small screws using heat, so I don't need new clips, and can actually remove the clips that are already in the design.
 – Feeding it with 2 CPAP hoses symmetrically made the air movement worse (even with slightly higher total airflow, it feels like I'm breathing worse, and the shield fogs up more). A quick test of taping two CPAP hoses on the *same* side suggested that that approach was plenty convenient, so the next version should probably be asymmetric again, with the CPAP connectors only on one side.
 – Without a bike helmet, I wear it with the headband halfway up my forehead, which makes the air be targeted perfectly for my nose, but means the bottom of the face shield cuts off my vision a bit. With a bike helmet, it's forced downwards so the headband is on my eyebrows, which makes the air targeting a bit worse for my nose but better for my mouth (probably good, really). In both cases, the bottom lip of the shield could probably stand to stick out 2-3cm further down.
 – The cloth has an issue with occasionally getting yanked off the face shield, and being nontrivial to put back on; I ended up holding it on with binder clips, which only mostly mitigated the issue. This suggests that I should develop a better way of attaching it. (Later note: I tested simply hot-gluing the cloth to the shield, and it seemed to work just fine - I was worried that it could get yanked off, but it didn't yield to any of my test yanks.) In the case of the chin cloth, the cloth also ended up STILL not being wide enough to have the mask part not tug on the chin-strap part during normal operation (I guess my models still didn't place the chin curve accurately, especially in the "headband halfway up forehead" position?) Also, the chin cloth leaks a little right in front of the ears (it's inherently vulnerable to that issue due to its low curvature at that location, but it might be aggravated by the chin-elastic tension not being well distributed due to the width issue). Note that this will be affected somewhat by extending the bottom of the face shield. 
@@ -226,7 +226,7 @@ temple_direction = Right@Rotate (Up, radians = temple_radians)
 # The angle of the shield surface in the YZ plane.
 shield_focal_slope = 1.8
 
-# The thickness of the flat part of the air passage at its thickest point
+# The thickness of the flat-ish part of the air passage at its thickest point
 intake_flat_air_thickness_base = 10.4
 
 # The length, along the side curve, of exterior of the intake wall (this may be a slight overestimate because we will curve the points of the walls a bit)
@@ -429,39 +429,38 @@ save ("glasses_edge", Edge (glasses_point + diff*180, glasses_point - diff*180))
 ########  Intake  #######
 ########################################################################
 
-# The intake wants to have a surface that direct air towards air_target. It's convenient if that surface is the build surface, so make a plane for that:
-
-intake_middle_in_build_surface_shield_curve = ShieldSample(intersecting = RayIsh(Point(0,intake_middle_y,intake_middle_z), Right))
-
-# Two degrees of freedom are removed by air_target and intake_middle_in_build_surface_shield_curve; to remove the third degree of freedom, the concave corner just above the intake, where the cloth nestles, should be elastic_holder_depth in front of shield_back. The build surface should be about shield_glue_face_width further in front of that... the actual formulas here are annoyingly complicated, but this is close enough:
-
-intake_third_source_sample = ShieldSample(intersecting = RayIsh(Point(
-  0,
-  shield_back + elastic_holder_depth + shield_glue_face_width,
-  intake_middle_in_build_surface_shield_curve.position[2] + intake_flat_width/2
-), Right))
-
-intake_source_direction_1 = Direction(intake_middle_in_build_surface_shield_curve.position, intake_third_source_sample.position)
-intake_source_direction_2 = Direction(air_target, intake_middle_in_build_surface_shield_curve.position)
-
-intake_curve_source_points = [
-  air_target + intake_source_direction_1 * intake_flat_width*1.4,
-  air_target - intake_source_direction_1 * intake_flat_width,
-]
-save ("intake_curve_source_surface", BSplineSurface([
-    [point + intake_source_direction_2* 50 for point in intake_curve_source_points],
-    [point + intake_source_direction_2*150 for point in intake_curve_source_points],
-  ],
-  BSplineDimension (degree = 1),
-  BSplineDimension (degree = 1),
-))
-
-#preview(shield_surface, intake_curve_source_surface)
-
-
 @run_if_changed
-def make_intake_curve():
-  save ("intake_curve", ShieldCurveInPlane(intake_curve_source_surface))
+def make_intake_reference_curve():
+  # The intake wants to have a surface that directs air towards air_target. It's convenient if that surface is the build surface, so make a plane for that. The "intake reference curve" will be the intersection between the shield surface and this build plane.
+  # To decide the plane, first, we define an "intake middle" point, which will lie on the "intake reference curve" (it is defined to lie on the shield surface, and will define the build plane):
+  
+  intake_middle_on_build_surface_shield_curve = ShieldSample(intersecting = RayIsh(Point(0,intake_middle_y,intake_middle_z), Right))
+
+  # Two degrees of freedom are removed by air_target and intake_middle_on_build_surface_shield_curve; to remove the third degree of freedom, the concave corner just above the intake, where the cloth nestles, should be elastic_holder_depth in front of shield_back. The build surface should be about shield_glue_face_width further in front of that... the actual formulas here are annoyingly complicated, but this is close enough:
+
+  intake_third_source_sample = ShieldSample(intersecting = RayIsh(Point(
+    0,
+    shield_back + elastic_holder_depth + shield_glue_face_width,
+    intake_middle_on_build_surface_shield_curve.position[2] + intake_flat_width/2
+  ), Right))
+
+  intake_source_direction_1 = Direction(intake_middle_on_build_surface_shield_curve.position, intake_third_source_sample.position)
+  intake_source_direction_2 = Direction(air_target, intake_middle_on_build_surface_shield_curve.position)
+
+  intake_curve_source_points = [
+    air_target + intake_source_direction_1 * intake_flat_width*1.4,
+    air_target - intake_source_direction_1 * intake_flat_width,
+  ]
+  intake_curve_source_surface = BSplineSurface([
+      [point + intake_source_direction_2* 50 for point in intake_curve_source_points],
+      [point + intake_source_direction_2*150 for point in intake_curve_source_points],
+    ],
+    BSplineDimension (degree = 1),
+    BSplineDimension (degree = 1),
+  )
+
+  #p review(shield_surface, intake_curve_source_surface)
+  save ("intake_reference_curve", ShieldCurveInPlane(intake_curve_source_surface))
 
 
 
@@ -475,7 +474,17 @@ def make_intake():
   def augment_intake_sample(sample):
     sample.along_intake_flat = sample.normal.cross(Up).normalized()
     sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
-    sample.below_shield_glue_base_point = ShieldSample(closest = sample.position + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane).position
+    # basically just sample.position +
+    #   shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane,
+    # but adjusted to be exactly on the shield, but make sure to not
+    # alter its height-from-build-surface
+    sample.below_shield_glue_base_point = ShieldSample(
+      intersecting = RayIsh(
+        sample.position
+          + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane
+          - sample.normal_in_plane * 10,
+        sample.normal_in_plane)
+    ).position
     
     forwards = Direction(CPAP_forwards)
     if sample.position[2] > CPAP_back_center[2]:
@@ -484,7 +493,7 @@ def make_intake():
     sample.below_elastic_base_point = sample.below_shield_glue_base_point - forwards * elastic_holder_depth
     
   # a base point on the lower side curve, just inside the shield.
-  intake_middle = CurveSample(intake_curve, z=intake_middle_z)
+  intake_middle = CurveSample(intake_reference_curve, z=intake_middle_z)
   augment_intake_sample(intake_middle)
   
   # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
@@ -500,16 +509,10 @@ def make_intake():
   towards_air_target = Direction(intake_middle.position, air_target)
   
   
-  
-  intake_cloth_lip = []
-  intake_shield_lip = []
   intake_support_hoops = []
-  intake_shield_clip_hoops = []
-  intake_air_cut_hoops = []
   intake_support_exclusion_hoops = []
-  intake_edges = ([], [], [], [])
-  
-  for sample in curve_samples(intake_curve, 1, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, amount = 10):
+    
+  for sample in curve_samples(intake_reference_curve, 1, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length=5):
     augment_intake_sample(sample)
     
     thickness1 = min(sample.curve_distance / 3, intake_support_thickness)
@@ -523,26 +526,67 @@ def make_intake():
       sample.below_shield_glue_base_point + b2,
       sample.below_shield_glue_base_point,
     ], loop = True))
-    a = contact_leeway * sample.normal_in_plane_unit_height_from_shield
-    b = b - contact_leeway * sample.normal_in_plane_unit_height_from_shield
-    c = contact_leeway * sample.along_intake_flat_unit_height_from_plane
-    d = -contact_leeway * sample.curve_tangent
-    intake_support_exclusion_hoops.append (Wire ([
-      sample.position + a - c + d,
-      sample.position + b - c + d,
-      sample.below_shield_glue_base_point + b2 + c + d,
-      sample.below_shield_glue_base_point + a + c + d,
-    ], loop = True))
+    if sample.curve_distance < 32:
+      a = contact_leeway * sample.normal_in_plane_unit_height_from_shield
+      b = b - contact_leeway * sample.normal_in_plane_unit_height_from_shield
+      c = contact_leeway * sample.along_intake_flat_unit_height_from_plane
+      d = -contact_leeway * sample.curve_tangent
+      intake_support_exclusion_hoops.append (Wire ([
+        sample.position + a - c + d,
+        sample.position + b - c + d,
+        sample.below_shield_glue_base_point + b2 + c + d,
+        sample.below_shield_glue_base_point + a + c + d,
+      ], loop = True))
   
-  sample = CurveSample(intake_curve, distance = intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
+  save ("intake_support", Loft(intake_support_hoops, solid = True, ruled = True))
+  save ("intake_support_exclusion", Loft(intake_support_exclusion_hoops, solid = True, ruled = True))
+    
+  
+  intake_cloth_lip = []
+  intake_shield_lip = []
+  
+  sample = CurveSample(intake_reference_curve, distance = intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
   augment_intake_sample(sample)
   target_shield_convex_corner_above_intake = sample.below_elastic_base_point
   save("target_shield_convex_corner_above_intake", target_shield_convex_corner_above_intake)
-  sample = CurveSample(intake_curve, distance = intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_point_width)
-  augment_intake_sample(sample)
-  intake_shield_lip.append (sample.below_shield_glue_base_point)
   
-  for sample in curve_samples(intake_curve, intake_middle.curve_distance - intake_flat_width/2 + 0.1, intake_middle.curve_distance + intake_flat_width/2 - 0.1, amount = 70):
+  sample = CurveSample(intake_reference_curve, distance = intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
+  augment_intake_sample(sample)
+  target_shield_convex_corner_below_intake = sample.below_elastic_base_point
+  save("target_shield_convex_corner_below_intake", target_shield_convex_corner_below_intake)
+  
+  for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length = 3):
+    augment_intake_sample(sample)
+    intake_shield_lip.append (sample.below_shield_glue_base_point)
+  
+  
+  intake_spout_smallest_radius = 3
+  intake_spout_largest_radius = min_wall_thickness + intake_flat_air_thickness_base + min_wall_thickness + intake_spout_smallest_radius
+  # the shield-ward surface of the intake wants to have a bit of a weird shape because of the shield surface shape, but for the face-ward surface, we can just use a plane. Let's define that plane:
+  # the point on the build plate that's at the middle of the edge of the intake closest to the face:
+  intake_faceward_middle = intake_middle.position - intake_middle.normal_in_plane_unit_height_from_shield * intake_spout_largest_radius
+  
+  intake_faceward_plane = Plane(intake_faceward_middle, intake_middle.normal)
+  
+  def intake_hoop(CPAP_back_center, CPAP_forwards, inset, fraction):
+    angle = (fraction*math.tau/4)
+    faceward_fraction, CPAPward_fraction = 1-math.sin(angle), 1-math.cos(angle)
+    CPAPward_distance = CPAPward_fraction * intake_spout_largest_radius
+    #faceward_distance = faceward_fraction * intake_spout_largest_radius
+    
+    for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2, intake_middle.curve_distance + intake_flat_width/2, amount = 70):
+      if CPAPward_distance < shield_glue_face_width:
+        base_point = Between(sample.position, sample.below_shield_glue_base_point, CPAPward_distance/shield_glue_face_width)
+      else:
+        base_point = sample.below_shield_glue_base_point - CPAP_forwards * (CPAPward_distance - shield_glue_face_width)
+      planed_point = RayIsh(base_point, normal).intersections(intake_faceward_plane).point()
+      base_point = Between (base_point, planed_point, faceward_fraction)
+    
+  
+  
+  intake_air_cut_hoops = []
+  intake_edges = ([], [], [], [])
+  for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2 + 0.1, intake_middle.curve_distance + intake_flat_width/2 - 0.1, amount = 70):
     augment_intake_sample(sample)
     
     # Get the offset relative to intake_middle:
@@ -596,34 +640,8 @@ def make_intake():
           sample.below_elastic_base_point + intake_edge_offsets [index],
         ))
     
-    
-    intake_shield_lip.append (sample.below_shield_glue_base_point)
-
-    
-    do_support = offset < 0 and intake_edge_heights[3] - min_wall_thickness / 2 < intake_support_thickness
-    if do_support:
-      a = intake_edge_offsets[3] + sample.normal_in_plane_unit_height_from_shield * min_wall_thickness * 2/3
-      if beyond_air:
-        a = vector()
-      b = -sample.normal_in_plane_unit_height_from_shield * intake_support_thickness
-      intake_support_hoops.append (Wire ([
-        sample.position + a,
-        sample.position + b,
-        sample.below_shield_glue_base_point + b,
-        sample.below_shield_glue_base_point + a,
-      ], loop = True))
-      a = a + contact_leeway * sample.normal_in_plane_unit_height_from_shield
-      b = b - contact_leeway * sample.normal_in_plane_unit_height_from_shield
-      c = contact_leeway * sample.along_intake_flat_unit_height_from_plane
-      d = -contact_leeway * sample.curve_tangent
-      intake_support_exclusion_hoops.append (Wire ([
-        sample.position + a - c + d,
-        sample.position + b - c + d,
-        sample.below_shield_glue_base_point + b + c + d,
-        sample.below_shield_glue_base_point + a + c + d,
-      ], loop = True))
       
-    if intake_edge_heights[2] > intake_edge_heights[1] + 1 and not do_support:
+    if intake_edge_heights[2] > intake_edge_heights[1] + 1:
       q = sample.position + Up*0.01
       b = -sample.normal_in_plane_unit_height_from_shield * 20
       a = -sample.normal_in_plane_unit_height_from_shield * (min_wall_thickness*2)
@@ -634,37 +652,10 @@ def make_intake():
         k + b,
         k + a,
       ], loop = True))
-    
-    if offset > intake_flat_width * 0.2 and offset < intake_flat_width * 0.48:
-      outwards = sample.normal_in_plane_unit_height_from_shield
-      shield_space = (shield_thickness + contact_leeway*2)
-      thickness = 1.5
-      along_shield = Direction(sample.position, sample.below_shield_glue_base_point)
-      shield_stop_dir = Direction(outwards.cross(along_shield).cross(-along_shield))
-      end_leeway = along_shield * contact_leeway
-      b = sample.below_shield_glue_base_point + end_leeway
-      c = b + along_shield * 6
-      intake_shield_clip_hoops.append (Wire ([
-        sample.position + outwards*shield_space,
-        sample.position + outwards*(shield_space+thickness),
-        b + shield_stop_dir*(shield_space+thickness) + along_shield * thickness,
-        c - outwards*3,
-        b - shield_stop_dir*0.2,
-        b + shield_stop_dir*shield_space,
-      ], loop = True))
-  
-  
-  sample = CurveSample(intake_curve, distance = intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_point_width)
-  augment_intake_sample(sample)
-  intake_shield_lip.append (sample.below_shield_glue_base_point)
-  sample = CurveSample(intake_curve, distance = intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
-  augment_intake_sample(sample)
-  target_shield_convex_corner_below_intake = sample.below_elastic_base_point
-  save("target_shield_convex_corner_below_intake", target_shield_convex_corner_below_intake)
   
   
   fins = []
-  for sample in curve_samples(intake_curve, intake_middle.curve_distance - intake_flat_width/2 + 9, intake_middle.curve_distance + intake_flat_width/2 - 11, amount = 6):
+  for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2 + 9, intake_middle.curve_distance + intake_flat_width/2 - 11, amount = 6):
     augment_intake_sample(sample)
     perpendicular = towards_air_target.cross(sample.plane_normal)
     k = Between(sample.below_shield_glue_base_point, sample.below_elastic_base_point, 0.5)
@@ -678,8 +669,7 @@ def make_intake():
   save("intake_shield_lip", intake_shield_lip)
 
   intake_air_cut = Loft([intake_air_cut_hoops[0], intake_air_cut_hoops[-1]], solid = True, ruled = True)
-  save ("intake_support", Loft(intake_support_hoops, solid = True, ruled = True))
-  save ("intake_support_exclusion", Loft(intake_support_exclusion_hoops, solid = True, ruled = True))
+  
 
   class IntakeSurface:
     def __init__(self, ribs, expansion):
@@ -731,8 +721,7 @@ def make_intake():
     Face (intake_exterior.surface),
     [Face (a) for a in intake_exterior.ends]
   ))
-  save ("intake_fins", Compound(fins, Face(intake_curve.plane).extrude(-intake_curve.plane.normal((0,0))*min_wall_thickness)).intersection(intake_solid_including_interior))
-  save ("intake_shield_clip", Loft(intake_shield_clip_hoops, solid = True, ruled = True).cut(intake_solid_including_interior))
+  save ("intake_fins", Compound(fins, Face(intake_reference_curve.plane).extrude(-intake_reference_curve.plane.normal((0,0))*min_wall_thickness)).intersection(intake_solid_including_interior))
   
   taut_direction = -intake_middle.normal
   for frac in subdivisions(0.2, 0.8, amount = 15):
@@ -744,7 +733,7 @@ def make_intake():
     
   
 
-#preview(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
+#p review(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
 
   
   
@@ -1053,7 +1042,7 @@ upper_side_rim_bottom = 47
 def make_side_pegs():
   shield_exclusion = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
   forehead_exclusion = Face(standard_forehead_curve).extrude(Down*lots, centered=True)
-  #build_plate_exclusion = Face(intake_curve.plane).extrude(Back*lots)
+  #build_plate_exclusion = Face(intake_reference_curve.plane).extrude(Back*lots)
   
   def side_peg (sample, expansion):
     return Vertex(
@@ -1108,7 +1097,7 @@ def make_upper_side_rim():
   
 
 
-preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_shield_clip, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, intake_support, intake_support_exclusion, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
@@ -1141,7 +1130,7 @@ def make_cloth_lip():
   save ("chin_cloth_lip", Interpolate (chin_cloth_lip_points))
 #save ("side_shield_lip_points", Compound([Vertex(a) for a in side_shield_lip_points])
 
-#preview(intake_solid, intake_support, chin_cloth_lip, Compound ([Vertex (point) for point in side_shield_lip_points]), Edge(air_target, CurveSample(shield_lower_side_curve, z=-100, which=0).position))
+#p review(intake_solid, intake_support, chin_cloth_lip, Compound ([Vertex (point) for point in side_shield_lip_points]), Edge(air_target, CurveSample(shield_lower_side_curve, z=-100, which=0).position))
 
 ########################################################################
 ########  Unrolled shield shape  #######
@@ -1467,7 +1456,6 @@ def make_FDM_printable_lower_side():
   lower_side = Compound ([
     intake_solid,
     intake_support,
-    intake_shield_clip,
     intake_fins,
     side_pegs,
   ])
