@@ -99,6 +99,11 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return classmethod(derived)
   ListOfShape = TopoDS.TopoDS_ListOfShape
   override_attribute(ListOfShape, "__new__", make_List)
+  
+  @export
+  def flatten (arguments):
+    assert(type(arguments) is list)
+    return [b for a in arguments for b in a]
       
   # conveniently allow you to throw together nested lists of shapes
   @export

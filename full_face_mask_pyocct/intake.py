@@ -40,10 +40,10 @@ def make_intake_reference_curve():
 @run_if_changed
 def make_intake():
   # the center of the circle at the far CPAP connector end.
-  CPAP_back_center = Point(72, headphones_front - 40, -92)
-    
-  # hack - temporary value to avoid augment_intake_sample circular dependency issue
-  CPAP_forwards = Back
+  CPAP_back_center_1 = Point(72, headphones_front - 40, -92)
+  CPAP_back_center_2 = CPAP_back_center_1 + Vector(0, 4, -32) 
+  CPAP_back_centers = [CPAP_back_center_1, CPAP_back_center_2]
+  
   def augment_intake_sample(sample):
     sample.along_intake_flat = sample.normal.cross(Up).normalized()
     sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
@@ -58,29 +58,120 @@ def make_intake():
           - sample.normal_in_plane * 10,
         sample.normal_in_plane)
     ).position
-    
-    forwards = Direction(CPAP_forwards)
-    if sample.position[2] > CPAP_back_center[2]:
-      forwards = Direction(forwards + Up*Direction(CPAP_back_center, sample.position)[2]*1.3)
-    
-    sample.below_elastic_base_point = sample.below_shield_glue_base_point - forwards * elastic_holder_depth
-    
+
   # a base point on the lower side curve, just inside the shield.
   intake_middle = CurveSample(intake_reference_curve, z=intake_middle_z)
   augment_intake_sample(intake_middle)
   
-  # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
-  intake_flat_back_center_approx = (intake_middle.position
-    + (shield_glue_face_width + elastic_holder_depth + 4)
-      *intake_middle.along_intake_flat_unit_height_from_plane
-    - intake_middle.normal
-      *(min_wall_thickness + intake_flat_air_thickness_base/2)
-    + Up*5)
-  
-  CPAP_forwards = Direction (CPAP_back_center, intake_flat_back_center_approx) #vector(0.2, 1, -0.1).normalized()
-  
   towards_air_target = Direction(intake_middle.position, air_target)
+  towards_air_target_unit_height_from_shield = towards_air_target/abs(towards_air_target.dot(intake_middle.normal))
   
+  # a reference point to try to aim the CPAP direction in a way that will make the whole shape smooth.
+  CPAP_target_approx = intake_middle.position + towards_air_target_unit_height_from_shield * (min_wall_thickness + intake_flat_air_thickness_base/2)
+  
+  # aim the 2 CPAP hoses at the target, although also keep them a bit separate from each other (no reason to make the air converge).
+  # /4 might be ideal (each hose gets half the space) but I make them converge a LITTLE more than that by saying /5, mostly based on intuition
+  CPAP_forwardses = [
+    Direction(CPAP_back_centers[0], CPAP_target_approx - intake_middle.curve_tangent*intake_flat_width/5),
+    Direction(CPAP_back_centers[1], CPAP_target_approx + intake_middle.curve_tangent*intake_flat_width/5),
+  ]
+  
+  # we also want a canonical "the average CPAP intake direction in general"
+  # to use for constructing the geometry of the shared parts
+  CPAP_forwards_average = Direction (CPAP_forwardses[0] + CPAP_forwardses[1])
+  
+  CPAP_forwards_average_unit_height_from_build_plane = CPAP_forwards_average/abs(CPAP_forwards_average.dot(intake_reference_curve.plane.normal((0,0))))
+              
+
+  intake_spout_smallest_radius = 3
+  intake_spout_largest_radius = min_wall_thickness + intake_flat_air_thickness_base + min_wall_thickness + intake_spout_smallest_radius
+  # the shield-ward surface of the intake wants to have a bit of a weird shape because of the shield surface shape, but for the face-ward surface, we can just use a plane. Let's define that plane:
+  # the point on the build plate that's at the middle of the edge of the intake closest to the face:
+  # so we are now working in a coordinate system where the dimensions are:
+  # 1) towards_air_target
+  # 2) CPAP_forwards_average
+  # 3) intake_middle.curve_tangent
+  
+  au = towards_air_target_unit_height_from_shield 
+  fu = CPAP_forwards_average_unit_height_from_build_plane
+  ct = intake_middle.curve_tangent
+  
+  intake_faceward_middle = intake_middle.position + au * intake_spout_largest_radius
+  
+  # notably, the above isn't an orthogonal basis. To define the plane, we actually want a face that is approximately aligned with the shield, and thus, aligned with the curve tangent and CPAP_forwards, but NOT perpendicular to towards_air_target (because towards_air_target isn't perpendicular to the shield)
+  intake_exit_plane = Plane(intake_faceward_middle, Direction (ct.cross(fu)))
+  
+  # an origin point for the center of curvature of the spout
+  intake_radius_center_middle = intake_faceward_middle - CPAP_forwards_average_unit_height_from_build_plane * intake_spout_largest_radius
+  
+  # we are going to decide the control points in terms of a collection of cross-sections, uniformly spaced along the intake_middle.curve_tangent dimension; The control points across different cross-sections will be combined into hoops later.
+    
+  num_points_long_side = 14
+  num_points_short_side = 5
+  num_points_total = (num_points_long_side + num_points_short_side)*2
+  
+  cross_section_points = []
+  
+  for tangent_offset in subdivisions (intake_flat_width/2, -intake_flat_width/2, amount = num_points_long_side+2):
+    radius_center = intake_radius_center_middle + ct*tangent_offset
+    
+    exit_points = [
+      radius_center + fu * intake_spout_largest_radius,
+      radius_center + fu * intake_spout_smallest_radius,
+    ]
+    
+    # since we're going to use offset-surfaces later, and those offset-surfaces won't naturally agree with the exit plane, we extend it a little bit past the exit plane
+    beyond_exit_points = [thing + au*3 for thing in exit_points]
+    
+    towards_exit_points = [
+      exit_points[0] - au * intake_spout_largest_radius * 0.7,
+      exit_points[1] - au * intake_spout_smallest_radius * 0.7,
+    ]
+    
+    # for the next hoop, we want it to be aligned with the edge of the shield.
+    # To simplify the geometry for us, instead of making the shield glue face an exact width, we make it an exact height from the build plane:
+    sample = ShieldSample(intersecting = RayIsh(intake_faceward_middle + ct*tangent_offset - fu*shield_glue_face_width, -au))
+    
+    shield_guide_points = [
+      sample.position,
+      radius_center + Direction (radius_center, sample.position)*intake_spout_smallest_radius
+    ]
+    
+    cross_section_points.append ([
+      beyond_exit_points,
+      exit_points,
+      towards_exit_points,
+      shield_guide_points
+    ])
+  frames = list(zip(*cross_section_points))
+    
+  def CPAP_hoop (CPAP_back_center, CPAP_forwards, frac):
+    offset = (1 - frac) * 20
+    center = CPAP_back_center + CPAP_forwards*offset
+    direction = Direction (CPAP_forwards.cross (CPAP_forwards.cross (towards_air_target)))
+    
+    start_index = (num_points_long_side-1)/2
+    def CPAP_point (index):
+      angle = -(index-start_index)/num_points_total*math.tau
+      return center + (direction*CPAP_outer_radius) @ Rotate(CPAP_forwards, radians=angle)
+    return [CPAP_point (index) for index in range (num_points_total)]
+
+  intake_surfaces = []
+  for CPAP_back_center, CPAP_forwards in zip(CPAP_back_centers, CPAP_forwardses):
+    hoops = [flatten([
+      [large for large, small in frame[1:-1]],
+      subdivisions(*frame[-1], amount = num_points_short_side+2)[1:-1],
+      [small for large, small in reversed(frame[1:-1])],
+      reversed(subdivisions(*frame[0], amount = num_points_short_side+2)[1:-1]),
+    ])
+    for frame in frames] + [CPAP_hoop (CPAP_back_center, CPAP_forwards, frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
+        
+    intake_surfaces.append(BSplineSurface(hoops, v=BSplineDimension(periodic=True)))
+    
+  save("new_intake", Compound (Face(intake_surfaces[0]).offset(min_wall_thickness, fill=True), Face(intake_surfaces[1])))
+
+  preview(intake_surfaces)
+
   
   intake_support_hoops = []
   intake_support_exclusion_hoops = []
@@ -131,84 +222,6 @@ def make_intake():
   for sample in curve_samples(intake_reference_curve, intake_middle.curve_distance - intake_flat_width/2 - elastic_corner_opening_width, intake_middle.curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length = 3):
     augment_intake_sample(sample)
     intake_shield_lip.append (sample.below_shield_glue_base_point)
-  
-  
-  intake_spout_smallest_radius = 3
-  intake_spout_largest_radius = min_wall_thickness + intake_flat_air_thickness_base + min_wall_thickness + intake_spout_smallest_radius
-  # the shield-ward surface of the intake wants to have a bit of a weird shape because of the shield surface shape, but for the face-ward surface, we can just use a plane. Let's define that plane:
-  # the point on the build plate that's at the middle of the edge of the intake closest to the face:
-  # so we are now working in a coordinate system where the dimensions are:
-  # 1) towards_air_target
-  # 2) CPAP_forwards
-  # 3) intake_middle.curve_tangent
-  towards_air_target_unit_height_from_shield = towards_air_target/abs(towards_air_target.dot(intake_middle.normal))
-  intake_faceward_middle = intake_middle.position + towards_air_target_unit_height_from_shield * intake_spout_largest_radius
-  
-  intake_faceward_plane = Plane(intake_faceward_middle, intake_middle.normal)
-  
-
-  def intake_hoops(CPAP_back_center, CPAP_forwards):
-    CPAP_forwards_unit_height_from_build_plane = CPAP_forwards/abs(CPAP_forwards.dot(intake_reference_curve.plane.normal((0,0))))
-        
-    corner_reference = intake_faceward_middle - CPAP_forwards_unit_height_from_build_plane * intake_spout_largest_radius
-    
-    num_points_long_side = 14
-    num_points_short_side = 5
-    num_points_total = (num_points_long_side + num_points_short_side)*2
-    
-    def position(shieldward_distance, buildward_distance):
-      return corner_reference + shieldward_distance*-towards_air_target_unit_height_from_shield + buildward_distance*CPAP_forwards_unit_height_from_build_plane
-    
-    a = intake_middle.curve_tangent*intake_flat_width/2
-    def square_hoop(p1, p2):
-      corners = [
-        p1 + a,
-        p1 - a,
-        p2 - a,
-        p2 + a,
-      ]
-      
-      return [p for (a,b),amount in zip(pairs(corners, loop=True), [num_points_long_side+2,num_points_short_side+2]*2) for p in subdivisions(a,b, amount=amount)[1:-1]]
-      
-    def CPAP_hoop (frac):
-      offset = (1 - frac) * 20
-      center = CPAP_back_center + CPAP_forwards*offset
-      direction = Direction (CPAP_forwards.cross (CPAP_forwards.cross (towards_air_target)))
-      
-      start_index = (num_points_long_side-1)/2
-      def CPAP_point (index):
-        angle = -(index-start_index)/num_points_total*math.tau
-        return center + (direction*CPAP_outer_radius) @ Rotate(CPAP_forwards, radians=angle)
-      return [CPAP_point (index) for index in range (num_points_total)]
-    
-    return [
-      square_hoop(
-        position(0, intake_spout_largest_radius),
-        position(0, intake_spout_smallest_radius),
-      ),
-      square_hoop(
-        position(intake_spout_largest_radius*0.7, intake_spout_largest_radius),
-        position(intake_spout_smallest_radius*0.7, intake_spout_smallest_radius),
-      ),
-      square_hoop(
-        position(intake_spout_largest_radius, intake_spout_largest_radius*0.7),
-        position(intake_spout_smallest_radius, intake_spout_smallest_radius*0.7),
-      ),
-      square_hoop(
-        position(intake_spout_largest_radius, 0),
-        position(intake_spout_smallest_radius, 0),
-      ),
-    ] + [CPAP_hoop (frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
-    
-    
-  CPAP_forwards = Direction(CPAP_back_center, intake_middle.position + towards_air_target_unit_height_from_shield * (min_wall_thickness + intake_flat_air_thickness_base/2) - intake_middle.curve_tangent*intake_flat_width/5)
-  new_intake1 = BSplineSurface(intake_hoops(CPAP_back_center, CPAP_forwards), v=BSplineDimension(periodic=True))
-  
-  CPAP_back_center_2 = CPAP_back_center + Vector(0, 4, -32)
-  CPAP_forwards_2 = Direction(CPAP_back_center_2, intake_middle.position + towards_air_target_unit_height_from_shield * (min_wall_thickness + intake_flat_air_thickness_base/2) + intake_middle.curve_tangent*intake_flat_width/5)
-      
-  new_intake2 = BSplineSurface(intake_hoops(CPAP_back_center_2, CPAP_forwards_2), v=BSplineDimension(periodic=True))
-  save("new_intake", Compound (Face(new_intake1), Face(new_intake2)))
   
   
   
