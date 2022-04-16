@@ -8,10 +8,9 @@ def reflected (components):
 @run_if_changed
 def make_FDM_printable_lower_side():
   lower_side = Compound ([
-    intake_solid,
+    intake_wall,
     intake_support,
     intake_fins,
-    side_pegs,
   ])
   #preview(lower_side)
   save("lower_side", lower_side)
@@ -83,8 +82,6 @@ preview (
   top_rim,
   upper_side_rim,
   upper_side_rim@Reflect(Right),
-  
-  side_pegs,
   
   lower_side_rim,
   lower_side_extra_lip,

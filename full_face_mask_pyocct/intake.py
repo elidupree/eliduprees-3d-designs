@@ -41,21 +41,6 @@ CPAP_back_center_1 = Point(72, headphones_front - 40, -92)
 CPAP_back_center_2 = CPAP_back_center_1 + Vector(0, 4, -32) 
 CPAP_back_centers = [CPAP_back_center_1, CPAP_back_center_2]
 
-def augment_intake_sample(sample):
-  sample.along_intake_flat = sample.normal.cross(Up).normalized()
-  sample.along_intake_flat_unit_height_from_plane = sample.along_intake_flat/abs (sample.along_intake_flat.dot(sample.plane_normal))
-  # basically just sample.position +
-  #   shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane,
-  # but adjusted to be exactly on the shield, but make sure to not
-  # alter its height-from-build-surface
-  sample.below_shield_glue_base_point = ShieldSample(
-    intersecting = RayIsh(
-      sample.position
-        + shield_glue_face_width*sample.along_intake_flat_unit_height_from_plane
-        - sample.normal_in_plane * 10,
-      sample.normal_in_plane)
-  ).position
-
 # a base point on the lower side curve, just inside the shield.
 intake_middle = CurveSample(intake_reference_curve, z=intake_middle_z)
 intake_middle_position = intake_middle.position
@@ -92,15 +77,17 @@ intake_spout_largest_radius = min_wall_thickness + intake_flat_air_thickness_bas
 # 2) CPAP_forwards_average
 # 3) intake_middle_curve_tangent
 
-au = towards_air_target_unit_height_from_shield 
-fu = CPAP_forwards_average_unit_height_from_build_plane
+at = towards_air_target
+cf = CPAP_forwards_average
 ct = intake_middle_curve_tangent
-ctu = ct/abs(ct.dot(Direction(au.cross(fu))))
+atu = at/abs(at.dot(Direction(cf.cross(ct))))
+cfu = cf/abs(cf.dot(Direction(at.cross(ct))))
+ctu = ct/abs(ct.dot(Direction(at.cross(cf))))
 
-intake_faceward_middle = intake_middle_position + au * intake_spout_largest_radius
+intake_faceward_middle = intake_middle_position + atu * intake_spout_largest_radius
 
 # notably, the above isn't an orthogonal basis. To define the plane, we actually want a face that is approximately aligned with the shield, and thus, aligned with the curve tangent and CPAP_forwards, but NOT perpendicular to towards_air_target (because towards_air_target isn't perpendicular to the shield)
-#intake_exit_plane = Plane(intake_faceward_middle, Direction (ct.cross(fu)))
+#intake_exit_plane = Plane(intake_faceward_middle, Direction (ct.cross(cfu)))
 
 # an origin point for the center of curvature of the spout
 intake_radius_center_middle = intake_faceward_middle - CPAP_forwards_average_unit_height_from_build_plane * intake_spout_largest_radius
@@ -121,21 +108,21 @@ def make_intake():
     radius_center = intake_radius_center_middle + ct*tangent_offset
     
     exit_points = [
-      radius_center + fu * intake_spout_largest_radius,
-      radius_center + fu * intake_spout_smallest_radius,
+      radius_center + cfu * intake_spout_largest_radius,
+      radius_center + cfu * intake_spout_smallest_radius,
     ]
     
     # since we're going to use offset-surfaces later, and those offset-surfaces won't naturally agree with the exit plane, we extend it a little bit past the exit plane
-    beyond_exit_points = [thing + au*3 for thing in exit_points]
+    beyond_exit_points = [thing + atu*3 for thing in exit_points]
     
     towards_exit_points = [
-      exit_points[0] - au * intake_spout_largest_radius * 0.7,
-      exit_points[1] - au * intake_spout_smallest_radius * 0.7,
+      exit_points[0] - atu * intake_spout_largest_radius * 0.7,
+      exit_points[1] - atu * intake_spout_smallest_radius * 0.7,
     ]
     
     # for the next hoop, we want it to be aligned with the edge of the shield.
     # To simplify the geometry for us, instead of making the shield glue face an exact width, we make it an exact height from the build plane:
-    sample = ShieldSample(intersecting = RayIsh(intake_faceward_middle + ct*tangent_offset - fu*shield_glue_face_width, -au))
+    sample = ShieldSample(intersecting = RayIsh(intake_faceward_middle + ct*tangent_offset - cfu*shield_glue_face_width, -atu))
     
     shield_guide_points = [
       sample.position,
@@ -161,7 +148,7 @@ def make_intake():
       return center + (direction*CPAP_outer_radius) @ Rotate(CPAP_forwards, radians=angle)
     return [CPAP_point (index) for index in range (num_points_total)]
 
-  beyond_exit_exclusion = Vertex (intake_faceward_middle).extrude (fu*intake_spout_largest_radius*2, centered = True).extrude (ct*lots, centered = True).extrude (au*lots)
+  beyond_exit_exclusion = Vertex (intake_faceward_middle).extrude (cfu*intake_spout_largest_radius*2, centered = True).extrude (ct*lots, centered = True).extrude (atu*lots)
 
   intake_outer_solids = []
   intake_outer_surfaces_extended = []
@@ -180,7 +167,7 @@ def make_intake():
     inner_surface_extended = Face (outer_surface_extended).offset(min_wall_thickness)
     
     outer_surface = Face (outer_surface_extended).cut(beyond_exit_exclusion)
-    inner_surface = inner_surface_extended.cut(beyond_exit_exclusion@Translate (au*1))
+    inner_surface = inner_surface_extended.cut(beyond_exit_exclusion@Translate (atu*1))
     
     def close_holes(surface):
       fa, fb = [Face(w).complemented() for w in ClosedFreeWires (surface)]
@@ -190,12 +177,10 @@ def make_intake():
     intake_inner_solids.append(close_holes(inner_surface))
 
   jiggle = Right*0.003 + Back*0.004 + Up*0.001
-  preview(intake_outer_solids)
-  preview(intake_inner_solids)
   
   intake_wall_solids = [s
-    .cut(intake_inner_solids[1] @ Translate(jiggle-fu*0.01))
-    .cut(intake_inner_solids[0] @ Translate(-jiggle-fu*0.01))
+    .cut(intake_inner_solids[1] @ Translate(jiggle-cfu*0.01))
+    .cut(intake_inner_solids[0] @ Translate(-jiggle-cfu*0.01))
   for s in intake_outer_solids]
 
   intake_wall = Compound(intake_wall_solids)
@@ -203,13 +188,30 @@ def make_intake():
   save("intake_outer_solids", intake_outer_solids)
   save("intake_outer_surfaces_extended", intake_outer_surfaces_extended)
   save("intake_inner_solids", intake_inner_solids)
-    
+
+
+def augment_intake_sample(sample):
+  sample.cf_in_shield = Direction(cf.cross(sample.normal).cross(-sample.normal))
+  sample.cfu_in_shield = sample.cf_in_shield/abs(sample.cf_in_shield.dot(sample.plane_normal))
+  # basically just sample.position +
+  #   shield_glue_face_width*sample.cfu_in_shield,
+  # but adjusted to be exactly on the shield, but make sure to not
+  # alter its height-from-build-surface
+  sample.below_shield_glue_base_point = ShieldSample(
+    intersecting = RayIsh(
+      sample.position
+        - shield_glue_face_width*sample.cfu_in_shield
+        - sample.normal_in_plane * 10,
+      sample.normal_in_plane)
+  ).position
+
+
 @run_if_changed
 def make_intake_support():
   intake_support_hoops = []
   intake_support_exclusion_hoops = []
     
-  for sample in curve_samples(intake_reference_curve, 1, intake_middle_curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length=5):
+  for sample in curve_samples(intake_reference_curve, 1, intake_middle_curve_distance, max_length=5):
     augment_intake_sample(sample)
     
     thickness1 = min(sample.curve_distance / 3, intake_support_thickness)
@@ -226,7 +228,7 @@ def make_intake_support():
     if sample.curve_distance < 32:
       a = contact_leeway * sample.normal_in_plane_unit_height_from_shield
       b = b - contact_leeway * sample.normal_in_plane_unit_height_from_shield
-      c = contact_leeway * sample.along_intake_flat_unit_height_from_plane
+      c = -contact_leeway * sample.cfu_in_shield
       d = -contact_leeway * sample.curve_tangent
       intake_support_exclusion_hoops.append (Wire ([
         sample.position + a - c + d,
@@ -234,8 +236,28 @@ def make_intake_support():
         sample.below_shield_glue_base_point + b2 + c + d,
         sample.below_shield_glue_base_point + a + c + d,
       ], loop = True))
+      
+  intake_support_2_hoops = []
+  for tangent_offset in subdivisions (intake_flat_width/2, -intake_flat_width/2, amount = num_points_long_side+2):
+    a = intake_faceward_middle + ct*tangent_offset 
+    b = a - cfu*shield_glue_face_width
+    c = ShieldSample(intersecting = RayIsh(b, -atu)).position
+    d = ShieldSample(intersecting = RayIsh(a, -atu)).position
+    intake_support_2_hoops.append (Wire ([
+      a,b,c,d,
+    ], loop = True))
   
-  save ("intake_support", Loft(intake_support_hoops, solid = True, ruled = True))
+  intake_support = [
+    Loft(intake_support_hoops, solid = True, ruled = True),
+    Loft(intake_support_2_hoops, solid = True, ruled = True),
+  ]
+  jiggle = Right*0.003 + Back*0.004 + Up*0.001
+  intake_support = Compound (
+    support.cut (intake_outer_solids[1] @ Translate(jiggle+0.1*at-0.01*cf))
+    for support in intake_support
+  )
+  
+  save ("intake_support", intake_support)
   save ("intake_support_exclusion", Loft(intake_support_exclusion_hoops, solid = True, ruled = True))
     
 @run_if_changed
@@ -262,7 +284,7 @@ def make_intake_peripherals():
   
   fins = []
   for tangent_offset in subdivisions (intake_flat_width/2, -intake_flat_width/2, amount = 8)[1:-1]:
-    fins.append(Vertex (intake_faceward_middle + ct*tangent_offset).extrude (ctu*min_wall_thickness, centered = True).extrude (-au*lots).extrude (-fu*(intake_spout_largest_radius - intake_spout_smallest_radius/3)))
+    fins.append(Vertex (intake_faceward_middle + ct*tangent_offset).extrude (ctu*min_wall_thickness, centered = True).extrude (-atu*lots).extrude (-cfu*(intake_spout_largest_radius - intake_spout_smallest_radius/3)))
         
         
   save ("intake_fins", Compound([Intersection (fin, intake_outer_solids[0]) for fin in fins]))
