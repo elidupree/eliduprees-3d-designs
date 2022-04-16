@@ -54,10 +54,10 @@ temple_direction = Right@Rotate (Up, radians = temple_radians)
 # The angle of the shield surface in the YZ plane.
 shield_focal_slope = 1.8
 
-# The thickness of the flat-ish part of the air passage at its thickest point
-intake_flat_air_thickness_base = 10.4
+# The thickness of the flat-ish part of the air passage at its thickest point (this may not be exact because we make it conform to the shield a bit)
+intake_flat_air_thickness_base = 12
 
-# The length, along the side curve, of exterior of the intake wall (this may be a slight overestimate because we will curve the points of the walls a bit)
+# The length, approximately along the side curve, of the exterior of the intake wall (The actual width from the perspective of the moving air will be somewhat shorter than this, because the opening is angled)
 intake_flat_width = 56
 
 # The width of the opening of the triangular corner the elastic should nestle into

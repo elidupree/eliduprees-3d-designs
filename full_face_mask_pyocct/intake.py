@@ -95,6 +95,7 @@ intake_spout_largest_radius = min_wall_thickness + intake_flat_air_thickness_bas
 au = towards_air_target_unit_height_from_shield 
 fu = CPAP_forwards_average_unit_height_from_build_plane
 ct = intake_middle_curve_tangent
+ctu = ct/abs(ct.dot(Direction(au.cross(fu))))
 
 intake_faceward_middle = intake_middle_position + au * intake_spout_largest_radius
 
@@ -163,6 +164,7 @@ def make_intake():
   beyond_exit_exclusion = Vertex (intake_faceward_middle).extrude (fu*intake_spout_largest_radius*2, centered = True).extrude (ct*lots, centered = True).extrude (au*lots)
 
   intake_outer_solids = []
+  intake_outer_surfaces_extended = []
   intake_inner_solids = []
   for CPAP_back_center, CPAP_forwards in zip(CPAP_back_centers, CPAP_forwardses):
     hoops = [flatten([
@@ -173,10 +175,11 @@ def make_intake():
     ])
     for frame in frames] + [CPAP_hoop (CPAP_back_center, CPAP_forwards, frac) for frac in [-0.3, 0.4, 0.6, 0.8, 1.0]]
     
-    outer_surface_extended = Face(BSplineSurface(hoops, v=BSplineDimension(periodic=True)))
-    inner_surface_extended = outer_surface_extended.offset(min_wall_thickness)
+    outer_surface_extended = BSplineSurface(hoops, v=BSplineDimension(periodic=True))
+    intake_outer_surfaces_extended.append(outer_surface_extended)
+    inner_surface_extended = Face (outer_surface_extended).offset(min_wall_thickness)
     
-    outer_surface = outer_surface_extended.cut(beyond_exit_exclusion)
+    outer_surface = Face (outer_surface_extended).cut(beyond_exit_exclusion)
     inner_surface = inner_surface_extended.cut(beyond_exit_exclusion@Translate (au*1))
     
     def close_holes(surface):
@@ -186,16 +189,19 @@ def make_intake():
     intake_outer_solids.append(close_holes(outer_surface))
     intake_inner_solids.append(close_holes(inner_surface))
 
-  jiggle = Right*0.002 + Back*0.003 + Up*0.0001
+  jiggle = Right*0.003 + Back*0.004 + Up*0.001
+  preview(intake_outer_solids)
+  preview(intake_inner_solids)
   
   intake_wall_solids = [s
-    .cut(intake_inner_solids[0] @ Translate(jiggle-fu*0.01))
-    .cut(intake_inner_solids[1] @ Translate(-jiggle-fu*0.01))
+    .cut(intake_inner_solids[1] @ Translate(jiggle-fu*0.01))
+    .cut(intake_inner_solids[0] @ Translate(-jiggle-fu*0.01))
   for s in intake_outer_solids]
 
   intake_wall = Compound(intake_wall_solids)
   save("intake_wall", intake_wall)
   save("intake_outer_solids", intake_outer_solids)
+  save("intake_outer_surfaces_extended", intake_outer_surfaces_extended)
   save("intake_inner_solids", intake_inner_solids)
     
 @run_if_changed
@@ -239,12 +245,12 @@ def make_intake_peripherals():
   
   sample = CurveSample(intake_reference_curve, distance = intake_middle_curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
   augment_intake_sample(sample)
-  target_shield_convex_corner_above_intake = sample.below_elastic_base_point
+  target_shield_convex_corner_above_intake = sample.below_shield_glue_base_point - CPAP_forwardses[0] * elastic_holder_depth
   save("target_shield_convex_corner_above_intake", target_shield_convex_corner_above_intake)
   
   sample = CurveSample(intake_reference_curve, distance = intake_middle_curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
   augment_intake_sample(sample)
-  target_shield_convex_corner_below_intake = sample.below_elastic_base_point
+  target_shield_convex_corner_below_intake = sample.below_shield_glue_base_point - CPAP_forwardses[1] * elastic_holder_depth
   save("target_shield_convex_corner_below_intake", target_shield_convex_corner_below_intake)
   
   for sample in curve_samples(intake_reference_curve, intake_middle_curve_distance - intake_flat_width/2 - elastic_corner_opening_width, intake_middle_curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length = 3):
@@ -255,21 +261,21 @@ def make_intake_peripherals():
   
   
   fins = []
-  for sample in curve_samples(intake_reference_curve, intake_middle_curve_distance - intake_flat_width/2 + 9, intake_middle_curve_distance + intake_flat_width/2 - 11, amount = 6):
-    augment_intake_sample(sample)
-    perpendicular = towards_air_target.cross(sample.plane_normal)
-    k = Between(sample.below_shield_glue_base_point, sample.below_elastic_base_point, 0.5)
-    fins.append(Edge((Segment(sample.position, k)) @ Translate(towards_air_target * min_wall_thickness/2)).extrude(towards_air_target*20).extrude(perpendicular * min_wall_thickness, centered = True))
+  for tangent_offset in subdivisions (intake_flat_width/2, -intake_flat_width/2, amount = 8)[1:-1]:
+    fins.append(Vertex (intake_faceward_middle + ct*tangent_offset).extrude (ctu*min_wall_thickness, centered = True).extrude (-au*lots).extrude (-fu*(intake_spout_largest_radius - intake_spout_smallest_radius/3)))
         
         
-  save ("intake_fins", Compound(fins, Face(intake_reference_curve.plane).extrude(-intake_reference_curve.plane.normal((0,0))*min_wall_thickness)).intersection(intake_solid_including_interior))
+  save ("intake_fins", Compound([Intersection (fin, intake_outer_solids[0]) for fin in fins]))
   
-  taut_direction = -intake_middle_normal
-  for frac in subdivisions(0.2, 0.8, amount = 15):
-    base = Between(target_shield_convex_corner_above_intake, target_shield_convex_corner_below_intake, frac)
+  taut_direction = intake_middle_normal
+  for frac in subdivisions(0, 1, amount = 20):
+    base = Between(target_shield_convex_corner_above_intake, target_shield_convex_corner_below_intake, frac) - taut_direction*30
     
     # a fairly arbitrary approximation, but a fully realistic calculation would be way more effort than it'd be worth
-    intake_cloth_lip.append (intake_exterior.surface.intersections(RayIsh(base + taut_direction*1, taut_direction)).point())
+    ray = RayIsh(base, taut_direction)
+    points = flatten ([s.intersections (ray).points for s in intake_outer_surfaces_extended])
+    if points:
+      intake_cloth_lip.append (min(points, key = lambda p: p.distance(base)))
   save("intake_cloth_lip", intake_cloth_lip)
     
   

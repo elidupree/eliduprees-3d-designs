@@ -338,7 +338,7 @@ def make_upper_side_rim():
   
 
 
-preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_solid, new_intake, intake_support, intake_support_exclusion, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
+preview(temple_extender, shield_bottom_peak.position, target_shield_convex_corner_below_intake, side_pegs, upper_side_rim.wires(), temple_block, temple_knob, intake_wall, intake_support, intake_support_exclusion, intake_fins, Compound([Vertex(a) for a in upper_side_cloth_lip + intake_shield_lip + lower_curve_cloth_lip]), BSplineCurve(upper_side_cloth_lip + intake_cloth_lip + lower_curve_cloth_lip))
   
   
 
