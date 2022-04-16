@@ -27,7 +27,7 @@ putative_chin = forehead_point + vector (0, -13, -125)
 chin_leeway = 10
 
 # The bottom edge of the shield. Ideally, this should be further down than the invisible point – far enough down that even after cloth is put over it, the cloth is also invisible.
-rim_bottom_z = putative_chin[2] - 36 
+rim_bottom_z = putative_chin[2] - 60 
 
 # The putative corner of where glasses might be, experimentally determined from someone with large glasses.
 glasses_point = forehead_point + vector (66, 0, -10)

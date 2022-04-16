@@ -238,7 +238,7 @@ def make_intake_support():
       ], loop = True))
       
   intake_support_2_hoops = []
-  for tangent_offset in subdivisions (intake_flat_width/2, -intake_flat_width/2, amount = num_points_long_side+2):
+  for tangent_offset in subdivisions (-intake_flat_width/2, intake_flat_width/2, amount = num_points_long_side+2):
     a = intake_faceward_middle + ct*tangent_offset 
     b = a - cfu*shield_glue_face_width
     c = ShieldSample(intersecting = RayIsh(b, -atu)).position
@@ -265,21 +265,20 @@ def make_intake_peripherals():
   intake_cloth_lip = []
   intake_shield_lip = []
   
-  sample = CurveSample(intake_reference_curve, distance = intake_middle_curve_distance - intake_flat_width/2 - elastic_corner_opening_width)
-  augment_intake_sample(sample)
-  target_shield_convex_corner_above_intake = sample.below_shield_glue_base_point - CPAP_forwardses[0] * elastic_holder_depth
+  for tangent_offset in subdivisions (-intake_flat_width/2 - elastic_corner_point_width, intake_flat_width/2 + elastic_corner_point_width, max_length = 3):
+    a = intake_faceward_middle + ct*tangent_offset
+    b = a - cfu*shield_glue_face_width
+    c = ShieldSample(intersecting = RayIsh(b, -atu)).position
+    intake_shield_lip.append (c)
+    
+  save("intake_shield_lip", intake_shield_lip)
+  
+  d = elastic_corner_opening_width - elastic_corner_point_width
+  target_shield_convex_corner_above_intake = intake_shield_lip[0] - ct * d - CPAP_forwardses[0] * elastic_holder_depth
   save("target_shield_convex_corner_above_intake", target_shield_convex_corner_above_intake)
   
-  sample = CurveSample(intake_reference_curve, distance = intake_middle_curve_distance + intake_flat_width/2 + elastic_corner_opening_width)
-  augment_intake_sample(sample)
-  target_shield_convex_corner_below_intake = sample.below_shield_glue_base_point - CPAP_forwardses[1] * elastic_holder_depth
+  target_shield_convex_corner_below_intake = intake_shield_lip[-1] + ct * d - CPAP_forwardses[1] * elastic_holder_depth
   save("target_shield_convex_corner_below_intake", target_shield_convex_corner_below_intake)
-  
-  for sample in curve_samples(intake_reference_curve, intake_middle_curve_distance - intake_flat_width/2 - elastic_corner_opening_width, intake_middle_curve_distance + intake_flat_width/2 + elastic_corner_opening_width, max_length = 3):
-    augment_intake_sample(sample)
-    intake_shield_lip.append (sample.below_shield_glue_base_point)
-
-  save("intake_shield_lip", intake_shield_lip)
   
   
   fins = []
@@ -287,7 +286,7 @@ def make_intake_peripherals():
     fins.append(Vertex (intake_faceward_middle + ct*tangent_offset).extrude (ctu*min_wall_thickness, centered = True).extrude (-atu*lots).extrude (-cfu*(intake_spout_largest_radius - intake_spout_smallest_radius/3)))
         
         
-  save ("intake_fins", Compound([Intersection (fin, intake_outer_solids[0]) for fin in fins]))
+  save ("intake_fins", Compound([Intersection (fin, s) for fin in fins for s in intake_outer_solids]))
   
   taut_direction = intake_middle_normal
   for frac in subdivisions(0, 1, amount = 20):

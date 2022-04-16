@@ -9,14 +9,14 @@ side_shield_lip_points = (
     upper_side_cloth_lip
     + intake_shield_lip
     + lower_curve_cloth_lip
-    + [a@Mirror (Right) for a in intake_shield_lip[::-1]]
+    #+ [a@Mirror (Right) for a in intake_shield_lip[::-1]]
     + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
   )
 chin_cloth_lip_points = (
     upper_side_cloth_lip
     + intake_cloth_lip
     + lower_curve_cloth_lip
-    + [a@Mirror (Right) for a in intake_cloth_lip[::-1]]
+    #+ [a@Mirror (Right) for a in intake_cloth_lip[::-1]]
     + [a@Mirror (Right) for a in upper_side_cloth_lip[::-1]]
   )
 @run_if_changed

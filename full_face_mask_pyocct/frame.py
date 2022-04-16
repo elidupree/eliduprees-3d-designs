@@ -211,7 +211,7 @@ for sample in curve_samples(shield_upper_side_curve, amount = 20):
 
 
 
-shield_lower_curve_source_points = [
+'''shield_lower_curve_source_points = [
   ShieldSample(closest = target_shield_convex_corner_below_intake).position,
  #ShieldSample(closest = shield_bottom_peak.position + Right*5).position,
   ShieldSample(closest = shield_bottom_peak.position + Right*20).position,
@@ -224,6 +224,17 @@ save ("shield_lower_curve_source_surface", BSplineSurface([
   ],
   BSplineDimension (degree = 1),
   BSplineDimension (degree = 3),
+))'''
+
+p = ShieldSample(closest = target_shield_convex_corner_below_intake).position
+ps = [p, p@Mirror(Right)]
+d = (shield_bottom_peak.position - Between(*ps))*1.1
+save ("shield_lower_curve_source_surface", BSplineSurface([
+    ps,
+    [p+d for p in ps],
+  ],
+  BSplineDimension (degree = 1),
+  BSplineDimension (degree = 1),
 ))
 
 @run_if_changed
@@ -237,7 +248,6 @@ for sample in curve_samples(shield_lower_curve, amount = 50):
   lower_curve_cloth_lip.append (sample.position)
 
 
-  
 
 z = -1.2
 a=0
