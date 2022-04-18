@@ -110,6 +110,44 @@ def make_unrolled_shield():
 ########  Forehead cloth  #######
 ########################################################################
 '''
+For the top cloth:
+
+In the current design, we glue one edge of the cloth to the interior face of the headband, and the other edge to the exterior face of the shield.
+
+The biggest challenge here is the headband face. To make it conform to flat face of the headband, it want its flattened form to be a rectangle. But by also folding it over towards the shield, we create an edge of negative Gaussian curvature, which requires some form of pleating.
+
+The outer edge is easier – it has positive Gaussian curvature, so we can just fold the cloth over and scrunch it. The main constraint for the outer edge is that its flattened form must be (at least) the length of its 3D form.
+
+To do calculus on this, I'm going to partition the source shape (the region from the top edge of the headband to the top edge of the shield) into infinitely many, infinitesimal quadrilateral slices (A, A+dA, B+dB, B), with points A and A+dA on the outer rim, and B and B+dB on the inner rim, which will be mapped into a flat shape (A', A'+dA', B'+dB', B'). Furthermore, my particular choice of partitioning will be the one where the slices are perpendicular to the headband (i.e. B perpendicular to dB). Also, I'm going to express the coordinates of the flattened points such that coordinate 0 is "along the headband" and 1 is "towards the shield", i.e. dB'[1]=0 and (A'-B')[0] = 0.
+
+Given the source quadrilateral, we have at least the following constraints:
+
+"Cloth can't stretch":
+1. d(A', B') >= d(A, B)
+2. d(A'+dA', B'+dB') >= d(A+dA, B+dB)
+3. ||dA'|| >= ||dA||
+4. ||dB'|| >= ||dB||
+
+"Flattened headband must remain rectangular":
+5. dB'[1] == 0
+6. (A'-B')[0] == 0 (which implies (dA'-dB')[0] == 0, when you consider how it applies to the next slice)
+
+At this point, we still have multiple degrees of freedom.
+* We can make dA'[0] and dB'[0] arbitrarily large ("any number of extra unnecessary pleats along the length of both edges")
+* We can make d(A', B') (and d(A'+dA', B'+dB')) arbitrarily large (and arbitrarily different from each other))
+
+To fully constrain it, I'll add these additional constraints:
+
+"Include a fixed, slight leeway for different head sizes":
+7. d(A', B') = d(A, B) * 1.2
+
+"Only pleat as much as you need to"
+8. Within the above of constraints, minimize dA' (equivalently "minimize dB'"; equivalently, ||dA'|| = ||dA||, because the shield curve is always longer than the headband curve.).
+
+Now that we've mapped the quadrilaterals, we can extend the cloth bit on each end to be able to fold over the plastic and be glued down.
+'''
+
+'''
 math for laying out these cloths:
 
 we want to force a particular curve of the cloth to stay on the rim. We do this by putting elastic on the outer edge (which tries to pull the cloth further onto the face shield) while making the cloth have curvature such that the next bit is shorter than the edge, so it can't be pulled over. Also, to keep the cloth relatively taut, we make every point on the rim have a straight line going to the closest point on the other curve.
