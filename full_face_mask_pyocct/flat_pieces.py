@@ -147,6 +147,79 @@ To fully constrain it, I'll add these additional constraints:
 Now that we've mapped the quadrilaterals, we can extend the cloth bit on each end to be able to fold over the plastic and be glued down.
 '''
 
+class RimHeadClothCrossSection (SerializeAsVars):
+  '''
+  Nominally, one of the A-B pairs described above.
+  This class keeps track of both the original and flattened positions.
+  '''
+  def __init__(self, A, B):
+    self.A = A
+    self.B = B
+    self.source_length = (A-B).length()
+
+class RimHeadCloth(SerializeAsVars):
+  def __init__(self, rim_samples, head_curve, *, length_multiplier):
+    self.sections = []
+    for sample in rim_samples:
+      head = head_curve.derivatives(closest = sample)
+      section = RimHeadClothCrossSection(sample, head.position)
+      if len(self.sections) == 0:
+        section.B_prime = Point()
+      else:
+        previous = self.sections[-1]
+        
+        # we now need to find the right horizontal distance in the flattened space,
+        # such that the diagonal will be exactly the desired length
+        hypotenuse = (section.A - previous.A).length()
+        y_distance = abs(section.source_length - previous.source_length)*length_multiplier
+        x_distance = math.sqrt(hypotenuse**2 - y_distance**2)
+        
+        section.B_prime = previous.B_prime + Right*x_distance
+      
+      section.A_prime = section.B_prime + Back*section.source_length*length_multiplier
+      self.sections.append(section)
+    
+  def source_wire(self):
+    return Wire([p.A for p in self.sections] + [p.B for p in reversed(self.sections)],
+      loop = True)
+    
+  def minimal_wire(self):
+    return Wire([
+        self.sections[-1].B_prime,
+        self.sections[0].B_prime,
+      ] + [p.A_prime for p in self.sections],
+      loop = True)
+  
+  def extended_wire(self, rim_extra_width, head_extra_width):
+    return Wire([
+        self.sections[-1].A_prime,
+        self.sections[-1].B_prime + Front*head_extra_width,
+        self.sections[0].B_prime + Front*head_extra_width,
+        self.sections[0].A_prime,
+      ] + [p + (Direction(c.A_prime,d.A_prime)*rim_extra_width) @ Rotate(Up, degrees = 90) for c,d in pairs(self.sections) for p in [c.A_prime,d.A_prime]],
+      loop = True)
+      
+@run_if_changed
+def make_forehead_cloth():
+  corner_backoff = 15
+  forehead_cloth = RimHeadCloth(
+    [a.position + a.normal*shield_thickness for a in curve_samples (shield_top_curve, corner_backoff, shield_top_curve.precomputed_length - corner_backoff, amount = math.floor(shield_top_curve.precomputed_length * 2))],
+    standard_forehead_curve@Translate (Up*headband_top),
+    length_multiplier = 1.2)
+  save("forehead_cloth", forehead_cloth)
+  save_inkscape_svg("forehead_cloth", forehead_cloth.extended_wire(shield_glue_face_width, headband_width))
+
+
+preview(forehead_cloth.source_wire(), forehead_cloth.minimal_wire(), forehead_cloth.extended_wire(shield_glue_face_width, headband_width), temple_extender, temple_block, temple_knob)
+
+
+
+
+
+
+
+
+
 '''
 math for laying out these cloths:
 
