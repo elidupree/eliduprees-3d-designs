@@ -15,6 +15,8 @@ def make_FDM_printable_lower_side():
   #preview(lower_side)
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
+  
+  save_STL("non_intake_side", non_intake_side)
 
 
 @run_if_changed
@@ -34,6 +36,7 @@ def make_FDM_printable_headband():
 
 preview (
   lower_side,
+  non_intake_side,
   headband_final,
   neck_curve,
   chin_cloth_lip,
@@ -44,9 +47,9 @@ preview (
   #eye_lasers,
   #LoadSTL ("private/face5_for_papr.stl"),
   
-  unrolled_shield_wire@Translate(100, 0, 0),
-  forehead_cloth_wire@Translate(0, 350, 0),
-  chin_cloth_wire@Translate(-300, 0, 0),
+  #unrolled_shield_wire@Translate(100, 0, 0),
+  #forehead_cloth_wire@Translate(0, 350, 0),
+  #chin_cloth_wire@Translate(-300, 0, 0),
 )
 
 '''

@@ -251,6 +251,7 @@ def make_intake_support():
     Loft(intake_support_hoops, solid = True, ruled = True),
     Loft(intake_support_2_hoops, solid = True, ruled = True),
   ]
+  save ("non_intake_side", intake_support[0] @ Mirror(Right))
   jiggle = Right*0.003 + Back*0.004 + Up*0.001
   intake_support = Compound (
     support.cut (intake_outer_solids[1] @ Translate(jiggle+0.1*at-0.01*cf))

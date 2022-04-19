@@ -162,3 +162,4 @@ Additional notes after prototype #8:
 
 Additional notes after prototype #9?:
 – In the design for prototype #9, I considered removing the bits that stick down from the headband to connect to the side-struts, but decided not to do the extra design work because the current models worked fine. But this is worth revisiting – if I remove one of the two dropdowns, then it becomes more friendly to FDM printing, and if I remove BOTH, it potentially becomes much more packable (relevant to future mass-production). To remove both, you'd have to extend the intake strut all the way to the headband, which seems geometrically feasible even with FDM, but would take some adjusting.
+– The screw technique turned out pretty good, but the side joint bent to the wrong angle when it got melty. I should consider building a jig (e.g. 3D print the negative of that joint, with enough cycles to do the assembly process)
