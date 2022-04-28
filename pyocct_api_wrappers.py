@@ -432,6 +432,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   Surface = Geom.Geom_Surface
   BSplineSurface = Geom.Geom_BSplineSurface
   BSplineCurve = Geom.Geom_BSplineCurve
+  BezierCurve = Geom.Geom_BezierCurve
   TrimmedCurve = Geom.Geom_TrimmedCurve
   
   simple_override(Plane, "normal", lambda self, *args: self.Axis().Direction())
@@ -503,9 +504,21 @@ def setup(wrap, unwrap, do_export, override_attribute):
       )
     
     return classmethod(derived)
+      
+  def make_BezierCurve (original):
+    def derived(cls, poles, weights = None):
+      num_u = len (poles)
+      
+      if weights is None:
+        return original(Array1OfPnt(poles))
+      else:
+        return original(Array1OfPnt(poles), Array1OfReal(weights))
+
+    return classmethod(derived)
     
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
+  override_attribute(BezierCurve, "__new__", make_BezierCurve)
   override_attribute(BSplineCurve, "knots", lambda original: lambda self: [a for a in original()])
   override_attribute(BSplineCurve, "multiplicities", lambda original: lambda self: [a for a in original()])
   
@@ -648,7 +661,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def RayIsh(start, direction, length = 9000):
     return Segment(start, start + direction * length)
 
-  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
+  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BezierCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
   ################################################################
   ####################  BRep Shape types  ########################
