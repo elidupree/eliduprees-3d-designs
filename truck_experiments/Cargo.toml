@@ -1,0 +1,16 @@
+[package]
+name = "truck_experiments"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = "0.26.1"
+futures = "0.3.24"
+truck-platform = "0.4.0"
+truck-rendimpl = "0.4.0"
+truck-polymesh = "0.4.0"
+truck-modeling = "0.4.0"
+truck-shapeops = "0.2.0"
+truck-meshalgo = "0.2.0"
