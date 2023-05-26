@@ -219,6 +219,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
     def derived(cls, *args):
       if len(args) == 1 and isinstance(args[0], Point):
         args = [args[0].XYZ()]
+      if len(args) == 2:
+        args = (args[0], args[1], 0)
       return original(*args)
     return classmethod(derived)
   override_attribute(Point, "__new__", make_Point)
