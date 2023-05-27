@@ -191,6 +191,8 @@ def setup(wrap, unwrap, do_export, override_attribute):
       #if type(args[0]) is Point:
       if len(args) == 1 and isinstance(args[0], Vector):
         args = [args[0].XYZ()]
+      if len(args) == 2 and (isinstance(args[0], float) or isinstance(args[0], int)):
+        args = [args[0], args[1], 0]
       if all is not None:
         args = [all, all, all]
       if xy is not None:

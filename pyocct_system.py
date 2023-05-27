@@ -3,6 +3,7 @@ import hashlib
 import dis
 import inspect
 import functools
+import itertools
 import re
 import sys
 import os
@@ -595,10 +596,24 @@ def save_STEP (key, shape, **kwargs):
 ########################################################################
 
 
-def save_inkscape_svg(key, wire):
+def wire_svg_path(wire, color = "black"):
+  edges = wire.edges()
+  start = edges[0].vertices()[0]
+  parts = [f'<path stroke="{color}" d="M {start[0]} {start[1]}']
+  for edge in edges:
+    end = edge.vertices()[1]
+    if (end[0], end[1]) == (start[0], start[1]):
+      parts.append(f' Z')
+    else:
+      parts.append(f' L {end[0]} {end[1]}')
+  parts.append(f'" />')
+  return "".join(parts)
+  
+def save_inkscape_svg(key, wires):
+  wires = recursive_flatten(wires)
+  colors = ["black", "red", "green", "blue"]
   contents = "\n".join([
-    f'<path d="M {edge.vertices()[0][0]} {edge.vertices()[0][1]} L {edge.vertices()[1][0]} {edge.vertices()[1][1]}" />'
-    for edge in wire.edges()
+    wire_svg_path(wire, color) for wire, color in zip(wires, itertools.cycle(colors))
   ])
   filename = _path_base (key)+".svg"
   file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
