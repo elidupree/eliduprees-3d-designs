@@ -19,15 +19,86 @@ controller_width = 31.1
 controller_length = 38.7
 controller_board_thickness = 0.9
 ports_slot_width = 10
-porthole_depth = 5
-porthole_width = porthole_depth*2
-slot_depth = 0.6
+porthole_depth = 4
+porthole_width = 10
+controller_slot_depth = 0.8
+sensor_slot_depth = 1.4
 
 controller_contact_inset = 1.2
 controller_contact_spacing = 22.5/9
 
 sensor_power_offset = Vector (0.0, 2.5, sensor_length + 3)
 
+usb_plug_width = 15
+usb_plug_thickness = 7.5
+usb_plug_height = 15.5
+usb_plug_pinch = 0.5
+battery_holder_length = 60
+battery_holder_inner_diameter = 25
+
+ankle_offset = Vector(-62, -35, 0)
+ankle_points = [Point(x,y,0)+ankle_offset for x,y in [(50, 0), (50, 15), (46, 28), (42, 34), (38, 37), (28, 40), (16, 40)]]
+ankle_curve = BSplineCurve (ankle_points)
+ankle_center = Point(16, 0)+ankle_offset
+ankle_verticality_center = Point(33, 39)+ankle_offset
+ankle_top_scale = 1.15
+ankle_middle_inset = 2
+#preview(ankle_curve, ankle_points, Interpolate (ankle_points), ankle_verticality_center)
+
+
+def wallify(rows, thickness, *, loop):
+  """
+  Take rows, which define a BSplineSurface, where each row should be flat (compared with the build plate),
+  and extrude that surface by `thickness` in the direction that is normal to the surface within the parallel-to-build-plate plane (note: the caller must be careful about positive versus negative)
+  """
+  surface = BSplineSurface(
+    rows,
+    v = BSplineDimension (periodic = loop)
+  )
+  other_rows = [
+    [
+      p + (surface.normal(closest=p)*1).projected_perpendicular (Up).normalized()*thickness
+      for p in row
+    ]
+    for row in rows
+  ]
+  
+  other_surface = BSplineSurface(
+    other_rows,
+    v = BSplineDimension (periodic = loop)
+  )
+  if loop:
+    joiner = [
+      Face(BSplineSurface([rows[0], other_rows[0]], BSplineDimension(degree=1), BSplineDimension (periodic = loop))),
+      Face(BSplineSurface([rows[-1], other_rows[-1]], BSplineDimension(degree=1), BSplineDimension (periodic = loop))),
+    ]
+  else:
+    joiner = Loft(Face(surface).outer_wire(), Face(other_surface).outer_wire()).faces()
+  #preview(surface, other_surface, joiner)
+  wall = Solid(Shell(Face(surface).complemented(), Face(other_surface), joiner))
+  return wall
+
+
+ankle_slant = -((ankle_verticality_center-ankle_center)*(ankle_top_scale - 1)) / battery_holder_length
+def ankle_row(height, scale):
+  return [ankle_center + (p - ankle_center)*scale + Up*height + ankle_slant*height for p in ankle_points]
+  
+ankle_middle_scale = (Between(1, ankle_top_scale, fraction=0.5)) - ankle_middle_inset / (ankle_verticality_center - ankle_center).magnitude()
+ankle_rows = [
+  ankle_row(0, 1),
+  ankle_row(Between(0, battery_holder_length, fraction=0.25), Between(1, ankle_middle_scale, fraction=0.6)),
+  ankle_row(Between(0, battery_holder_length, fraction=0.5), ankle_middle_scale),
+  ankle_row(Between(0, battery_holder_length, fraction=0.75), Between(ankle_middle_scale, ankle_top_scale, fraction=0.4)),
+  ankle_row(battery_holder_length, ankle_top_scale),
+]
+
+@run_if_changed
+def make_ankle_wall():
+  ankle_wall = wallify(ankle_rows, printed_wall_thickness, loop = False)
+  #preview(ankle_wall)
+  save ("ankle_wall", ankle_wall)
+  save_STL ("ankle_wall", ankle_wall)
+  
 
 controller_back = 0
 controller_front = controller_back - controller_board_thickness
@@ -94,6 +165,8 @@ wall_curve_length = wall_curve.length()
 ankle_start_distance = wall_curve.distance (closest =a) - 4
 ankle_finish_distance = wall_curve.distance (closest =b) + 5
 control_board_outside_distance = wall_curve.distance (closest =d)
+
+#preview(wall_curve, wall_curve_points)
 
 #perforated_length = ankle_start_distance - ankle_finish_distance
 #num_perforated_columns = round (perforated_length/porthole_width)
@@ -167,10 +240,7 @@ def perforated_column (start_distance, finish_distance, parity):
   
   result = []
   for rows in rowses:
-    surface = BSplineSurface (rows)
-    offset_surface = BSplineSurface([[p + (surface.normal(closest=p)*1).projected_perpendicular (Up).normalized()*printed_wall_thickness for p in row] for row in rows])
-    joiner = Loft(Face(surface).outer_wire(), Face(offset_surface).outer_wire())
-    result.append (Solid(Shell(Face(surface).complemented(), Face(offset_surface), joiner.complemented().faces())))
+    result.append (wallify(rows, printed_wall_thickness, loop = False))
   return result
 
 @run_if_changed
@@ -194,7 +264,7 @@ def make_perforated_columns ():
 def make_board_slots():
   bounding_solid = Face (Wire(wall_curve).offset2D(-printed_wall_thickness*0.9)).extrude (Up*controller_length)
   
-  def board_slot(width, thickness, back):
+  def board_slot(width, thickness, back, slot_depth):
     c = contact_leeway
     k = contact_leeway + printed_wall_thickness
     slot_cut_width = c + width + c
@@ -205,8 +275,8 @@ def make_board_slots():
     
     return Compound (block.cut ([slot_cut, face_cut]), strut.cut (slot_cut)).intersection (bounding_solid)
   
-  controller_slot = board_slot (controller_width, controller_board_thickness, controller_back)
-  sensor_slots = [board_slot (sensor_width, sensor_board_thickness, back) for back in sensor_backs]
+  controller_slot = board_slot (controller_width, controller_board_thickness, controller_back, controller_slot_depth)
+  sensor_slots = [board_slot (sensor_width, sensor_board_thickness, back, sensor_slot_depth) for back in sensor_backs]
   save ("board_slots", Compound (controller_slot, sensor_slots))
     
 @run_if_changed
@@ -221,21 +291,84 @@ def make_base():
   
 @run_if_changed
 def make_combined():
-  combined = Compound (
+  combined_boards_holder = Compound (
     perforated_columns,
     board_slots,
     base,
   )
-  save ("combined", combined)
-  save_STL ("combined", combined)
+  save ("combined_boards_holder", combined_boards_holder)
+  save_STL ("combined_boards_holder", combined_boards_holder)
+
+
+@run_if_changed
+def make_usb_holder():
+  def row(height, pinch):
+    w = usb_plug_width + contact_leeway*2
+    t = usb_plug_thickness + 0.1*2 + contact_leeway*2
+    h = height
+    return [
+      Point(w/2, -t/3, h),
+      Point(w/2,   0, h),
+      Point(w/2, t/3, h),
+      Point(w/3, t/2, h),
+      Point(  0, t/2 - pinch*3, h),
+      Point(-w/3, t/2, h),
+      Point(-w/2, t/3, h),
+      Point(-w/2,   0, h),
+      Point(-w/2, -t/3, h),
+      Point(-w/3, -t/2, h),
+      Point(  0, -t/2 + pinch*3, h),
+      Point(w/3, -t/2, h),
+    ][::-1]
+  rows = [
+    row(0, 0),
+    row(usb_plug_height*1/4, 0),
+    row(usb_plug_height*2/4, usb_plug_pinch),
+    row(usb_plug_height*3/4, 0),
+    row(usb_plug_height*4/4, 0),
+  ]
+  #.extrude (Down*printed_wall_thickness)
   
+  usb_holder_wall = wallify(rows, printed_wall_thickness, loop = True) @ Translate(0, -2.5, 0)
+  preview(usb_holder_wall)
+  save ("usb_holder_wall", usb_holder_wall)
+  save_STL ("usb_holder_wall", usb_holder_wall)
+
+@run_if_changed
+def make_battery_holder():
+  battery_holder_outer_diameter = battery_holder_inner_diameter + printed_wall_thickness*2
+  battery_holder_outer_solid = Face (Circle (Axes(Origin, Up), battery_holder_outer_diameter/2)).extrude (Up*battery_holder_length)
+  battery_holder_inner_solid = Face (Circle (Axes(Origin, Up), battery_holder_inner_diameter/2)).extrude (Up*battery_holder_length)
+  battery_holder_wall = battery_holder_outer_solid.cut(battery_holder_inner_solid)
+  
+  cr = 20
+  battery_holder_window_cut = Face (Circle (Axes(Point(0, -cr-3, battery_holder_length*0.6), Right), cr)).extrude (Right*lots, centered=True)
+  battery_holder_wall = battery_holder_wall.cut(battery_holder_window_cut)
+  
+  preview(usb_holder_wall, battery_holder_wall)
+  
+  save ("battery_holder_wall", battery_holder_wall)
+
+battery_transformation = Rotate(axis=Up, degrees = 135)@Translate (vector (-24, 15))
+boards_transformation = Rotate(axis=Up, degrees = 5)@Translate (vector (-0.8,1))
+
+@run_if_changed
+def arrange():
+  save ("boards_holder_placed", combined_boards_holder@boards_transformation)
+  save ("battery_holder_placed", Compound(usb_holder_wall, battery_holder_wall)@battery_transformation)
+
+
 preview (
-  controller_board,
-  sensor_boards,
-  power_wire,
-  ground_wire,
-  signal_wires,
-  wall_curve,
-  combined
+  Compound(
+    controller_board,
+    sensor_boards,
+    power_wire,
+    ground_wire,
+    signal_wires,
+    Edge(wall_curve),
+  )@boards_transformation,
+  boards_holder_placed,
+  ankle_wall,
+  battery_holder_placed,
 )
 
