@@ -395,7 +395,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   def Rotate(axis, *, radians=None, degrees=None):
     if isinstance (axis, Direction):
       axis = Axis (Origin, axis)
-    if degrees:
+    if degrees is not None:
       radians = degrees * math.tau/360
     transform = Transform()
     transform.SetRotation(axis, radians)

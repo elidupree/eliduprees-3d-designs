@@ -6,7 +6,7 @@ initialize_system (globals())
 
 printed_wall_thickness = 0.8
 contact_leeway = 0.4
-lots = 100
+lots = 500
 
 
 sensor_width = 21.9
@@ -32,12 +32,12 @@ sensor_power_offset = Vector (0.0, 2.5, sensor_length + 3)
 usb_plug_width = 15
 usb_plug_thickness = 7.5
 usb_plug_height = 15.5
-usb_plug_pinch = 0.5
-battery_holder_length = 60
+usb_plug_pinch = 0.6
+battery_holder_length = 75
 battery_holder_inner_diameter = 25
 
 ankle_offset = Vector(-62, -35, 0)
-ankle_points = [Point(x,y,0)+ankle_offset for x,y in [(50, 0), (50, 15), (46, 28), (42, 34), (38, 37), (28, 40), (16, 40)]]
+ankle_points = [Point(x,y,0)+ankle_offset for x,y in [(52, 0), (50, 5), (50, 15), (46, 28), (42, 34), (38, 37), (28, 40), (20, 40), (16, 43)]]
 ankle_curve = BSplineCurve (ankle_points)
 ankle_center = Point(16, 0)+ankle_offset
 ankle_verticality_center = Point(33, 39)+ankle_offset
@@ -58,9 +58,9 @@ def wallify(rows, thickness, *, loop):
   other_rows = [
     [
       p + (surface.normal(closest=p)*1).projected_perpendicular (Up).normalized()*thickness
-      for p in row
+      for v,p in enumerate(row)
     ]
-    for row in rows
+    for u,row in enumerate(rows)
   ]
   
   other_surface = BSplineSurface(
@@ -82,23 +82,30 @@ def wallify(rows, thickness, *, loop):
 ankle_slant = -((ankle_verticality_center-ankle_center)*(ankle_top_scale - 1)) / battery_holder_length
 def ankle_row(height, scale):
   return [ankle_center + (p - ankle_center)*scale + Up*height + ankle_slant*height for p in ankle_points]
-  
+
 ankle_middle_scale = (Between(1, ankle_top_scale, fraction=0.5)) - ankle_middle_inset / (ankle_verticality_center - ankle_center).magnitude()
+print(f"middle scale: {ankle_middle_scale}")
 ankle_rows = [
-  ankle_row(0, 1),
+  ankle_row(-printed_wall_thickness, 1.04),
+  ankle_row(6, 1),
   ankle_row(Between(0, battery_holder_length, fraction=0.25), Between(1, ankle_middle_scale, fraction=0.6)),
   ankle_row(Between(0, battery_holder_length, fraction=0.5), ankle_middle_scale),
   ankle_row(Between(0, battery_holder_length, fraction=0.75), Between(ankle_middle_scale, ankle_top_scale, fraction=0.4)),
-  ankle_row(battery_holder_length, ankle_top_scale),
+  ankle_row(battery_holder_length-6, ankle_top_scale),
+  ankle_row(battery_holder_length, ankle_top_scale+0.04),
 ]
 
 @run_if_changed
 def make_ankle_wall():
   ankle_wall = wallify(ankle_rows, printed_wall_thickness, loop = False)
-  #preview(ankle_wall)
+  ankle_exclusion = Face (BSplineSurface(ankle_rows)).extrude (vector(-lots,-lots,0))@Scale(1.001)
+  preview(ankle_wall, ankle_exclusion)
   save ("ankle_wall", ankle_wall)
+  save ("ankle_exclusion", ankle_exclusion)
   save_STL ("ankle_wall", ankle_wall)
-  
+    
+battery_transformation = Rotate(axis=Up, degrees = 135)@Translate (vector (-23, 16.5))
+boards_transformation = Rotate(axis=Up, degrees = 9)@Translate (vector (-3.3,3.5))
 
 controller_back = 0
 controller_front = controller_back - controller_board_thickness
@@ -162,7 +169,7 @@ def make_wall_curve():
   wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
   save ("wall_curve", wall_curve)
 wall_curve_length = wall_curve.length()
-ankle_start_distance = wall_curve.distance (closest =a) - 4
+ankle_start_distance = wall_curve.distance (closest =a) - 14
 ankle_finish_distance = wall_curve.distance (closest =b) + 5
 control_board_outside_distance = wall_curve.distance (closest =d)
 
@@ -255,9 +262,10 @@ def make_perforated_columns ():
     for index, pair in enumerate (pairs (subdivisions (b, ankle_start_distance, max_length = porthole_width)))
   ] + [
     natural_column (a, b),
-    natural_column (ankle_start_distance, ankle_finish_distance),
   ]
+  ankle_column = natural_column (ankle_start_distance, ankle_finish_distance)
   save ("perforated_columns", perforated_columns)
+  save ("ankle_column", ankle_column)
   
 
 @run_if_changed
@@ -271,7 +279,7 @@ def make_board_slots():
     block    = Vertex (0, back + k, 0).extrude (Front*(k + thickness + k)).extrude (Left*(k + width + k), centered = True).extrude (Up*controller_length)
     slot_cut = Vertex (0, back + c, 0).extrude (Front*(c + thickness + c)).extrude (Left*slot_cut_width, centered = True).extrude (Up*lots, centered = True)
     face_cut = Vertex (0, back, 0).extrude (Front*lots, centered = True).extrude (Left*(slot_cut_width - 2*slot_depth), centered = True).extrude (Up*lots, centered = True)
-    strut    = Vertex (0, back - thickness/2, 0).extrude (Front*printed_wall_thickness, centered = True).extrude (Left*lots, centered = True).extrude (Up*controller_length)
+    strut    = Vertex (0, back - thickness/2, 0).extrude (Front*printed_wall_thickness, centered = True).extrude (Left*lots, centered = True).extrude (Up*controller_length).cut(ankle_exclusion @ boards_transformation.inverse())
     
     return Compound (block.cut ([slot_cut, face_cut]), strut.cut (slot_cut)).intersection (bounding_solid)
   
@@ -287,17 +295,7 @@ def make_base():
     Vertex (0, controller_back + 5, 0),
     Vertex (0, sensor_backs [-1] - 5, 0),
   ).extrude (Left*ports_slot_width, centered = True).extrude (Up*lots, centered = True)
-  save ("base", solid.cut (slot))
-  
-@run_if_changed
-def make_combined():
-  combined_boards_holder = Compound (
-    perforated_columns,
-    board_slots,
-    base,
-  )
-  save ("combined_boards_holder", combined_boards_holder)
-  save_STL ("combined_boards_holder", combined_boards_holder)
+  save ("base", solid.cut (slot).cut(ankle_exclusion @ boards_transformation.inverse()))
 
 
 @run_if_changed
@@ -329,33 +327,84 @@ def make_usb_holder():
   ]
   #.extrude (Down*printed_wall_thickness)
   
-  usb_holder_wall = wallify(rows, printed_wall_thickness, loop = True) @ Translate(0, -2.5, 0)
+  offset = vector(0, -2.5, 0)
+  
+  usb_holder_wall = wallify(rows, printed_wall_thickness, loop = True) @ Translate(offset)
   preview(usb_holder_wall)
   save ("usb_holder_wall", usb_holder_wall)
+  save ("usb_holder_cut", Compound(
+    Face(BSplineCurve(rows[0], BSplineDimension (periodic = True))).extrude(Up*lots),
+    Face(BSplineCurve([Point(p[0]*0.8, p[1]) for p in rows[0]], BSplineDimension (periodic = True))).extrude(Up*lots, centered=True) – – – – both can both support both of them both of them testing testing Usage [we can
+  ) @ Translate(offset))
   save_STL ("usb_holder_wall", usb_holder_wall)
 
 @run_if_changed
 def make_battery_holder():
   battery_holder_outer_diameter = battery_holder_inner_diameter + printed_wall_thickness*2
   battery_holder_outer_solid = Face (Circle (Axes(Origin, Up), battery_holder_outer_diameter/2)).extrude (Up*battery_holder_length)
-  battery_holder_inner_solid = Face (Circle (Axes(Origin, Up), battery_holder_inner_diameter/2)).extrude (Up*battery_holder_length)
+  battery_holder_inner_solid = Face (Circle (Axes(Origin, Up), battery_holder_inner_diameter/2)).extrude (Up*lots, centered=True)
   battery_holder_wall = battery_holder_outer_solid.cut(battery_holder_inner_solid)
+  battery_holder_strut = Vertex(0,0,0).extrude(Left*printed_wall_thickness, centered=True).extrude(Down*printed_wall_thickness, Up*battery_holder_length).extrude(Back*(battery_holder_outer_diameter/2+10)).cut(battery_holder_inner_solid).cut(ankle_exclusion @ battery_transformation.inverse())
   
-  cr = 20
-  battery_holder_window_cut = Face (Circle (Axes(Point(0, -cr-3, battery_holder_length*0.6), Right), cr)).extrude (Right*lots, centered=True)
+  #cr = 16
+  #battery_holder_window_cut = Face (Circle (Axes(Point(0, -cr-3, battery_holder_length*0.6), Right), cr)).extrude (Right*lots, centered=True) @ Rotate(Up, degrees=35)
+  #battery_holder_wall = battery_holder_wall.cut(battery_holder_window_cut)
+   
+  cr = 22
+  close_points = []
+  far_points = []
+  for h in subdivisions(-cr, cr, amount=50):
+    w = math.cos(h/cr * math.pi/2)*cr/(math.pi/2)
+    radians = w / (battery_holder_outer_diameter/2)
+    t = math.tan(radians)
+    close_points.append (Point(1, t, h))
+    f = battery_holder_outer_diameter
+    far_points.append (Point(f, t*f, h))
+  half_cut = Face(BSplineSurface([close_points, far_points], BSplineDimension(degree = 1)))
+  half_close = Edge(BSplineCurve(close_points))
+  half_far = Edge(BSplineCurve(far_points))
+  close_face = Face(Wire(half_close, half_close @ Rotate(Left, degrees=180)))
+  far_face = Face(Wire(half_far, half_far @ Rotate(Left, degrees=180)))
+  #preview(half_cut, half_cut @ Rotate(Left, degrees=180), close_face, far_face)
+  battery_holder_window_cut = Solid(Shell(half_cut, half_cut @ Rotate(Left, degrees=180), close_face, far_face).complemented())
+  battery_holder_window_cut = battery_holder_window_cut @ Translate(Up*battery_holder_length*0.6)@ Rotate(Up, degrees=-45)
+  
+  #preview(battery_holder_window_cut)
   battery_holder_wall = battery_holder_wall.cut(battery_holder_window_cut)
+    
   
-  preview(usb_holder_wall, battery_holder_wall)
+  battery_holder_base = Compound(
+    Face (Circle (Axes(Origin, Up), battery_holder_outer_diameter/2)).extrude (Down*printed_wall_thickness),
+    Intersection(
+      Vertex(0,-2.5,0).extrude(Front*printed_wall_thickness, centered=True).extrude(Left*lots, centered=True).extrude(Up*usb_plug_height),
+      battery_holder_inner_solid,
+    )
+  )
+    
+  battery_holder_base = battery_holder_base.cut (usb_holder_cut)
   
-  save ("battery_holder_wall", battery_holder_wall)
-
-battery_transformation = Rotate(axis=Up, degrees = 135)@Translate (vector (-24, 15))
-boards_transformation = Rotate(axis=Up, degrees = 5)@Translate (vector (-0.8,1))
+  #preview(usb_holder_wall, battery_holder_wall, battery_holder_base)
+  save ("battery_holder_inner_solid", battery_holder_inner_solid)
+  save ("battery_holder_wall", Compound(battery_holder_wall, battery_holder_strut, battery_holder_base))
 
 @run_if_changed
+def make_combined():
+  combined_boards_holder = Compound (
+    perforated_columns,
+    ankle_column.cut(ankle_exclusion @ boards_transformation.inverse()).cut(battery_holder_inner_solid @ battery_transformation @ boards_transformation.inverse()),
+    board_slots,
+    base,
+  )
+  save ("combined_boards_holder", combined_boards_holder)
+  save_STL ("combined_boards_holder", combined_boards_holder)
+  
+@run_if_changed
 def arrange():
-  save ("boards_holder_placed", combined_boards_holder@boards_transformation)
-  save ("battery_holder_placed", Compound(usb_holder_wall, battery_holder_wall)@battery_transformation)
+  boards_holder_placed = combined_boards_holder@boards_transformation
+  battery_placed = Compound(usb_holder_wall, battery_holder_wall)@battery_transformation
+  everything_placed = Compound(ankle_wall, boards_holder_placed, battery_placed)
+  save ("everything_placed", everything_placed)
+  save_STL("everything_placed", everything_placed)
 
 
 preview (
@@ -367,8 +416,6 @@ preview (
     signal_wires,
     Edge(wall_curve),
   )@boards_transformation,
-  boards_holder_placed,
-  ankle_wall,
-  battery_holder_placed,
+  everything_placed,
 )
 
