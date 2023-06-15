@@ -98,23 +98,49 @@ all_edges = recursive_flatten ([hat, outline, eyelid, iris, triangles])
 slab = Vertex (0,224, 0).extrude (Back*12, centered = True).extrude (Right*18, centered = True).extrude (Down*1) @ Translate(Down*0.01)
 
 puncture = Face(Wire (
-  Origin,
-  Origin + Down*0.25,
-  Origin + Right*0.25,
+  Origin + Up*0.001,
+  Origin + Down*0.25 + Down*0.001,
+  Origin + Right*0.25 + Right*0.001,
 loop = True)).revolve (Up)
 
+puncture_positions = []
 punctures = []
+def add_puncture(p):
+  if all(p.distance(q) > 0.2 for q in puncture_positions):
+    puncture_positions.append (p)
+    punctures.append (puncture@Translate (p - Origin))
+
+grooves = []
 for wire in all_edges:
   for edge in wire.edges():
+    #preview(Loft([Wire(edge), Wire(edge).offset2D(0.01)]))
     c,a,b = edge.curve()
     l = c.length(a, b)
     print(l)
+    rows = [[],[],[]]
     for d in subdivisions(a, b, amount = round(l / 0.2)):
-      punctures.append (puncture@Translate (c.value(d) - Origin))
+      d = c.derivatives(d)
+      n = d.tangent @ Rotate(Up, degrees =90)
+      rows[0].append(d.position + Down*0.25)
+      rows[1].append(d.position + n * 0.25 + Up*0.0005)
+      rows[2].append(d.position - n * 0.25 + Up*0.0005)
+      
+      #punctures.append (puncture@Translate (c.value(d) - Origin))
+    caps = [Face(Wire([r[i] for r in rows], loop = True)) for i in [0, -1]]
+    sides = [Face (BSplineSurface(pair, BSplineDimension(degree = 1))) for pair in pairs(rows, loop=True)]
+    #preview(caps, sides)
+    add_puncture(c.value(a))
+    add_puncture(c.value(b))
+    grooves.append (Solid (Shell(caps + sides).complemented()))
 
+for groove in grooves:
+  print("B")
+  #preview(slab, puncture)
+  slab = slab.cut(groove)
 for puncture in punctures:
+  print("A")
+  #preview(slab, puncture)
   slab = slab.cut(puncture)
-  
 preview (all_edges, slab)
 
 #save("engraved_slab", slab)
