@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 
 wall_thickness = 0.6
@@ -87,7 +87,7 @@ def approximate_edges(edges):
   return result
 
 @run_if_changed
-def make_strong_filter_to_CPAP_wall():
+def strong_filter_to_CPAP_wall():
   filter_inset = vector(xy= strong_filter_airspace_wall_inset)
   center_to_corner = (strong_filter_size).projected_perpendicular (Up)/2
   center_to_inset = center_to_corner - filter_inset
@@ -172,11 +172,11 @@ def make_strong_filter_to_CPAP_wall():
   #preview (thick)
   #preview (half_thick)
   combined = Compound(half_thick, mirrored)
-  save ("strong_filter_to_CPAP_wall", combined@Translate (0, 0, strong_filter_max[2]))
+  return combined@Translate (0, 0, strong_filter_max[2])
 #preview(strong_filter_to_CPAP_wall)
 
 @run_if_changed
-def make_strong_filter_output_part():
+def strong_filter_output_part():
   '''inset = vector(strong_filter_airspace_wall_inset, strong_filter_airspace_wall_inset, 0)
   rect_min = strong_filter_min + inset
   rect_max = strong_filter_max - inset
@@ -193,7 +193,7 @@ def make_strong_filter_output_part():
   
   edge_walls = Difference (outer_box, [filter_cut_box, hole_cut_box])'''
   
-  save ("strong_filter_output_part", strong_filter_to_CPAP_wall)
+  return strong_filter_to_CPAP_wall
 
 
 
@@ -250,7 +250,7 @@ def make_fan_to_strong_filter():
   #preview(shell, Offset (shell, wall_thickness, ))
   solid = Offset (shell, wall_thickness, fill = True)
   
-  save ("fan_to_strong_filter_part", solid)
+  #save ("fan_to_strong_filter_part", solid)
   #save_STEP ("fan_to_strong_filter_part_pointy_shell", pointy_shell)
   #save_STEP ("fan_to_strong_filter_part", solid)
   preview (solid, strong_filter_output_part)
@@ -308,10 +308,8 @@ def make_strong_filter_output_part_FDM_printable():
   #preview(part, support, foo, bar, baz, Origin)
   combined = Compound (part, support)
   test = combined .intersection(HalfSpace(Point(14, 0, 0), Left)@transform)
-  save("strong_filter_output_part_FDM_printable", combined)
   save_STL("strong_filter_output_part_FDM_printable", combined)
-  save("strong_filter_output_part_FDM_printable_test", test)
   save_STL("strong_filter_output_part_FDM_printable_test", test)
+  preview(test)
   
 
-preview(strong_filter_output_part_FDM_printable_test)

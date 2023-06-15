@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 
 wall_thickness = 0.8
@@ -45,8 +45,9 @@ def fan_to_one_CPAP(offset_dir):
   outer = Loft(fan_hoops(wall_thickness)+couter, solid=True)
   return inner, outer
 
+fan_to_CPAP, fan_to_CPAP_interior = None, None
 @run_if_changed
-def make_fan_to_CPAP():
+def make_fan_to_CPAP_parts():
   i1, o1 = fan_to_one_CPAP(Left)
   i2, o2 = fan_to_one_CPAP(Right)
   jiggle = Right*0.02 + Back*0.03 + Up*0.0001
@@ -54,11 +55,11 @@ def make_fan_to_CPAP():
   #o2 = o2 @ Translate(jiggle)
   interior = Compound(i1, i2)
   wall = Compound(o1.cut(interior), o2.cut(interior))
-  save ("fan_to_CPAP", wall)
-  save ("fan_to_CPAP_interior", interior)
-  
+  global fan_to_CPAP, fan_to_CPAP_interior
+  fan_to_CPAP, fan_to_CPAP_interior = wall, interior
+
 @run_if_changed
-def make_support():
+def support():
   corner = Point(0,0,33)
   lots = 100
   uncut = Face(Wire([
@@ -69,7 +70,7 @@ def make_support():
     corner + Vector(0,-lots,-lots),
   ], loop = True)).extrude(Right*wall_thickness, centered=True)
   support = Intersection(uncut, fan_to_CPAP_interior)
-  save ("support", support)
+  return support
 
 @run_if_changed
 def make_plate():
@@ -100,10 +101,7 @@ def make_plate():
     plate.cut(hole),
     reinforcement.cut(hole),
   )
-  save ("plate", plate)
+  #save ("plate", plate)
   adapter_with_plate = Compound(fan_to_CPAP, plate, support)
-  save("adapter_with_plate", adapter_with_plate)
   save_STL("adapter_with_plate", adapter_with_plate)
-  
-
-preview(adapter_with_plate)
+  preview(adapter_with_plate)

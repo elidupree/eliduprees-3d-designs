@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
@@ -88,7 +88,7 @@ def control_points(height_fraction):
 
 
 @run_if_changed
-def make_solid():
+def solid():
   points = [
     control_points(fraction) for fraction in subdivisions(0.0, 1.0, amount=5)
   ]
@@ -116,10 +116,10 @@ def make_solid():
   solid = Solid(shell)
   solid = Difference(solid, HalfSpace(Origin+Up*object_height, Up))
   solid = Difference(solid, HalfSpace(Origin, Down))
-  save ("solid", solid)
+  return solid
 
 @run_if_changed
-def make_final():
+def cloth_mask_restrainer():
   
   hole_border_thickness = 2.2
   hole = (
@@ -133,9 +133,9 @@ def make_final():
   hole = Union(hole, hole @ Reflect(Right))
   final = solid if target_printing_system is Ender3 else Difference(solid, hole)
 
-  save ("cloth_mask_restrainer", final)
   save_STL("cloth_mask_restrainer", final, linear_deflection = 0.02, angular_deflection = 0.2)
-  
+  return final
+
 preview(cloth_mask_restrainer)
   
     

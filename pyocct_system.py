@@ -11,6 +11,7 @@ import os.path
 import json
 import traceback
 import io
+import builtins
 from OCCT.BOPAlgo import BOPAlgo_Options
 import OCCT.Exchange
 import OCCT.TopoDS
@@ -241,10 +242,10 @@ def _setup_serialization():
   geometry_placeholder = "Geometry"
   vars_placeholder = "vars"
   class_placeholder = "class"
-  
+
   def placeholder (name, data):
     return [unique_placeholder, name, data]
-  
+
   def placeholder_info (value):
     if type (value) is list and len(value) == 3 and value [0] == unique_placeholder:
       return value [1], value [2]
@@ -256,103 +257,102 @@ def _setup_serialization():
   class Serializer:
     def __init__(self, path_base):
       self.path_base = path_base
-    
+
     def relative_path (self, key_path):
       if any ("." in key for key in key_path):
         raise RuntimeError (f"We don't support serializing non-JSON values inside objects with keys that contain `.`, because we use the dot-separated key path as the file path and need it to be unique (Tried to serialize {value} at key path {key_path})")
       return ".".join (key_path)
     def serialized(self, value, key_path = []):
       value = unwrap (value)
-      
+
       if type (value) is dict:
         return {key: self.serialized (inner_value, key_path + [key]) for key, inner_value in value.items()}
-        
-      if type (value) is list:
+
+      if type (value) in [list, tuple]:
         return [self.serialized (inner_value, key_path + [str(key)]) for key, inner_value in enumerate (value)]
-      
+
       relative_path = self.relative_path (key_path + ["brep"])
       file_path = self.path_base + "." + relative_path
       if is_shape (value):
         wrap(value).write_brep (file_path)
         return placeholder (brep_placeholder, relative_path)
-      
+
       if isinstance (value, Curve):
         Edge (value).write_brep (file_path)
         return placeholder (geometry_placeholder, relative_path)
-      
+
       if isinstance (value, Surface):
-        Face (value).write_brep (file_path)  
+        Face (value).write_brep (file_path)
         return placeholder (geometry_placeholder, relative_path)
-      
+
       if isinstance (value, SerializeAsVars):
         return placeholder (vars_placeholder, (value.__class__.__name__, self.serialized (vars (value))))
-      
+
       for p in point2s:
         if isinstance (value, globals()[p]):
           value = wrap(value)
           return placeholder (class_placeholder, (p, (value[0], value[1])))
-      
+
       for p in point3s:
         if isinstance (value, globals()[p]):
           value = wrap(value)
           return placeholder (class_placeholder, (p, (value[0], value[1], value[2])))
-      
+
       if type (value) in [str, int, float, type (None)]:
         return value
-        
+
       raise RuntimeError(f"Couldn't serialize {value} ({type(value)})")
-  
+
   class Deserializer:
     def __init__(self, path_base, hasher):
       self.path_base = path_base
       self.hasher = hasher
-    
+
     def read_brep (self, relative_path):
       file_path = self.path_base + "." + relative_path
       with open (file_path, "rb") as file:
         self.hasher.update (file.read())
       return read_brep (file_path)
-    
+
     def deserialized(self, value):
       value = unwrap (value)
-      
+
       if type (value) is dict:
         return {key: self.deserialized (inner_value) for key, inner_value in value.items()}
-        
+
       if type (value) is list:
         name, data = placeholder_info (value)
         if name == brep_placeholder:
           return self.read_brep (data)
-          
+
         if name == geometry_placeholder:
           brep = self.read_brep (data)
           if isinstance (brep, Edge):
             return brep.curve() [0]
           if isinstance (brep, Face):
             return brep.surface()
-          raise RuntimeError ("unrecognized geometry in cache") 
-        
+          raise RuntimeError ("unrecognized geometry in cache")
+
         if name == vars_placeholder:
           class_name, data = data
           c = _cache_globals [class_name]
           result = c.__new__(c)
-          for key, value in self.deserialized (data).items():
-            setattr (result, key, value)
+          for k, v in self.deserialized (data).items():
+            setattr (result, k, v)
           return result
-        
+
         if name == class_placeholder:
           class_name, data = data
           c = _cache_globals [class_name]
           return c(*data)
-          
+
         return [self.deserialized (inner_value) for inner_value in value]
-      
+
       if type (value) in [str, int, float, type (None)]:
         return value
-      
+
       raise RuntimeError(f"Couldn't deserialize {value} ({type(value)})")
-      
-  
+
   def atomic_write_json (file_path, value):
     temp_path = file_path + ".temp"
     with open(temp_path, "w") as file:
@@ -360,11 +360,11 @@ def _setup_serialization():
       file.flush()
       os.fsync(file.fileno())
     os.replace (temp_path, file_path)
-    
+
   def serialize(path_base, value):
     with_placeholders = Serializer (path_base).serialized (value)
     atomic_write_json (path_base + ".json", with_placeholders)
-  
+
   def deserialize(path_base):
     hasher = hashlib.sha256()
     path = path_base + ".json"
@@ -372,15 +372,14 @@ def _setup_serialization():
       with_placeholders = json.load(file)
     with open(path, "rb") as file:
       hasher.update (file.read())
-      
+
     result = Deserializer (path_base, hasher).deserialized (with_placeholders)
     return result, hasher.hexdigest()
-    
-  for export in re.findall(r"[\w_]+", "serialize, deserialize, atomic_write_json"):
-    globals() ["_" + export] = locals() [export]
-    
 
-_setup_serialization()
+  return serialize, deserialize, atomic_write_json
+
+
+_serialize, _deserialize, _atomic_write_json = _setup_serialization()
 
 
 ##########################################################
@@ -388,28 +387,25 @@ _setup_serialization()
 ##########################################################
 
 
-_cache_globals = None
 _cache_directory = None
 _cache_info_by_global_key = {}
 
 _cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
-def _initialize_cache_system (cache_globals, cache_directory):
-  global _cache_globals
+def _initialize_cache_system (cache_directory):
   global _cache_directory
+
+  if _cache_directory is not None:
+    raise RuntimeError ("called initialize_pyocct_system more than once")
   
-  if type (cache_globals) is not dict:
-    raise RuntimeError ("called initialize_system without giving globals")
-  if _cache_globals is not None:
-    raise RuntimeError ("called initialize_system more than once")
-  
-  os.makedirs(cache_directory, exist_ok=True)
-  
-  _cache_globals = cache_globals
+  os.makedirs(os.path.join(cache_directory, "cache_info"), exist_ok=True)
+
   _cache_directory = cache_directory
 
 def _get_code (value):
+  if value is None:
+    return None, None
   stream = io.StringIO()
   try:
     dis.dis(value, file = stream)
@@ -421,58 +417,84 @@ def _get_code (value):
     return None, None
   return stream.getvalue(), code2
   
-def _globals_in_code(code):
+def _globals_loaded_by_code(code):
   def ignore_predefined_filter(match):
-    key = match.group(1)
-    return key not in globals() and not hasattr(_cache_globals["__builtins__"], key)
-  return (match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if ignore_predefined_filter(match))
+    name = match.group(1)
+    return name not in globals() and not hasattr(builtins, name)
+  return sorted(set(match.group (1) for match in re.finditer(r"LOAD_GLOBAL\s+\d+\s+\(([^\)]+)\)", code) if ignore_predefined_filter(match)))
+def _globals_stored_by_code(code):
+  return sorted(set(match.group (1) for match in re.finditer(r"STORE_GLOBAL\s+\d+\s+\(([^\)]+)\)", code)))
 
-class _OutputHashError(Exception):
+def _global_key(g, name):
+  """
+  :param g: The relevant dictionary-of-globals.
+  :param name: The key within that dictionary.
+  :return: A key to identify this pair within _cache_info_by_global_key.
+  """
+  return g["__name__"], name
+
+class _ChecksumOfGlobalError(Exception):
   pass
-def _output_hash (key, stack = []):
-  #print("output_hash called", key)
-  in_memory = _cache_info_by_global_key.get(key)
-  if key in stack:
-    raise _OutputHashError(f"the system currently can't handle recursive functions ({key}, {stack})")
-  stack = stack + [key]
+def _checksum_of_global (g, name, stack = []):
+  """
+  A checksum for a global value.
+  For functions, this hashes together both the code and all globals referenced by the function.
+  The result should never be the same for different values, although there's no hard guarantee of this,
+  and it depends on the assumption that globals never change after being checked.
+
+  :param g: The relevant dictionary-of-globals.
+  :param name: The key within that dictionary.
+  :param stack: Other names that led to this, just to prevent infinite recursion.
+  :return: A string checksum for g[name].
+  """
+  #print("checksum called", name)
+  if name in stack:
+    raise _ChecksumOfGlobalError(f"the system currently can't handle recursive functions ({key}, {stack})")
+
+  in_memory = _cache_info_by_global_key.get(_global_key(g, name))
   if in_memory is not None:
-    if "output_hash" not in in_memory:
-      raise _OutputHashError("tried to get output hash of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
-    return in_memory ["output_hash"]
-  
-  if key not in _cache_globals:
-    raise _OutputHashError(f"tried to check current value of `{key}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")  
-  value = _cache_globals [key]
-  
+    if "checksum" not in in_memory:
+      raise _ChecksumOfGlobalError("tried to get checksum of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
+    return in_memory ["checksum"]
+
+  if name not in g:
+    raise _ChecksumOfGlobalError(f"tried to check current value of `{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
+  value = g[name]
+
   code, code2 = _get_code (value)
   if code is None:
     result = repr(value)
     if " object at 0x" in result:
-      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
+      raise RuntimeError(f"Caching system made a cache dependent on a global ({name}: {result}) which contained a transient pointer; something needs to be fixed")
   else:
     #print(key, code)
     code2 = inspect.getsource (value)
     hasher = hashlib.sha256()
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
-    for key2 in _globals_in_code (code):
-      hasher.update (_output_hash (key2, stack).encode ("utf-8"))
+    for name2 in _globals_loaded_by_code (code):
+      hasher.update (_checksum_of_global (g, name2, stack + [name]).encode ("utf-8"))
     result = hasher.hexdigest()
         
   #print(f"Info: decided that output hash of {key} is {result}")
     
-  _cache_info_by_global_key [key] = {"output_hash": result}
+  _cache_info_by_global_key[_global_key(g, name)] = {"checksum": result}
   return result
 
-def _path_base (key):
-  return os.path.join (_cache_directory, key)
-def _info_path (key):
-  return _path_base (key) + ".cache_info"
+def _module_cache_path (g):
+  if g["__name__"] == "__main__":
+    return _cache_directory
+  else:
+    return os.path.join (_cache_directory, g["__name__"])
+def _cache_path_base (g, name):
+  return os.path.join (_module_cache_path (g), name)
+def _cache_info_path (g, name):
+  return _cache_path_base (g, name) + ".cache_info"
 
   
   
-def _stored_cache_info_if_valid (key, source_hash):
-  info_path = _info_path (key)
+def _stored_cache_info_if_valid (g, name, source_hash):
+  info_path = _cache_info_path (g, name)
   try:
     with open(info_path) as file:
       stored = json.load(file)
@@ -480,11 +502,11 @@ def _stored_cache_info_if_valid (key, source_hash):
         return None
       if stored["cache_system_source_hash"] != _cache_system_source_hash:
         return None
-      for key2, value in stored["accessed_globals"].items():
+      for name2, value in stored["accessed_globals"].items():
         try: 
-          if _output_hash (key2) != value:
+          if _checksum_of_global (g, name2) != value:
             return None
-        except _OutputHashError:
+        except _ChecksumOfGlobalError:
           return None
         
   except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
@@ -496,17 +518,19 @@ def _stored_cache_info_if_valid (key, source_hash):
 
 _generating_function_context = None
 
-def _load_cache (key):
-  path = os.path.join (_cache_directory, key)
+def _load_cache (g, name):
+  path = _cache_path_base (g, name)
   
-  value, hash = _deserialize(path)
-  _cache_info_by_global_key [key] = {"output_hash": hash}
-  _cache_globals [key] = value
+  value, checksum = _deserialize(path)
+  _cache_info_by_global_key [_global_key(g, name)] = {"checksum": checksum}
+  return value
 
 _last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
   
 def run_if_changed (function):
   function_name = function.__name__
+  g = function.__globals__
+  key = _global_key(g, function_name)
   print (f"### doing {function_name}() ###")
   
   global _last_finished_ric_function
@@ -517,20 +541,19 @@ def run_if_changed (function):
   
   code, code2 =_get_code (function)
   #print (code)
-  #print(list(_globals_in_code(code)))
+  #print(list(_globals_loaded_by_code(code)))
   #print (code2)
   hasher = hashlib.sha256()
   #hasher.update (code.encode ("utf-8")) #note: not included because it includes line numbers
   hasher.update (code2.encode ("utf-8"))
   source_hash = hasher.hexdigest()
 
-  stored_info = _stored_cache_info_if_valid (function_name, source_hash)
+  saved_cache_info = _stored_cache_info_if_valid (g, function_name, source_hash)
+  stored_globals = _globals_stored_by_code(code)
   
-  if stored_info is not None:
+  if saved_cache_info is not None:
     print(f"cached version seems valid, loading it")
-    _cache_info_by_global_key [function_name] = stored_info
-    for key in stored_info ["saved_globals"]:
-      _load_cache (key)
+    _cache_info_by_global_key [key] = saved_cache_info
   else:
     start_time = datetime.datetime.now()
     print(f"needs update, rerunning… ({start_time})")
@@ -540,11 +563,14 @@ def run_if_changed (function):
     cache_info = {
       "source_hash": source_hash,
       "cache_system_source_hash": _cache_system_source_hash,
-      "accessed_globals": {key: _output_hash(key) for key in _globals_in_code(code)},
-      "saved_globals": []
+      "accessed_globals": {name: _checksum_of_global(g, name) for name in _globals_loaded_by_code(code)},
     }
     _generating_function_context = cache_info
-    info_path = _info_path (function_name)
+    info_path = _cache_info_path (g, function_name)
+
+    for name in stored_globals:
+      if hasattr(g, name):
+        raise RuntimeError("run_if_changed functions should not modify pre-existing globals")
   
     # remove the inputs record first so that, in case of the process being terminated, we don't
     #   leave the new mismatched values alongside the old valid inputs;
@@ -556,39 +582,41 @@ def run_if_changed (function):
       pass
       
     ##do the main action!
-    function()
-    
+    result = function()
+
+    _serialize(_cache_path_base(g, function_name), result)
+    for name in stored_globals:
+      _serialize(_cache_path_base(g, name), g[name])
     _generating_function_context = None
     _cache_info_by_global_key [function_name] = cache_info
     _atomic_write_json (info_path, cache_info)
     
     finish_time = datetime.datetime.now()
     print(f"…done with {function_name}()! ({finish_time}, took {(finish_time - start_time)})")
+
+  # note: always reload the cache instead of using the one that was just generated in memory,
+  # to make sure it is properly canonicalized
+  result = _load_cache (g, function_name)
+  for name in stored_globals:
+    g[name] = _load_cache (g, name)
   _last_finished_ric_function = {"name": function_name + "()", "time": datetime.datetime.now()}
+  return result
 
 class _SaveByName:
   pass
-def save (key, value = _SaveByName):
-  # you can save a global by name:
-  if value is _SaveByName:
-    value = _cache_globals[key]
+def save (_key, _value = _SaveByName):
+  raise RuntimeError("save() is deprecated. Just return values from a run_if_changed function.")
 
-  _serialize (_path_base (key), value)
-  if _generating_function_context is not None:
-    _generating_function_context["saved_globals"].append (key)
+def save_BREP (name, shape):
+  shape.write_brep (os.path.join (_cache_directory, name)+".brep")
   
-  # note: always reload the cache instead of using the one that was just generated in memory,
-  # to make sure it is properly canonicalized
-  _load_cache (key)
-  
-  
-def save_STL (key, shape, **kwargs):
+def save_STL (name, shape, **kwargs):
   BuildMesh (shape, **kwargs)
-  SaveSTL_raw (_path_base (key) + ".stl", shape)
+  SaveSTL_raw (os.path.join (_cache_directory, name) + ".stl", shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
     
-def save_STEP (key, shape, **kwargs):
-  SaveSTEP_raw(_path_base (key) + ".step", shape)
+def save_STEP (name, shape, **_kwargs):
+  SaveSTEP_raw(os.path.join (_cache_directory, name) + ".step", shape)
   
   
 ########################################################################
@@ -609,13 +637,13 @@ def wire_svg_path(wire, color = "black"):
   parts.append(f'" />')
   return "".join(parts)
   
-def save_inkscape_svg(key, wires):
+def save_inkscape_svg(name, wires):
   wires = recursive_flatten(wires)
   colors = ["black", "red", "green", "blue"]
   contents = "\n".join([
     wire_svg_path(wire, color) for wire, color in zip(wires, itertools.cycle(colors))
   ])
-  filename = _path_base (key)+".svg"
+  filename = os.path.join (_cache_directory, name)+".svg"
   file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
@@ -705,7 +733,7 @@ def center_vertices_on_letter_paper(vertices):
 
 import argparse
 
-def initialize_system (cache_globals, argument_parser = None):
+def initialize_pyocct_system (argument_parser = None):
   if argument_parser is None:
     argument_parser = argparse.ArgumentParser()
   parser = argument_parser
@@ -717,7 +745,7 @@ def initialize_system (cache_globals, argument_parser = None):
   main_name = os.path.splitext(os.path.basename (__main__.__file__))[0]
   specific_cache_directory = os.path.join (parse_result.cache_directory, main_name)
   
-  _initialize_cache_system(cache_globals, specific_cache_directory)
+  _initialize_cache_system(specific_cache_directory)
   global skip_previews
   skip_previews = parse_result.skip_previews
   
@@ -737,7 +765,8 @@ def preview(*preview_shapes, width=2000, height=1500):
   if skip_previews:
     print (f"Skipping preview of: {preview_shapes}")
   else:
-    print (f"Previewing: {preview_shapes}")
+    caller = traceback.extract_stack()[-2]
+    print (f"Previewing ({os.path.basename(caller.filename)}:{caller.lineno}): {preview_shapes}")
     from OCCT.Visualization.QtViewer import ViewerQt
     v = ViewerQt(width=width, height=height)
     for shape in recursive_flatten (preview_shapes):

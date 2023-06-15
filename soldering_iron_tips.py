@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 receiver_length = 26
 receiver_socket_depth = 24 #tight: 23.4ish
@@ -39,6 +39,6 @@ phillips_head_head = Chamfer(phillips_head_head, [
   (e, 0.6) for e in phillips_head_head.edges() if e.bounds().max()[2] < 0.1-receiver_length and e.bounds().size()[0] < receiver_outer_diameter - 0.1
 ])
 
-save("phillips_head_head", phillips_head_head)
+#save("phillips_head_head", phillips_head_head)
 save_STL("phillips_head_head", phillips_head_head)
 preview(phillips_head_head)

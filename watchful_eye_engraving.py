@@ -3,7 +3,7 @@ import re
 from collections import deque
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 
 def SVG_path (text):
@@ -117,7 +117,7 @@ for puncture in punctures:
   
 preview (all_edges, slab)
 
-save("engraved_slab", slab)
+#save("engraved_slab", slab)
 save_STL("engraved_slab", slab)
 
 ####

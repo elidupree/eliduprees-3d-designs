@@ -36,7 +36,7 @@ print (type (globals()))
 import pyocct_system
 from pyocct_system import *
 print (sys.argv)
-initialize_system (globals())
+initialize_pyocct_system()
 
 def dependency_function():
   transitive_dependency
@@ -45,8 +45,8 @@ def dependency_function():
 @run_if_changed
 def test():
   dependency_function()
-  save ("test_result", g)
-print (test_result)
+  return g
+print (test)
 
 v1 = vector(1,2,3)
 v2 = vector(4,5,6)
@@ -58,13 +58,13 @@ import OCCT.gp
 def test2():
   result = Vertex(wrap(OCCT.gp).gp_Pnt(0, 0, 0))
   print ("before caching", repr (result))
-  save ("test2_result", result)
+  return result
 
 
-print("after caching", repr(test2_result))
-print(dir(test2_result))
-print(test2_result.ShapeType())
-print (isinstance((test2_result), (Shape)), unwrap(Shape))
+print("after caching", repr(test2))
+print(dir(test2))
+print(test2.ShapeType())
+print (isinstance((test2), (Shape)), unwrap(Shape))
 print("uhhh")
 s=Shape()
 print("uhhh")
@@ -76,7 +76,7 @@ import io
 wrap(BRepTools).Read_(Shape(), io.BytesIO(b""), BRep_Builder())'''
 
 @run_if_changed
-def cube_test():
+def cube():
   vertices = [
     Vertex (0, 0, 0),
     Vertex (0, 0, 1),
@@ -115,7 +115,7 @@ def cube_test():
   shell = Shell (faces)
   solid = Solid (shell)
   offset = thicken_solid(solid, [faces[0]], 0.2)
-  save ("cube", {
+  return {
     "vertices": vertices,
     "edges": edges,
     "wires": wires,
@@ -123,12 +123,12 @@ def cube_test():
     "shell": shell,
     "solid": solid,
     "offset": offset,
-  })
+  }
   
 print ("cube", cube)
 
 @run_if_changed
-def surface_test():
+def surface():
   surface = BSplineSurface(
     [[Point(0,0,0), Point(1,0,0)], [Point(0,1,0), Point(1,1,1)]],
     u = BSplineDimension (degree = 1),
@@ -136,13 +136,13 @@ def surface_test():
     weights = [[1,1], [1,1]]
   )
   
-  save ("surface", Face(surface))
+  return Face(surface)
 
 
 print(surface)
 
 @run_if_changed
-def flex_but_dont_twist_test():
+def flex_but_dont_twist():
   curve = BSplineCurve ([Origin, Point (20, 50, 0), Point (0, 100, 0)], BSplineDimension (degree = 2))
   length = curve.length()
   controls = []
@@ -170,9 +170,9 @@ def flex_but_dont_twist_test():
   zigzag = Face (Offset2D (zigzag_wire, radius))
   curve_face = Face (Offset2D (curve_wire, radius))
   result = Compound(zigzag, curve_face, struts).extrude (Up*10)
-  save ("flex_but_dont_twist", result)
   save_STL("flex_but_dont_twist_mesh", result)
   preview (result)
+  return result
 
 viewed = cube["offset"]
 #viewed = surface_test

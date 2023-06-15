@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
@@ -33,7 +33,7 @@ corners = [
 ]
 
 @run_if_changed
-def make_under_door_wire():
+def under_door_wire():
   points = []
   for a,b in loop_pairs (corners):
     delta = (b - a)
@@ -45,7 +45,7 @@ def make_under_door_wire():
       offset = 0 if index % 2 == 0 else zigzag_depth
       if index != 0:
         points.append (position + perpendicular*offset)
-  save ("under_door_wire", Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True)))))
+  return Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True))))
   
 def half_shape(dir, radius):
   e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
@@ -65,13 +65,13 @@ def half_shape(dir, radius):
 
 
 @run_if_changed
-def make_intake_half():
-  save("intake_half", half_shape (-1, elidupree_4in_intake_inner_radius))
+def intake_half():
+  return half_shape (-1, elidupree_4in_intake_inner_radius)
 
 
 @run_if_changed
-def make_output_half():
-  save("output_half", half_shape (1, elidupree_4in_output_outer_radius - wall_thickness))
+def output_half():
+  return half_shape (1, elidupree_4in_output_outer_radius - wall_thickness)
 
 
 

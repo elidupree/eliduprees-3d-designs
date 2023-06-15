@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 
 printed_wall_thickness = 0.8
@@ -96,13 +96,14 @@ ankle_rows = [
 ]
 
 @run_if_changed
-def make_ankle_wall():
+def ankle_wall():
   ankle_wall = wallify(ankle_rows, printed_wall_thickness, loop = False)
-  ankle_exclusion = Face (BSplineSurface(ankle_rows)).extrude (vector(-lots,-lots,0))@Scale(1.001)
-  preview(ankle_wall, ankle_exclusion)
-  save ("ankle_wall", ankle_wall)
-  save ("ankle_exclusion", ankle_exclusion)
   save_STL ("ankle_wall", ankle_wall)
+  return ankle_wall
+@run_if_changed
+def ankle_exclusion():
+  return Face (BSplineSurface(ankle_rows)).extrude (vector(-lots,-lots,0))@Scale(1.001)
+#preview(ankle_wall, ankle_exclusion)
     
 battery_transformation = Rotate(axis=Up, degrees = 135)@Translate (vector (-23, 16.5))
 boards_transformation = Rotate(axis=Up, degrees = 9)@Translate (vector (-3.3,3.5))
@@ -165,9 +166,8 @@ wall_curve_points = (
 )
 
 @run_if_changed
-def make_wall_curve():
-  wall_curve = BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
-  save ("wall_curve", wall_curve)
+def wall_curve():
+  return BSplineCurve (wall_curve_points, BSplineDimension (periodic = True))
 wall_curve_length = wall_curve.length()
 ankle_start_distance = wall_curve.distance (closest =a) - 14
 ankle_finish_distance = wall_curve.distance (closest =b) + 5
@@ -251,10 +251,10 @@ def perforated_column (start_distance, finish_distance, parity):
   return result
 
 @run_if_changed
-def make_perforated_columns ():
+def perforated_columns ():
   a = control_board_outside_distance - 3
   b = control_board_outside_distance + 3
-  perforated_columns = [
+  return [
     perforated_column (*pair, index % 2)
     for index, pair in enumerate (pairs (subdivisions (ankle_finish_distance, a, max_length = porthole_width)))
   ] + [
@@ -263,13 +263,14 @@ def make_perforated_columns ():
   ] + [
     natural_column (a, b),
   ]
-  ankle_column = natural_column (ankle_start_distance, ankle_finish_distance)
-  save ("perforated_columns", perforated_columns)
-  save ("ankle_column", ankle_column)
+
+@run_if_changed
+def ankle_column ():
+  return natural_column (ankle_start_distance, ankle_finish_distance)
   
 
 @run_if_changed
-def make_board_slots():
+def board_slots():
   bounding_solid = Face (Wire(wall_curve).offset2D(-printed_wall_thickness*0.9)).extrude (Up*controller_length)
   
   def board_slot(width, thickness, back, slot_depth):
@@ -285,19 +286,19 @@ def make_board_slots():
   
   controller_slot = board_slot (controller_width, controller_board_thickness, controller_back, controller_slot_depth)
   sensor_slots = [board_slot (sensor_width, sensor_board_thickness, back, sensor_slot_depth) for back in sensor_backs]
-  save ("board_slots", Compound (controller_slot, sensor_slots))
+  return Compound (controller_slot, sensor_slots)
     
 @run_if_changed
-def make_base():
+def base():
   solid = Face (wall_curve).extrude (Down*printed_wall_thickness)
   
   slot = Edge (
     Vertex (0, controller_back + 5, 0),
     Vertex (0, sensor_backs [-1] - 5, 0),
   ).extrude (Left*ports_slot_width, centered = True).extrude (Up*lots, centered = True)
-  save ("base", solid.cut (slot).cut(ankle_exclusion @ boards_transformation.inverse()))
+  return solid.cut (slot).cut(ankle_exclusion @ boards_transformation.inverse())
 
-
+usb_holder_wall, usb_holder_cut = None, None
 @run_if_changed
 def make_usb_holder():
   def row(height, pinch):
@@ -328,18 +329,20 @@ def make_usb_holder():
   #.extrude (Down*printed_wall_thickness)
   
   offset = vector(0, -2.5, 0)
-  
+
+  global usb_holder_wall, usb_holder_cut
   usb_holder_wall = wallify(rows, printed_wall_thickness, loop = True) @ Translate(offset)
   preview(usb_holder_wall)
-  save ("usb_holder_wall", usb_holder_wall)
-  save ("usb_holder_cut", Compound(
+  usb_holder_cut = Compound(
     Face(BSplineCurve(rows[0], BSplineDimension (periodic = True))).extrude(Up*lots),
-    Face(BSplineCurve([Point(p[0]*0.8, p[1]) for p in rows[0]], BSplineDimension (periodic = True))).extrude(Up*lots, centered=True) – – – – both can both support both of them both of them testing testing Usage [we can
-  ) @ Translate(offset))
+    Face(BSplineCurve([Point(p[0]*0.8, p[1]) for p in rows[0]], BSplineDimension (periodic = True))).extrude(Up*lots, centered=True)
+  ) @ Translate(offset)
   save_STL ("usb_holder_wall", usb_holder_wall)
 
+battery_holder_inner_solid, battery_holder_wall = None, None
 @run_if_changed
 def make_battery_holder():
+  global battery_holder_inner_solid, battery_holder_wall
   battery_holder_outer_diameter = battery_holder_inner_diameter + printed_wall_thickness*2
   battery_holder_outer_solid = Face (Circle (Axes(Origin, Up), battery_holder_outer_diameter/2)).extrude (Up*battery_holder_length)
   battery_holder_inner_solid = Face (Circle (Axes(Origin, Up), battery_holder_inner_diameter/2)).extrude (Up*lots, centered=True)
@@ -384,27 +387,26 @@ def make_battery_holder():
   battery_holder_base = battery_holder_base.cut (usb_holder_cut)
   
   #preview(usb_holder_wall, battery_holder_wall, battery_holder_base)
-  save ("battery_holder_inner_solid", battery_holder_inner_solid)
-  save ("battery_holder_wall", Compound(battery_holder_wall, battery_holder_strut, battery_holder_base))
+  battery_holder_wall = Compound(battery_holder_wall, battery_holder_strut, battery_holder_base)
 
 @run_if_changed
-def make_combined():
+def combined_boards_holder():
   combined_boards_holder = Compound (
     perforated_columns,
     ankle_column.cut(ankle_exclusion @ boards_transformation.inverse()).cut(battery_holder_inner_solid @ battery_transformation @ boards_transformation.inverse()),
     board_slots,
     base,
   )
-  save ("combined_boards_holder", combined_boards_holder)
   save_STL ("combined_boards_holder", combined_boards_holder)
+  return combined_boards_holder
   
 @run_if_changed
-def arrange():
+def everything_placed():
   boards_holder_placed = combined_boards_holder@boards_transformation
   battery_placed = Compound(usb_holder_wall, battery_holder_wall)@battery_transformation
   everything_placed = Compound(ankle_wall, boards_holder_placed, battery_placed)
-  save ("everything_placed", everything_placed)
   save_STL("everything_placed", everything_placed)
+  return everything_placed
 
 
 preview (

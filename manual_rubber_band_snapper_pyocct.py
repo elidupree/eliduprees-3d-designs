@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
@@ -31,7 +31,7 @@ handle_length = 90
 
 
 @run_if_changed
-def make():
+def manual_rubber_band_snapper():
   target_space_height = miss_leeway*2 + band_width
   side_struts_height = strut_thickness*2 + target_space_height
   side_struts_outer_wire = Wire(
@@ -174,11 +174,11 @@ def make():
   handle = handle.intersection(HalfSpace(handle_base_point + handle_perpendicular*handle_radius/2, -handle_perpendicular))
   handle = Fillet(handle, [(e, 1.5) for e in handle.edges() if e.bounds().max()[2] > 1])
   
-    
+
   solid = Compound(side_struts, cylinder_etc, cylinder_etc @ Reflect(Front), handle)
 
-  save ("manual_rubber_band_snapper", solid)
   save_STL("manual_rubber_band_snapper", solid)
+  return solid
   
   
     

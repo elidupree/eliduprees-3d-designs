@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 
 printed_wall_thickness = 0.6
@@ -175,12 +175,10 @@ def make_fan_bracket():
     catch,
     catch @ Mirror(Right) @ Translate(Right*peg_length_without_catches)
   )
-  
-  save("fan_bracket", bracket)
+
   save_STL("fan_bracket", bracket)
   preview(bracket)
-  
-  save("fan_bracket_peg", peg)
+
   save_STL("fan_bracket_peg", peg)
   preview(peg)
 

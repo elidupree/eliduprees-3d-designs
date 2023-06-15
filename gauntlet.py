@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 plate_thickness = 1.0
 lots = 100

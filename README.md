@@ -15,7 +15,7 @@ Most of the files here describe individual projects. You can recognize these fil
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 ```
 
 To use `some_file.py`, you run the command
@@ -53,21 +53,21 @@ Since my process is "change the code and rerun it repeatedly", I can't accept mu
 
 ```python
 @run_if_changed
-def make_complex_model():
-  complex_model = expensive_operations()
-  save("complex_model", complex_model)
+def complex_model():
+  some_model = expensive_operations()
+  return some_model
 ```
 
-`@run_if_changed` is a tricky little decorator that literally just runs the function being decorated – but only if it hasn't changed since the last time it was run, according to the caches that are stored in the `cache-directory`. In fact, it even decompiles the function, so that it can rerun the function if you changed any of the global variables referenced within the function.
+`@run_if_changed` is a tricky little decorator that literally just runs the function being decorated – but only if it hasn't changed since the last time it was run, according to the caches that are stored in the `cache-directory`. After it returns, the return value is serialized into the cache, and the global variable `complex_model` holds the return value rather than the function. (If the function didn't run that time, it uses the stored version.)
 
-`save` is a magic function that saves a value as a global variable, and also saves it into the cache, so that it will be available in the global context on all future runs, even if `@run_if_changed` didn't rerun that particular function that time.
+`@run_if_changed` even decompiles the function, so that it can rerun the function if you changed any of the global variables referenced within the function. However, it can get confused if you _mutate_ global variables, and it treats a whole module as a single unit (if you change anything in a module, it reruns any function that referenced that module by name, even if it only used a different item from that module). To work around this, you can use `from module import item` instead, so only the item is referenced by name, not the module.
 
 Only certain types can be serialized:
 * the standard Python primitives `str`, `int`, `float`, `None`
 * the OpenCASCADE shape types, `Vertex`, `Edge`, `Wire`, `Face`, `Shell`, `Solid`
 * the OpenCASCADE `Geom` types, `Point`, `Vector`, `Direction`, `Curve`, `Surface`, and their 2D equivalents
 * subclasses of `SerializeAsVars`
-* lists and dictionaries of serializable types
+* lists, tuples, and dictionaries of serializable types
 
 
 ## License?

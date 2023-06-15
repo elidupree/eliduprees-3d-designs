@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-initialize_system (globals())
+initialize_pyocct_system()
 
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
@@ -37,7 +37,6 @@ def make_hepa_to_4in():
     + [elidupree_4in_wire(offset) for offset in subdivisions(-20, 0, amount = 5)]
   )
   solid = Loft(sections, solid=True)
-  save ("hepa_to_4in", solid)
   save_STL("hepa_to_4in", solid)
   
   
@@ -78,8 +77,7 @@ def make_hepa_to_nothing():
   right_pegs = Compound(center_peg, corner_peg, corner_peg @ Mirror(Back))
   
   solid = Compound(wall, plate, right_pegs, right_pegs@Mirror(Left))
-  
-  save ("hepa_to_nothing", solid)
+
   save_STL("hepa_to_nothing", solid)
   preview(solid)
   
@@ -123,8 +121,7 @@ def make_hepa_to_nothing_clips():
   preview(wire)
   
   solid = Face(wire).extrude(Up*10)'''
-  
-  save ("hepa_to_nothing_clips", solid)
+
   save_STL ("hepa_to_nothing_clips", solid)
   
   preview(solid)
@@ -185,8 +182,7 @@ def make_flat_wall_to_cpaps():
     cross_plate.cut(cuts),
     block.cut(cuts),
     )
-    
-  save ("flat_wall_to_cpaps", adapter)
+
   save_STL ("flat_wall_to_cpaps", adapter)
   
   preview(adapter)
