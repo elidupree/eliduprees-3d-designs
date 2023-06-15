@@ -9,14 +9,14 @@ def reflected (components):
 def make_FDM_printable_lower_side():
   lower_side = Compound ([
     intake_wall,
-    intake_support,
+    #intake_support,
     intake_fins,
   ])
   #preview(lower_side)
   save("lower_side", lower_side)
   save_STL("lower_side", lower_side)
   
-  save_STL("non_intake_side", non_intake_side)
+  #save_STL("non_intake_side", non_intake_side)
 
 
 @run_if_changed
@@ -28,7 +28,7 @@ def make_FDM_printable_headband():
   + reflected ([
     temple_block,
     temple_extender,
-    upper_side_rim,
+    #upper_side_rim,
     temple_knob,
   ]))
   save("headband_final", headband_final)
@@ -36,7 +36,7 @@ def make_FDM_printable_headband():
 
 preview (
   lower_side,
-  non_intake_side,
+  #non_intake_side,
   headband_final,
   neck_curve,
   chin_cloth_lip,
@@ -44,6 +44,7 @@ preview (
   Edge(shield_source_curve),
   Edge(shield_top_curve.curve),
   shield_source_points,
+  side_shield_lip_points,
   #eye_lasers,
   #LoadSTL ("private/face5_for_papr.stl"),
   
@@ -83,8 +84,8 @@ preview (
   temple_top_pegs,
   temple_block,
   top_rim,
-  upper_side_rim,
-  upper_side_rim@Reflect(Right),
+  #upper_side_rim,
+  #upper_side_rim@Reflect(Right),
   
   lower_side_rim,
   lower_side_extra_lip,

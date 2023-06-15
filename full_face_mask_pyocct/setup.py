@@ -72,6 +72,9 @@ intake_support_thickness = 4
 intake_middle_y = -50
 intake_middle_z = -100
 
+# When we want to fuse a piece of fabric to the plastic, we add an extra lip that can be squished by the clothes iron.
+fusion_lip_width = 4
+
 
 lots = 500
 

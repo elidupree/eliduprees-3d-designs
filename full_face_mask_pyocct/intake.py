@@ -14,25 +14,25 @@ def make_intake_reference_curve():
   intake_third_source_sample = ShieldSample(intersecting = RayIsh(Point(
     0,
     shield_back + elastic_holder_depth + shield_glue_face_width,
-    intake_middle_on_build_surface_shield_curve.position[2] + intake_flat_width/2
+    headband_top, #intake_middle_on_build_surface_shield_curve.position[2] + intake_flat_width/2
   ), Right))
 
   intake_source_direction_1 = Direction(intake_middle_on_build_surface_shield_curve.position, intake_third_source_sample.position)
   intake_source_direction_2 = Direction(air_target, intake_middle_on_build_surface_shield_curve.position)
 
   intake_curve_source_points = [
-    air_target + intake_source_direction_1 * intake_flat_width*1.4,
-    air_target - intake_source_direction_1 * intake_flat_width,
+    intake_third_source_sample.position,
+    intake_middle_on_build_surface_shield_curve.position - intake_source_direction_1 * intake_flat_width*0.8,
   ]
   intake_curve_source_surface = BSplineSurface([
-      [point + intake_source_direction_2* 50 for point in intake_curve_source_points],
-      [point + intake_source_direction_2*150 for point in intake_curve_source_points],
+      [point - intake_source_direction_2*50 for point in intake_curve_source_points],
+      [point + intake_source_direction_2*50 for point in intake_curve_source_points],
     ],
     BSplineDimension (degree = 1),
     BSplineDimension (degree = 1),
   )
 
-  #p review(shield_surface, intake_curve_source_surface)
+  preview(shield_surface, intake_curve_source_surface, shield_top_curve.curve)
   save ("intake_reference_curve", ShieldCurveInPlane(intake_curve_source_surface))
 
 
@@ -206,7 +206,7 @@ def augment_intake_sample(sample):
   ).position
 
 
-@run_if_changed
+#@run_if_changed
 def make_intake_support():
   intake_support_hoops = []
   intake_support_exclusion_hoops = []
@@ -302,4 +302,4 @@ def make_intake_peripherals():
     
   
 
-#p review(intake_solid, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))
+#p review(intake_wall, intake_support, intake_fins, Compound([Vertex(a) for a in intake_shield_lip]), BSplineCurve(intake_cloth_lip))

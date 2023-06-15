@@ -287,7 +287,7 @@ def make_temple_knob():
 upper_side_rim_bottom = 47
 
 
-@run_if_changed
+#@run_if_changed
 def make_upper_side_rim():
   upper_side_rim_hoops = []
   top_curve_start = putative_eyeball [2] + 15
@@ -323,7 +323,7 @@ def make_upper_side_rim():
   shield_cut = Face (shield_surface).intersection (HalfSpace (Point (10, 0, 0), Right)).intersection (HalfSpace (temple, Back)).extrude (Right*lots)
 
   upper_side_rim = upper_side_rim.cut(shield_cut)
-  upper_side_rim = upper_side_rim.cut(intake_support_exclusion)
+  #upper_side_rim = upper_side_rim.cut(intake_support_exclusion)
   
   save ("upper_side_rim", upper_side_rim)
   
