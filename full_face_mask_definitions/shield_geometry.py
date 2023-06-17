@@ -2,7 +2,7 @@ import math
 
 from pyocct_system import *
 from full_face_mask_definitions.constants import glasses_point, TowardsFrontOfHead, putative_chin, putative_eyeball
-from full_face_mask_definitions.headband_shape import headband_curve, headband_top
+from full_face_mask_definitions.headband_geometry import headband_curve, headband_top
 
 del Front, Back
 
