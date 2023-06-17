@@ -684,10 +684,14 @@ def setup(wrap, unwrap, do_export, override_attribute):
     result = Bounds()
     BRepBndLib.BRepBndLib.Add_(self, result)
     return result
+
+  def write_brep(self, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    Exchange.ExchangeBasic.write_brep (self, path)
   
   simple_override(Shape, "bounds", shape_bounds)
   simple_override(Shape, "__matmul__", lambda self, matrix: (BRepBuilderAPI.BRepBuilderAPI_Transform if isinstance (matrix, Transform) else BRepBuilderAPI.BRepBuilderAPI_GTransform)(self, matrix).Shape())
-  simple_override(Shape, "write_brep", lambda self, path: Exchange.ExchangeBasic.write_brep (self, path))
+  simple_override(Shape, "write_brep", write_brep)
   simple_override(Shape, "clone", lambda self: BRepBuilderAPI.BRepBuilderAPI_Copy (self).Shape())
   simple_override(Shape, "extrude", lambda self, *args, **kwargs: Extrude (self, *args, **kwargs))
   simple_override(Shape, "cut", lambda self, *args, **kwargs: Difference(self, *args, **kwargs))

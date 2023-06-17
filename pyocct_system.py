@@ -304,7 +304,8 @@ def _setup_serialization():
       raise RuntimeError(f"Couldn't serialize {value} ({type(value)})")
 
   class Deserializer:
-    def __init__(self, path_base, hasher):
+    def __init__(self, g, path_base, hasher):
+      self.globals = g
       self.path_base = path_base
       self.hasher = hasher
 
@@ -335,7 +336,7 @@ def _setup_serialization():
 
         if name == vars_placeholder:
           class_name, data = data
-          c = _cache_globals [class_name]
+          c = self.globals [class_name]
           result = c.__new__(c)
           for k, v in self.deserialized (data).items():
             setattr (result, k, v)
@@ -343,7 +344,7 @@ def _setup_serialization():
 
         if name == class_placeholder:
           class_name, data = data
-          c = _cache_globals [class_name]
+          c = self.globals [class_name]
           return c(*data)
 
         return [self.deserialized (inner_value) for inner_value in value]
@@ -355,6 +356,7 @@ def _setup_serialization():
 
   def atomic_write_json (file_path, value):
     temp_path = file_path + ".temp"
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(temp_path, "w") as file:
       json.dump (value, file)
       file.flush()
@@ -365,7 +367,7 @@ def _setup_serialization():
     with_placeholders = Serializer (path_base).serialized (value)
     atomic_write_json (path_base + ".json", with_placeholders)
 
-  def deserialize(path_base):
+  def deserialize(g, path_base):
     hasher = hashlib.sha256()
     path = path_base + ".json"
     with open(path) as file:
@@ -373,7 +375,7 @@ def _setup_serialization():
     with open(path, "rb") as file:
       hasher.update (file.read())
 
-    result = Deserializer (path_base, hasher).deserialized (with_placeholders)
+    result = Deserializer (g, path_base, hasher).deserialized (with_placeholders)
     return result, hasher.hexdigest()
 
   return serialize, deserialize, atomic_write_json
@@ -521,7 +523,7 @@ _generating_function_context = None
 def _load_cache (g, name):
   path = _cache_path_base (g, name)
   
-  value, checksum = _deserialize(path)
+  value, checksum = _deserialize(g, path)
   _cache_info_by_global_key [_global_key(g, name)] = {"checksum": checksum}
   return value
 

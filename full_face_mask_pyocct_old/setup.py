@@ -122,7 +122,9 @@ shield_source_curve_points = [
 
 shield_source_curve_points = shield_source_curve_points + [v@Reflect (Right) for v in reversed (shield_source_curve_points[:-1])]
 shield_source_curve_points.reverse()
-save ("shield_source_curve", Interpolate (shield_source_curve_points, tangents = [Vector (temple_direction)@Reflect (Right), Vector (temple_direction)@Reflect (Origin)]))
+@run_if_changed
+def shield_source_curve():
+  return Interpolate (shield_source_curve_points, tangents = [Vector (temple_direction)@Reflect (Right), Vector (temple_direction)@Reflect (Origin)])
 
 
 shield_source_curve_length = shield_source_curve.length()
@@ -136,20 +138,24 @@ def scaled_shield_source_curve(z):
     center = shield_focal_point
   ) for pole in shield_source_curve.poles()]
 
-save ("shield_surface", BSplineSurface (
+@run_if_changed
+def shield_surface():
+  return BSplineSurface (
   [
     scaled_shield_source_curve (rim_bottom_z - 5),
     scaled_shield_source_curve (20),
   ],
   u = BSplineDimension (degree = 1),
   v = BSplineDimension (knots = shield_source_curve.knots(), multiplicities = shield_source_curve.multiplicities())
-))
-    
-save ("shield_source_points", Compound ([Vertex (point) for point in shield_source_curve_points]))
+)
+
+@run_if_changed
+def shield_source_points():
+  return Compound ([Vertex (point) for point in shield_source_curve_points])
 
 print (f"Shield position directly in front of chin: {shield_surface.intersections (Line(putative_chin, Back)).point()} (should be equal to {shield_chin_peak})")
 
-# Now that we've defined the shield surface itself, we can define a system for taking samples from it, with useful extra date of like the normal to the surface and such
+# Now that we've defined the shield surface itself, we can define a system for taking samples from it, with useful extra data like the normal to the surface and such.
 
 class ShieldSample(SerializeAsVars):
   def __init__(self, *, parameter = None, closest = None, intersecting = None, which = None):
@@ -232,11 +238,11 @@ class ShieldCurveInPlane(SerializeAsVars):
 
 
 @run_if_changed
-def make_shield_top_curve():
-  save ("shield_top_curve", ShieldCurveInPlane(Plane(Point (0, 0, headband_top), Up)))
-  
+def shield_top_curve():
+  return ShieldCurveInPlane(Plane(Point (0, 0, headband_top), Up))
+
 @run_if_changed
-def make_shield_cross_sections():
+def shield_cross_sections():
   shield_top_full_wire = Wire (Edge (shield_top_curve.curve), Edge (shield_top_curve.EndPoint(), shield_top_curve.StartPoint()))
   shield_region = HalfSpace (Point (0, shield_back, 0), Back)
   shield_cross_section = Face (shield_top_full_wire)
@@ -246,10 +252,10 @@ def make_shield_cross_sections():
     full_section = shield_cross_section@Scale (1.0 - offset_fraction)@Translate (Vector(Origin,shield_focal_point)*offset_fraction)
     shield_cross_sections.append(Intersection(full_section, shield_region))
     
-  save ("shield_cross_sections", Compound (shield_cross_sections))
+  return Compound (shield_cross_sections)
 
-  
-  
+
+# preview(shield_surface, putative_chin, RayIsh(putative_chin, Back, length=40), RayIsh(putative_chin, Right, length=40))
 
 save ("glasses_vertex", Vertex (glasses_point))
 diff = Direction (glasses_point - shield_focal_point)
