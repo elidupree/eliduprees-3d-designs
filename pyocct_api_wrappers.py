@@ -21,7 +21,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   #import pkgutil
   #import OCCT
   #modules = [module.name for module in pkgutil.iter_modules(OCCT.__path__)]
-  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepFilletAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools,STEPControl")
+  modules = re.findall(r"[\w_\.]+", "Exchange, TopoDS, TopExp, gp, TopAbs, BOPTools, BRep, BRepMesh, BRepPrimAPI, BRepAlgoAPI, BRepFilletAPI, BRepBuilderAPI, BRepTools, BRepOffset, BRepOffsetAPI, BRepCheck, BRepLib, Geom, GeomAbs, GeomAPI, GeomLProp, TColStd, TColgp, , ShapeAnalysis, ShapeUpgrade, Message, ChFi2d, StlAPI, Bnd, BRepBndLib, GeomAdaptor,GCPnts,RWStl, IntTools,STEPControl")
   for name in modules:
     globals() [name] = wrap (importlib.import_module ("OCCT."+name))
     
@@ -739,6 +739,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
   simple_override(Vertex, "point", lambda self: BRep.BRep_Tool.Pnt_(self))
   simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.point(), index))
   simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
+  simple_override(Wire, "orient_edges", lambda self: RuntimeError("OrientEdgesOnWire_ doesn't work (apparent bug in OCCT?)"))#BOPTools.BOPTools_AlgoTools.OrientEdgesOnWire_(self))
   simple_override(Face, "outer_wire", lambda self: BRepTools.BRepTools.OuterWire_(self))
   simple_override(Face, "surface", lambda self: BRep.BRep_Tool.Surface_(self))
   
