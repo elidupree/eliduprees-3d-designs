@@ -178,30 +178,3 @@ class ShieldCurveInPlane(SerializeAsVars):
 @run_if_changed
 def shield_top_curve():
     return ShieldCurveInPlane(Plane(Point(0, 0, headband_top), Up))
-
-
-# To help analyze the reflection properties of the surface, we draw sight lines – provocatively called "eye lasers" – to see the locations from which light could unpleasantly reflect off the shield into the eye.
-@run_if_changed
-def eye_lasers():
-    lasers = []
-    for x in subdivisions(-2, 2, amount=10):
-        for z in subdivisions(-2, 2, amount=10):
-            direction = Direction (x, 1, z)
-            try:
-                sample = ShieldSample(intersecting=RayIsh(putative_eyeball, direction), which=0)
-            except IndexError:
-                # if it doesn't hit the shield, you couldn't see in that direction anyway
-                continue
-
-            reflected_direction = direction @ Reflect(sample.normal)
-            # add a laser for direct vision
-            lasers.append(Wire(putative_eyeball, sample.position, sample.position + direction * 50))
-
-            try:
-                sample2 = ShieldSample(intersecting=RayIsh(sample.position + 0.1*reflected_direction, reflected_direction), which=0)
-            except IndexError:
-                # if it doesn't hit the shield, it wasn't a problematic reflection
-                continue
-            # add a laser for the problematic reflection
-            lasers.append(Wire(putative_eyeball, sample.position, sample2.position, sample2.position + reflected_direction * 50))
-    return Compound(lasers)
