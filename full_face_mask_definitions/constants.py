@@ -21,5 +21,5 @@ glasses_point = Point(66, 0, -10)
 # The putative source of sight, used for determining where reflections will be visible.
 putative_eyeball = Point(35, -15, -35)
 
-# The location the air should be directed towards, intended to be just under the nose.
-air_target = putative_chin + vector(0, 10, 40)
+# The location the air should be directed towards, intended to be between the nose and mouth, maybe favoring the mouth a bit.
+air_target = putative_chin + vector(0, 10, 33)

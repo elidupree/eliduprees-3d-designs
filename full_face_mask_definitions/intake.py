@@ -8,7 +8,7 @@ from pyocct_system import *
 
 # The intake wants to have a surface that directs air towards air_target. It's convenient if that surface is the build surface, so we make a plane for that.
 # To decide the plane, first, we define an "intake middle" point, which is defined to lie on the shield surface, and will define the build plane:
-intake_middle_position = ShieldSample(intersecting=RayIsh(Point(0, -54, -100), Right)).position
+intake_middle_position = ShieldSample(intersecting=RayIsh(Point(0, -50, -100), Right)).position
 
 # Two degrees of freedom are removed by air_target and intake_middle. To remove the third degree of freedom, we need to make sure that the FDM print is capable of making a strut that goes all the way up to the headband, while still being a good thickness for strength.
 intake_build_surface_top_point = ShieldSample(
@@ -49,9 +49,11 @@ def intake_middle():
 
 
 # We explicitly define the centers of the circles at the far CPAP connector end.
-CPAP_back_center_1 = Point(72, shield_back_y - 40, -92)
-CPAP_back_center_2 = CPAP_back_center_1 + Vector(0, 4, -32)
+CPAP_back_center_1 = Point(72, shield_back_y - 40, -100)
+CPAP_back_center_2 = CPAP_back_center_1 + Vector(22, 8, -16)
 CPAP_back_centers = [CPAP_back_center_1, CPAP_back_center_2]
+
+print(f"CPAP center distance: {CPAP_back_center_1.distance(CPAP_back_center_2)} (experimentally, only needs to be around 28)")
 
 # The air will be directed towards the air target – but we don't mean it should all converge to an infinitesimal point. We will direct all the air in the same *direction*, which should naturally be the direction from the *middle* of the intake towards the air target.
 towards_air_target = Direction(intake_middle.position, air_target)
