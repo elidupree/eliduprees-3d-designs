@@ -34,6 +34,7 @@ print(f"Headband circumference: {headband_curve.length()}")
 headband_width = 8
 headband_top = 6.8 # for historical reasons
 headband_bottom = headband_top - headband_width
+forehead_center_distance_on_headband_curve = headband_curve.distance(closest = Origin)
 
 def extrude_flat_shape_to_headband(shape):
     """

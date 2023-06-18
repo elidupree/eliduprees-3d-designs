@@ -2,6 +2,11 @@ import math
 from pyocct_system import *
 del Front, Back
 
+min_wall_thickness = 0.8
+
+CPAP_outer_radius = 21.5/2
+CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
+
 # We need a few reference locations. The choice of where to put "0" is completely arbitrary in the front-back and up-down dimensions (for left-right, the natural 0 is the center of the face). Since there is no obvious reason to prefer one over the other, we yield to historical reasons, where the origin is a particular point on the forehead.
 
 # The names "Front" and "Back" are confusing, because typically the "front of the model" means the side you are looking at, but here, if your head is oriented as it is in the mask model, you would be looking at the back of your head. So we define these instead:

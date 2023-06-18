@@ -391,6 +391,7 @@ _serialize, _deserialize, _atomic_write_json = _setup_serialization()
 
 _cache_directory = None
 _cache_info_by_global_key = {}
+_global_location_by_deserialized_object_id = {}
 
 _cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
@@ -450,10 +451,12 @@ def _checksum_of_global (g, name, stack = []):
   :return: A string checksum for g[name].
   """
   #print("checksum called", name)
-  if name in stack:
+  key = _global_key(g, name)
+  if key in stack:
     raise _ChecksumOfGlobalError(f"the system currently can't handle recursive functions ({key}, {stack})")
 
-  in_memory = _cache_info_by_global_key.get(_global_key(g, name))
+  #print(_global_key(g, name))
+  in_memory = _cache_info_by_global_key.get(key)
   if in_memory is not None:
     if "checksum" not in in_memory:
       raise _ChecksumOfGlobalError("tried to get checksum of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
@@ -464,10 +467,13 @@ def _checksum_of_global (g, name, stack = []):
   value = g[name]
 
   code, code2 = _get_code (value)
-  if code is None:
+  if id(value) in _global_location_by_deserialized_object_id:
+    g2, name2 = _global_location_by_deserialized_object_id[id(value)]
+    result = _checksum_of_global (g2, name2, stack + [key])
+  elif code is None:
     result = repr(value)
     if " object at 0x" in result:
-      raise RuntimeError(f"Caching system made a cache dependent on a global ({name}: {result}) which contained a transient pointer; something needs to be fixed")
+      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
   else:
     #print(key, code)
     code2 = inspect.getsource (value)
@@ -475,12 +481,13 @@ def _checksum_of_global (g, name, stack = []):
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
     for name2 in _globals_loaded_by_code (code):
-      hasher.update (_checksum_of_global (g, name2, stack + [name]).encode ("utf-8"))
+      g2 = vars(sys.modules[value.__module__])
+      hasher.update (_checksum_of_global (g2, name2, stack + [key]).encode ("utf-8"))
     result = hasher.hexdigest()
         
   #print(f"Info: decided that output hash of {key} is {result}")
     
-  _cache_info_by_global_key[_global_key(g, name)] = {"checksum": result}
+  _cache_info_by_global_key[key] = {"checksum": result}
   return result
 
 def _module_cache_path (g):
@@ -525,6 +532,7 @@ def _load_cache (g, name):
   
   value, checksum = _deserialize(g, path)
   _cache_info_by_global_key [_global_key(g, name)] = {"checksum": checksum}
+  _global_location_by_deserialized_object_id[id(value)] = (g, name)
   return value
 
 _last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
