@@ -23,7 +23,7 @@ temple_block_end_distance = temple_block_start_distance - temple_block_length
 
 
 @run_if_changed
-def temple_block_uncut():
+def temple_block():
     start_derivatives = headband_curve.derivatives(distance=temple_block_start_distance)
     hoops = []
     n = -start_derivatives.normal

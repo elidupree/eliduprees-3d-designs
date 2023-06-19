@@ -1,17 +1,19 @@
 import math
 
-from full_face_mask_definitions.constants import air_target, min_wall_thickness, CPAP_outer_radius
-from full_face_mask_definitions.headband_geometry import headband_top
+from full_face_mask_definitions.constants import air_target, min_wall_thickness, CPAP_outer_radius, putative_eyeball, \
+    TowardsFrontOfHead
+from full_face_mask_definitions.headband import temple_distance_along_headband
+from full_face_mask_definitions.headband_geometry import headband_top, headband_curve, headband_bottom
 from full_face_mask_definitions.shield_geometry import ShieldSample, shield_back_y, ShieldCurveInPlane, CurveSample, \
     shield_surface
 from pyocct_system import *
 
-# The intake wants to have a surface that directs air towards air_target. It's convenient if that surface is the build surface, so we make a plane for that.
-# To decide the plane, first, we define an "intake middle" point, which is defined to lie on the shield surface, and will define the build plane:
+# The intake wants to have a surface that directs air towards air_target, so we make a plane for that. We used to make this also be the build plane for FDM printing, but that doesn't work with the current design.
+# To decide the plane, first, we define an "intake middle" point, which is defined to lie on the shield surface, and will define the intake plane:
 intake_middle_position = ShieldSample(intersecting=RayIsh(Point(0, -50, -100), Right)).position
 
-# Two degrees of freedom are removed by air_target and intake_middle. To remove the third degree of freedom, we need to make sure that the FDM print is capable of making a strut that goes all the way up to the headband, while still being a good thickness for strength.
-intake_build_surface_top_point = ShieldSample(
+# Two degrees of freedom are removed by air_target and intake_middle. The third degree of freedom is quite arbitrary. For historical reasons, we make the plane cover a particular point on the headband:
+intake_plane_top_point = ShieldSample(
     intersecting=RayIsh(Point(0, shield_back_y + 10, headband_top), Right)).position
 
 # We also define the length, approximately along the side curve, of the exterior of the intake wall. The actual width from the perspective of the moving air will be somewhat shorter than this, because the opening is angled.
@@ -21,11 +23,11 @@ intake_flat_air_thickness_base = 12
 
 
 @run_if_changed
-def intake_build_surface():
-    d1 = Direction(intake_middle_position, intake_build_surface_top_point)
+def intake_plane():
+    d1 = Direction(intake_middle_position, intake_plane_top_point)
     d2 = Direction(air_target, intake_middle_position)
     source_points = [
-        intake_build_surface_top_point,
+        intake_plane_top_point,
         intake_middle_position - d1 * intake_flat_width * 0.8,
     ]
     return BSplineSurface([
@@ -37,10 +39,10 @@ def intake_build_surface():
     )
 
 
-# We now define the "intake reference curve" as the intersection between the build surface and the shield surface.
+# We now define the "intake reference curve" as the intersection between the intake plane and the shield surface.
 @run_if_changed
 def intake_reference_curve():
-    return ShieldCurveInPlane(intake_build_surface)
+    return ShieldCurveInPlane(intake_plane)
 
 
 @run_if_changed
@@ -73,7 +75,7 @@ CPAP_forwardses = [
 
 # We also want a canonical "the average CPAP intake direction in general", to use for constructing the geometry of the shared parts.
 CPAP_forwards_average = Direction(CPAP_forwardses[0] + CPAP_forwardses[1])
-CPAP_forwards_average_unit_height_from_build_plane = CPAP_forwards_average / abs(
+CPAP_forwards_average_unit_height_from_intake_plane = CPAP_forwards_average / abs(
     CPAP_forwards_average.dot(intake_reference_curve.plane.normal((0, 0))))
 
 # Part of the shape of the intake approximates a circular arc, with inner and outer radii:
@@ -98,7 +100,7 @@ ctu = ct / abs(ct.dot(Direction(at.cross(cf))))
 
 intake_faceward_middle = intake_middle.position + atu * intake_spout_largest_radius
 # An origin point for the center of curvature of the spout:
-intake_radius_center_middle = intake_faceward_middle - CPAP_forwards_average_unit_height_from_build_plane * intake_spout_largest_radius
+intake_radius_center_middle = intake_faceward_middle - CPAP_forwards_average_unit_height_from_intake_plane * intake_spout_largest_radius
 
 # The main 3D shape of the intake will be defined using explicit BSplineSurfaces, extending all the way from the circle of the CPAP connector to the rounded-rectangle of the output. For this, we need to define numbers of control points on each side of the rounded-rectangle, so we can use the same number of points for the circle.
 num_points_long_side = 14
@@ -158,7 +160,7 @@ def make_intake():
         ]
 
         # For the next hoop, we want it to be aligned with the edge of the shield.
-        # To simplify the geometry for us, instead of making the shield glue face an exact width, we make it an exact height from the build plane:
+        # To simplify the geometry for us, instead of making the shield glue face an exact width, we make it an exact height from the intake plane:
         sample = ShieldSample(
             intersecting=RayIsh(intake_faceward_middle + ct * tangent_offset - cfu * shield_glue_face_width, -atu))
 
@@ -228,3 +230,58 @@ def make_intake():
 # Why does it need this? Well, the intake can't avoid intersecting my visual range, so it takes up some of the area that would "naturally" be part of the shield; and the "back along the CPAP" direction is most comfortable if it intersects where the shield would be; and since the intake isn't optically clear anyway, there's no reason not to cut the shield there.
 # @run_if_changed
 # def shield_edge_for_intake():
+
+@run_if_changed
+def intake_fins():
+    fins = []
+    for tangent_offset in subdivisions(intake_flat_width/2, -intake_flat_width/2, amount = 8)[1:-1]:
+        fins.append(Vertex (intake_faceward_middle + ct*tangent_offset).extrude (ctu*min_wall_thickness, centered = True).extrude (-atu*100).extrude (-cfu*(intake_spout_largest_radius - intake_spout_smallest_radius/3)))
+
+    return Compound([Intersection (fin, s) for fin in fins for s in intake_outer_solids])
+
+
+# We also need some structural support for the intake.
+#
+# Design considerations:
+# * There must be a strut to connect it to the headband, for strength and rigidity against tugging on the CPAP hoses.
+# * The spout should be extended to touch the shield face, so it aligns and sits in place comfortably (making it easy to seal and remain sealed with glue).
+# * This should be as far back as possible, to avoid getting within the visual range.
+#
+# These admit a surprisingly simple design. The strut only needs to resist left-right twisting, because front-back twisting is completely blocked by the shield.
+#
+# The spout-shield contact face will be defined in shield.py, to avoid a mutual import (as shield.py also needs to cut away the intake solid).
+
+
+@run_if_changed
+def headband_to_intake_strut():
+    y1 = shield_back_y + 2
+    hoops = []
+    for z in subdivisions (headband_bottom, -100, amount = 50):
+        p1 = ShieldSample(intersecting=RayIsh(Point(0, y1, z), Right)).position
+        p2 = p1 + Left*1.5
+
+        width = 12
+
+        # Make a wider contact-surface with the temple block, for stability and screw-ability.
+        y_lean = -1
+        highness = (20 - (headband_bottom - z)) / 25
+        if highness > 0:
+            y_lean += highness
+            width += 20 * (1 - math.sqrt(1 - highness**2))
+
+        d1 = headband_curve.distance(closest = p2)
+        a = headband_curve.value(distance=d1)
+        b = headband_curve.value(distance=d1 - width)
+
+        p3 = p2 + (b - a)
+
+        # from_eye = Direction(Vector(conservative_eyeball, p3).projected_perpendicular(Up))
+
+        p4 = ShieldSample(intersecting=RayIsh(p3, vector(1,y_lean,0))).position
+        hoops.append(Wire([p1, p2, p3, p4], loop=True))
+    strut = Loft(hoops, solid=True)
+
+    return strut.cut(intake_outer_solids[0])
+
+
+

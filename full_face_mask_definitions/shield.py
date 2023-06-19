@@ -2,9 +2,10 @@ import math
 
 from full_face_mask_definitions.constants import putative_chin, TowardsFrontOfHead, putative_eyeball, TowardsBackOfHead
 from full_face_mask_definitions.headband_geometry import headband_top
-from full_face_mask_definitions.intake import intake_outer_solids
+from full_face_mask_definitions.intake import intake_outer_solids, headband_to_intake_strut
 from full_face_mask_definitions.shield_geometry import shield_back_y, shield_surface, ShieldSample, temple_top, \
     curve_samples, shield_top_curve, shield_focal_point, CurveSample
+from full_face_mask_definitions.utils import oriented_edge_curves
 from pyocct_system import *
 
 # The bottom point of the shield. Ideally, this should be further down than the invisible point – far enough down that even after cloth is put over it, the cloth is also invisible. In practice, the very center is invisible because of my nose, but the parts beside it are just barely visible as a compromise with "not bumping the bottom edge into my chest".
@@ -28,15 +29,54 @@ def shield_back_face():
 
 
 @run_if_changed
-def shield_infinitesimal():
+def shield_infinitesimal_without_intake_cut():
     result = Face(shield_surface)
     # result = result.intersection(HalfSpace(Point(0, shield_back_y, 0), TowardsFrontOfHead))
     # result = result.intersection(HalfSpace(Point(0, 0, headband_top), Down))
     # result = result.intersection(HalfSpace(shield_bottom_peak.position, Direction(0, 1.6, 1)))
-    result = result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200))
+    return result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200))
+
+@run_if_changed
+def shield_infinitesimal():
+    result = shield_infinitesimal_without_intake_cut
     for solid in intake_outer_solids:
         result = result.cut(solid)
     return result
+
+
+# Make a contact surface with the intake spout, as noted in intake.py.
+# This function is kind of a bunch of hacks.
+@run_if_changed
+def spout_to_shield_contact_part():
+    def is_near_intake(shape):
+        b = shape.bounds()
+        return b.max()[2] < -50 and b.min()[2] > shield_bottom_z + 10
+    intake_cut_wire = Wire([e for e in shield_infinitesimal.edges() if is_near_intake(e)])
+    approx_curve_points = []
+    for c,a,b in oriented_edge_curves(intake_cut_wire):
+        ad = c.length(0, a)
+        bd = c.length(0, b)
+        for d in subdivisions(ad, bd, max_length=6):
+            q = c.value(distance=d)
+            if not (approx_curve_points and approx_curve_points[-1].distance(q) < 1):
+                approx_curve_points.append(q)
+    approx_curve = BSplineCurve(approx_curve_points)
+    approx_edge = Edge(approx_curve)
+    result = Edge(approx_curve).extrude(Left*9, centered = True).offset(6, fill=True)
+    shield_shadow = shield_infinitesimal_without_intake_cut.intersection(HalfSpace(Point(20,0,0), Right)).extrude(Left*50)
+    result = result.intersection(shield_shadow)
+    result = result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200) @ Translate(TowardsFrontOfHead * 2))
+    #preview(headband_to_intake_strut.bounds().min(), result, headband_to_intake_strut.bounds().min() + vector(2, 1, -1))
+    # quick hack to chop off a protruding bit:
+    corner = min(headband_to_intake_strut.vertices(), key=lambda v: v[0]+v[1]+v[2])
+    c = HalfSpace(corner.point() + Right*1, Direction(2, 1, -1))
+    #preview(result, c.intersection())
+    result = result.intersection(c)
+    for s in intake_outer_solids:
+        result = result.cut(s)
+    #preview(approx_edge, result)
+    return result
+
 
 
 # To help analyze the reflection properties of the surface, we draw sight lines – provocatively called "eye lasers" – to see the locations from which light could unpleasantly reflect off the shield into the eye.
@@ -157,41 +197,6 @@ def check_lengths(original_points, flat_points):
             print(derived, original)
             preview(Wire(original_points), Wire(flat_points), a, b, c, d)
         assert (abs(1 - ratio) <= 0.01)
-
-
-def edges_with_reversed(wire):
-    edges = wire.edges()
-    if len(edges) <= 1:
-        for e in edges:
-            yield e, False
-    else:
-        def same(a, b):
-            return a[0] == b[0] and a[1] == b[1] and a[2] == b[2]
-
-        a1, a2 = edges[0].vertices()
-        b1, b2 = edges[1].vertices()
-        if same(a2, b1) or same(a2, b2):
-            yield edges[0], False
-            last_end = a2
-        else:
-            yield edges[0], True
-            last_end = a1
-        for e in edges[1:]:
-            e1, e2 = e.vertices()
-            if same(e1, last_end):
-                yield e, False
-                last_end = e2
-            else:
-                yield e, True
-                last_end = e1
-
-
-def oriented_edge_curves(wire):
-    for edge, reversed in edges_with_reversed(shield_infinitesimal.wire()):
-        c, a, b = edge.curve()
-        if reversed:
-            a, b = b, a
-        yield c, a, b
 
 
 @run_if_changed

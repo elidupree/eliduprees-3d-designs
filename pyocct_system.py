@@ -463,7 +463,7 @@ def _checksum_of_global (g, name, stack = []):
     return in_memory ["checksum"]
 
   if name not in g:
-    raise _ChecksumOfGlobalError(f"tried to check current value of `{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
+    raise _ChecksumOfGlobalError(f"tried to check current value of `{g['__name__']}.{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
   value = g[name]
 
   code, code2 = _get_code (value)
