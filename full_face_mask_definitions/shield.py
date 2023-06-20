@@ -1,6 +1,7 @@
 import math
 
 from full_face_mask_definitions.constants import putative_chin, TowardsFrontOfHead, putative_eyeball, TowardsBackOfHead
+from full_face_mask_definitions.headband import top_cloth_lip_back_for_shield, temple_extender
 from full_face_mask_definitions.headband_geometry import headband_top
 from full_face_mask_definitions.intake import intake_outer_solids, headband_to_intake_strut
 from full_face_mask_definitions.shield_geometry import shield_back_y, shield_surface, ShieldSample, temple_top, \
@@ -21,7 +22,7 @@ def shield_bottom_peak():
 @run_if_changed
 def shield_back_face():
     c = BSplineCurve([
-        temple_top,
+        temple_top + Up*2,
         temple_top + Down * 60,
         temple_top + Down * 125,
         shield_bottom_peak.position,
@@ -30,16 +31,21 @@ def shield_back_face():
 
 
 @run_if_changed
-def shield_infinitesimal_without_intake_cut():
+def shield_infinitesimal_without_cuts():
     result = Face(shield_surface)
     # result = result.intersection(HalfSpace(Point(0, shield_back_y, 0), TowardsFrontOfHead))
     # result = result.intersection(HalfSpace(Point(0, 0, headband_top), Down))
     # result = result.intersection(HalfSpace(shield_bottom_peak.position, Direction(0, 1.6, 1)))
-    return result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200))
+    result = result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200))
+    return result
 
 @run_if_changed
 def shield_infinitesimal():
-    result = shield_infinitesimal_without_intake_cut
+    result = shield_infinitesimal_without_cuts
+    result = result.cut(Vertex(top_cloth_lip_back_for_shield).extrude(Up*50).extrude(TowardsBackOfHead*50).extrude(Right*500, centered=True))
+    for transform in [Transform(), Reflect(Right)]:
+        result = result.cut(temple_extender @ transform)
+        result = result.cut(temple_extender @ Translate(Left*1) @ transform)
     for solid in intake_outer_solids:
         result = result.cut(solid)
     return result
@@ -64,7 +70,7 @@ def spout_to_shield_contact_part():
     approx_curve = BSplineCurve(approx_curve_points)
     approx_edge = Edge(approx_curve)
     result = Edge(approx_curve).extrude(Left*9, centered = True).offset(6, fill=True)
-    shield_shadow = shield_infinitesimal_without_intake_cut.intersection(HalfSpace(Point(20,0,0), Right)).extrude(Left*50)
+    shield_shadow = shield_infinitesimal_without_cuts.intersection(HalfSpace(Point(20,0,0), Right)).extrude(Left*50)
     result = result.intersection(shield_shadow)
     result = result.intersection(shield_back_face.extrude(TowardsFrontOfHead * 200) @ Translate(TowardsFrontOfHead * 2))
     #preview(headband_to_intake_strut.bounds().min(), result, headband_to_intake_strut.bounds().min() + vector(2, 1, -1))

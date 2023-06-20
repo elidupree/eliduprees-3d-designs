@@ -2,7 +2,7 @@ import math
 
 from full_face_mask_definitions.headband import temple_distance_along_headband, temple_block_far_corner, temple_block_near_corner
 from full_face_mask_definitions.shield_geometry import shield_top_curve
-from full_face_mask_definitions.headband_geometry import headband_curve, headband_top
+from full_face_mask_definitions.headband_geometry import headband_curve, headband_top, headband_curve_middle
 from pyocct_system import *
 
 del Front, Back
@@ -34,7 +34,6 @@ def stretched_curves():
     shield_top_curve_middle = shield_top_curve.precomputed_length / 2
     shield_curve = shield_top_curve.curve @ Translate(Down * headband_top)
     shield_curve_end = shield_curve.distance(closest=temple_block_far_corner)
-    headband_curve_middle = headband_curve.distance(closest=Point(0, 500, 0))  # headband_curve.length() / 2
     headband_curve_end = headband_curve.distance(closest=temple_block_near_corner)
 
     initial_middle_distance = shield_curve.value(distance=shield_top_curve_middle).distance(

@@ -30,6 +30,8 @@ def headband_curve():
     )
 print(f"Headband circumference: {headband_curve.length()}")
 
+headband_curve_middle = headband_curve.distance(closest=Point(0, 500, 0))
+
 # The above curve lies in the Z=0 plane, but that is an arbitrary reference point that doesn't really align with any of the real locations. We now define the z coordinates:
 headband_width = 8
 headband_top = 6.8 # for historical reasons

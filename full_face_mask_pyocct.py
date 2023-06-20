@@ -1,13 +1,16 @@
 import math
 
 from pyocct_system import *
+
 initialize_pyocct_system()
 
-from full_face_mask_definitions.headband import temple_block, headband_waves, temple_extender, forehead_band
+from full_face_mask_definitions.headband import temple_block, headband_waves, temple_extender, forehead_band, \
+    top_cloth_lip
 from full_face_mask_definitions.intake import intake_wall, headband_to_intake_strut, intake_fins
 from full_face_mask_definitions.shield import shield_infinitesimal, eye_lasers, unrolled_shield_wire, \
     spout_to_shield_contact_part
 from full_face_mask_definitions.top_cloth import top_cloth
+
 
 @run_if_changed
 def mirrored_headband_parts():
@@ -16,11 +19,13 @@ def mirrored_headband_parts():
         temple_extender,
     ])
 
+
 save_STL("headband", Compound([
     mirrored_headband_parts,
     mirrored_headband_parts @ Reflect(Right),
     forehead_band,
     headband_waves,
+    top_cloth_lip,
 ]))
 
 save_STL("intake", Compound([
@@ -30,7 +35,10 @@ save_STL("intake", Compound([
     spout_to_shield_contact_part,
 ]))
 
-preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band, intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part, top_cloth)
+preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band,
+        intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part,
+        top_cloth,
+        top_cloth_lip, )
 
 # def runfile(filepath):
 #   globals()["__file__"] = filepath
@@ -43,5 +51,3 @@ preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, 
 # runfile("full_face_mask_pyocct_old/frame.py")
 # runfile("full_face_mask_pyocct_old/flat_pieces.py")
 # runfile("full_face_mask_pyocct_old/assembly.py")
-
-  
