@@ -21,10 +21,12 @@ temple_block_length = 36
 temple_block_start_distance = temple_distance_along_headband
 temple_block_end_distance = temple_block_start_distance - temple_block_length
 
-temple_block_far_corner =None
+temple_block_far_corner, temple_block_near_corner = None, None
+
+
 @run_if_changed
 def temple_block():
-    global temple_block_far_corner
+    global temple_block_far_corner, temple_block_near_corner
     start_derivatives = headband_curve.derivatives(distance=temple_block_start_distance)
     hoops = []
     n = -start_derivatives.normal
@@ -37,6 +39,7 @@ def temple_block():
         # preview(shield_surface, RayIsh(b, -start_derivatives.normal))
         c = ShieldSample(intersecting=RayIsh(b, n)).position
         d = ShieldSample(intersecting=RayIsh(a, n)).position
+        temple_block_near_corner = a
         temple_block_far_corner = c
         hoops.append(Wire([
             a, b, c, d

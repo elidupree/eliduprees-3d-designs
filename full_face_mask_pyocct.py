@@ -7,7 +7,7 @@ from full_face_mask_definitions.headband import temple_block, headband_waves, te
 from full_face_mask_definitions.intake import intake_wall, headband_to_intake_strut, intake_fins
 from full_face_mask_definitions.shield import shield_infinitesimal, eye_lasers, unrolled_shield_wire, \
     spout_to_shield_contact_part
-from full_face_mask_definitions.top_cloth import stretched_curves
+from full_face_mask_definitions.top_cloth import top_cloth
 
 @run_if_changed
 def mirrored_headband_parts():
@@ -30,7 +30,7 @@ save_STL("intake", Compound([
     spout_to_shield_contact_part,
 ]))
 
-preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band, intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part, stretched_curves)
+preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band, intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part, top_cloth)
 
 # def runfile(filepath):
 #   globals()["__file__"] = filepath
