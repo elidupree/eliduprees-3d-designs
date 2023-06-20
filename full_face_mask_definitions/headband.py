@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-from full_face_mask_definitions.constants import min_wall_thickness, TowardsFrontOfHead
+from full_face_mask_definitions.constants import min_wall_thickness, TowardsFrontOfHead, neck_leeway
 from full_face_mask_definitions.headband_geometry import headband_curve, headband_top, headband_bottom, \
     forehead_center_distance_on_headband_curve, extrude_flat_shape_to_headband, headband_curve_middle
 from full_face_mask_definitions.shield_geometry import temple_xy, ShieldSample
@@ -23,10 +23,12 @@ temple_block_end_distance = temple_block_start_distance - temple_block_length
 
 temple_block_far_corner, temple_block_near_corner = None, None
 
+
 @run_if_changed
 def temple_block_extrusion_direction():
     d = headband_curve.derivatives(distance=temple_block_start_distance)
     return -d.normal
+
 
 @run_if_changed
 def temple_block():
@@ -53,21 +55,23 @@ def temple_block():
 
 # We also want a tiny extra lip for the cloth to fuse to.
 top_cloth_lip_back_for_shield = None
+
+
 @run_if_changed
 def top_cloth_lip():
     global top_cloth_lip_back_for_shield
     ad = temple_block_end_distance + min_wall_thickness
-    a = headband_curve.value(distance=ad) @ Translate(Up*headband_top)
+    a = headband_curve.value(distance=ad) @ Translate(Up * headband_top)
     b = ShieldSample(intersecting=RayIsh(a, temple_block_extrusion_direction)).position
     top_cloth_lip_back_for_shield = b
-    adm = headband_curve_middle*2 - ad
+    adm = headband_curve_middle * 2 - ad
     wire = Wire([
-        Edge(b@ Reflect(Right), a@ Reflect(Right)),
-        Edge(TrimmedCurve(headband_curve, headband_curve.parameter(distance=adm), headband_curve.parameter(distance=ad))) @ Translate(Up*headband_top),
+        Edge(b @ Reflect(Right), a @ Reflect(Right)),
+        Edge(TrimmedCurve(headband_curve, headband_curve.parameter(distance=adm),
+                          headband_curve.parameter(distance=ad))) @ Translate(Up * headband_top),
         Edge(a, b),
     ])
-    return Offset(wire.extrude(Up*2), min_wall_thickness, fill=True)
-
+    return Offset(wire.extrude(Up * 2), min_wall_thickness, fill=True)
 
 
 # By adding a wave to a thin strip, we can make it still be able to flex, but not able to twist.
@@ -148,3 +152,28 @@ def temple_extender():
         result = result.cut(Loft(potential_hole_hoops[bar:bar + 6], solid=True))
 
     return result
+
+
+# We also need a little knob to tie the neck-elastic to.
+z = -1.2
+a = 0
+b = 3
+c = 5
+s = -4
+p = -1
+q = 1
+r = 4
+temple_knob_coordinates = [
+    (z, s), (a, s), (a, p), (b, p), (b, s), (c, s), (c, p), (c, q), (c, r), (b, r), (b, q), (a, q), (a, r), (z, r)
+]
+
+
+@run_if_changed
+def temple_knob():
+    hoop = []
+    for x, y in temple_knob_coordinates:
+        d = headband_curve.derivatives(distance=temple_block_start_distance + neck_leeway - y)
+        hoop.append(d.position - d.normal * (temple_extender_width + x))
+        hoop[-1][2]
+    return Face(Wire(BSplineCurve(hoop, BSplineDimension(periodic=True)))).extrude(Up * (headband_bottom),
+                                                                                   Up * (headband_bottom + 5))

@@ -23,3 +23,5 @@ putative_eyeball = Point(35, -15, -35)
 
 # The location the air should be directed towards, intended to be between the nose and mouth, maybe favoring the mouth a bit.
 air_target = putative_chin + vector(0, 10, 33)
+
+neck_leeway = 20

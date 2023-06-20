@@ -5,7 +5,7 @@ from pyocct_system import *
 initialize_pyocct_system()
 
 from full_face_mask_definitions.headband import temple_block, headband_waves, temple_extender, forehead_band, \
-    top_cloth_lip
+    top_cloth_lip, temple_knob
 from full_face_mask_definitions.intake import intake_wall, headband_to_intake_strut, intake_fins
 from full_face_mask_definitions.shield import shield_infinitesimal, eye_lasers, unrolled_shield_wire, \
     spout_to_shield_contact_part
@@ -17,6 +17,7 @@ def mirrored_headband_parts():
     return Compound([
         temple_block,
         temple_extender,
+        temple_knob,
     ])
 
 
@@ -38,7 +39,7 @@ save_STL("intake", Compound([
 preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band,
         intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part,
         top_cloth,
-        top_cloth_lip, )
+        top_cloth_lip, temple_knob)
 
 # def runfile(filepath):
 #   globals()["__file__"] = filepath
