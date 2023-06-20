@@ -7,6 +7,7 @@ from full_face_mask_definitions.shield_geometry import shield_back_y, shield_sur
     curve_samples, shield_top_curve, shield_focal_point, CurveSample
 from full_face_mask_definitions.utils import oriented_edge_curves
 from pyocct_system import *
+del Front, Back
 
 # The bottom point of the shield. Ideally, this should be further down than the invisible point – far enough down that even after cloth is put over it, the cloth is also invisible. In practice, the very center is invisible because of my nose, but the parts beside it are just barely visible as a compromise with "not bumping the bottom edge into my chest".
 shield_bottom_z = putative_chin[2] - 50
