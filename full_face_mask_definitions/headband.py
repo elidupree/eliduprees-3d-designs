@@ -5,6 +5,7 @@ from full_face_mask_definitions.constants import min_wall_thickness, TowardsFron
 from full_face_mask_definitions.headband_geometry import headband_curve, headband_top, headband_bottom, \
     forehead_center_distance_on_headband_curve, extrude_flat_shape_to_headband, headband_curve_middle
 from full_face_mask_definitions.shield_geometry import temple_xy, ShieldSample
+del Front, Back
 
 
 @run_if_changed

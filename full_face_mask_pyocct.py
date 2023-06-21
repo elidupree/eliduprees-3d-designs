@@ -10,6 +10,7 @@ from full_face_mask_definitions.intake import intake_wall, headband_to_intake_st
 from full_face_mask_definitions.shield import shield_infinitesimal, eye_lasers, unrolled_shield_wire, \
     spout_to_shield_contact_part
 from full_face_mask_definitions.top_cloth import top_cloth
+from full_face_mask_definitions.chin_cloth import chin_cloth_3d, chin_cloth_flat
 
 
 @run_if_changed
@@ -38,7 +39,7 @@ save_STL("intake", Compound([
 
 preview(shield_infinitesimal.wires(), eye_lasers, temple_block, headband_waves, temple_extender, forehead_band,
         intake_wall, unrolled_shield_wire, headband_to_intake_strut, intake_fins, spout_to_shield_contact_part,
-        top_cloth,
+        top_cloth, chin_cloth_3d, chin_cloth_flat,
         top_cloth_lip, temple_knob)
 
 # def runfile(filepath):
