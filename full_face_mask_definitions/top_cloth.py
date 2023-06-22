@@ -79,8 +79,8 @@ def stretched_curves():
     return latest_attempt.bent_shield,latest_attempt.bent_forehead
 
 
-# Having calculated the half-curves, we can now lay out the top cloth, which is the full curves, joined by straight lines, and with a small leeway around all edges for practicalities of sewing.
-top_cloth_leeway = 6
+# Having calculated the half-curves, we can now lay out the top cloth, which is the full curves, joined by straight lines, and with a small leeway around all edges for practicalities of sewing. Leeway not generated here because I had trouble with OCCT offsets; I can just do it physically
+#top_cloth_leeway = 6
 @run_if_changed
 def top_cloth():
     a,b = stretched_curves
@@ -90,6 +90,7 @@ def top_cloth():
         BSplineCurve(b[:0:-1] + [p @ Reflect(Right) for p in b]),
         Edge(b[-1],a[-1]) @ Reflect(Right),
     ])
-    result = exact_wire.offset2D(top_cloth_leeway)
+    result = exact_wire #.offset2D(top_cloth_leeway)
+    # preview(result.edges()[::2], [e @ Translate(Vector(0,0,1)) for e in result.edges()[1::2]], Compound([Vertex(v) for v in points_along_wire(result, max_length=0.5)]))
     save_inkscape_svg("top_cloth", result)
     return result

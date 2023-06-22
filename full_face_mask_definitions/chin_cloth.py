@@ -5,8 +5,7 @@ from full_face_mask_definitions.headband_geometry import headband_bottom
 from full_face_mask_definitions.intake import intake_outer_solids, intake_middle, intake_outer_surfaces_extended
 from full_face_mask_definitions.shield import shield_infinitesimal_without_cuts
 from full_face_mask_definitions.shield_geometry import temple_top
-from full_face_mask_definitions.top_cloth import top_cloth_leeway
-from full_face_mask_definitions.utils import oriented_edge_curves
+# from full_face_mask_definitions.top_cloth import top_cloth_leeway
 from pyocct_system import *
 
 del Front, Back
@@ -25,12 +24,7 @@ def chin_cloth_shield_points():
     before_intake_edges = edges[0:2]
     after_intake_edge = edges[2]
 
-    points = []
-    for c, a, b in oriented_edge_curves(Wire(before_intake_edges)):
-        ad = c.length(0, a)
-        bd = c.length(0, b)
-        for d in subdivisions(ad, bd, max_length=5):
-            points.append(c.value(distance=d))
+    points = points_along_wire(Wire(before_intake_edges), max_length=5)
 
     before_intake_point = points[-1]
     after_intake_point = after_intake_edge.vertices()[0].point()
@@ -44,11 +38,7 @@ def chin_cloth_shield_points():
         if intersections:
             points.append(min(intersections, key=lambda p: p.distance(base)))
 
-    c, a, b = after_intake_edge.curve()
-    ad = c.length(0, a)
-    bd = c.length(0, b)
-    for d in subdivisions(ad, bd, max_length=5):
-        points.append(c.value(distance=d))
+    points.extend(points_along_wire(after_intake_edge, max_length=5))
 
     return points
 
@@ -68,8 +58,8 @@ def chin_cloth_3d():
     return BSplineSurface([chin_cloth_shield_points, chin_cloth_neck_points], BSplineDimension(degree =1))
 
 
-# It's now trivial to unroll the 3D shape, which is a generalized cone with a planar edge, and add a small leeway around all edges for practicalities of sewing.
-chin_cloth_leeway = top_cloth_leeway
+# It's now trivial to unroll the 3D shape, which is a generalized cone with a planar edge, and add a small leeway around all edges for practicalities of sewing. Leeway not generated here because I had trouble with OCCT offsets; I can just do it physically
+#chin_cloth_leeway = top_cloth_leeway
 @run_if_changed
 def chin_cloth_flat():
     flat_shield_points = [Point(0,chin_cloth_shield_points[0].distance (chin_cloth_neck_points[0]))]
@@ -82,7 +72,7 @@ def chin_cloth_flat():
         Point(flat_shield_points[-1][0], 0, 0),
         Point(0, 0, 0),
     ], loop = True)
-    result = exact_wire.offset2D(chin_cloth_leeway)
+    result = exact_wire #.offset2D(chin_cloth_leeway)
 
     save_inkscape_svg("chin_cloth", result)
     return result

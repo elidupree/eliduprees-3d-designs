@@ -6,7 +6,6 @@ from full_face_mask_definitions.headband_geometry import headband_top
 from full_face_mask_definitions.intake import intake_outer_solids, headband_to_intake_strut
 from full_face_mask_definitions.shield_geometry import shield_back_y, shield_surface, ShieldSample, temple_top, \
     curve_samples, shield_top_curve, shield_focal_point, CurveSample
-from full_face_mask_definitions.utils import oriented_edge_curves
 from pyocct_system import *
 del Front, Back
 
@@ -59,14 +58,7 @@ def spout_to_shield_contact_part():
         b = shape.bounds()
         return b.max()[2] < -50 and b.min()[2] > shield_bottom_z + 10
     intake_cut_wire = Wire([e for e in shield_infinitesimal.edges() if is_near_intake(e)])
-    approx_curve_points = []
-    for c,a,b in oriented_edge_curves(intake_cut_wire):
-        ad = c.length(0, a)
-        bd = c.length(0, b)
-        for d in subdivisions(ad, bd, max_length=6):
-            q = c.value(distance=d)
-            if not (approx_curve_points and approx_curve_points[-1].distance(q) < 1):
-                approx_curve_points.append(q)
+    approx_curve_points = points_along_wire(intake_cut_wire, max_length = 6)
     approx_curve = BSplineCurve(approx_curve_points)
     approx_edge = Edge(approx_curve)
     result = Edge(approx_curve).extrude(Left*9, centered = True).offset(6, fill=True)
@@ -208,18 +200,10 @@ def check_lengths(original_points, flat_points):
 
 @run_if_changed
 def unrolled_shield_wire():
-    original_points = []
+    original_points = points_along_wire(shield_infinitesimal.wire(), max_length=0.5)[:-1]
     flat_points = []
-    for c, a, b in oriented_edge_curves(shield_infinitesimal.wire()):
-        ad = c.length(0, a)
-        bd = c.length(0, b)
-        for d in subdivisions(ad, bd, max_length=0.5)[:-1]:
-            p = c.parameter(distance=d)
-            # if p < a or p > b:
-            #     print(a,p, b)
-            p = c.value(distance=d)
-            original_points.append(p)
-            flat_points.append(unrolled_point(p))
+    for p in original_points:
+        flat_points.append(unrolled_point(p))
 
     center_vertices_on_letter_paper(flat_points)
     check_lengths(original_points, flat_points)

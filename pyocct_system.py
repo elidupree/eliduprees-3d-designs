@@ -633,17 +633,58 @@ def save_STEP (name, shape, **_kwargs):
 ########  SVG bureaucracy  #######
 ########################################################################
 
-
-def wire_svg_path(wire, color = "black"):
+def edges_with_reversed(wire, tolerance = 1e-6):
   edges = wire.edges()
-  start = edges[0].vertices()[0]
-  parts = [f'<path stroke="{color}" d="M {start[0]} {start[1]}']
-  for edge in edges:
-    end = edge.vertices()[1]
-    if (end[0], end[1]) == (start[0], start[1]):
+  if len(edges) <= 1:
+    for e in edges:
+      yield e, False
+  else:
+    def same(a, b):
+      return a.point().distance(b.point()) < tolerance
+
+    a1, a2 = edges[0].vertices()
+    b1, b2 = edges[1].vertices()
+    if same(a2, b1) or same(a2, b2):
+      yield edges[0], False
+      last_end = a2
+    else:
+      yield edges[0], True
+      last_end = a1
+    for e in edges[1:]:
+      e1, e2 = e.vertices()
+      if same(e1, last_end):
+        yield e, False
+        last_end = e2
+      else:
+        yield e, True
+        last_end = e1
+
+def oriented_edge_curves(wire, tolerance = 1e-6):
+  for edge, reversed in edges_with_reversed(wire, tolerance):
+    c, a, b = edge.curve()
+    if reversed:
+      a, b = b, a
+    yield c, a, b
+
+def points_along_wire(wire, *, max_length, tolerance = 1e-6):
+  result = []
+  for c, a, b in oriented_edge_curves(wire, tolerance):
+    ad = c.length(0, a)
+    bd = c.length(0, b)
+    for d in subdivisions(ad, bd, max_length=max_length):
+      v = c.value(distance=d)
+      if len(result) == 0 or result[-1].distance(v) > tolerance:
+        result.append(v)
+  return result
+
+def wire_svg_path(wire, color = "black", tolerance = 1e-6):
+  points = points_along_wire(wire, max_length=0.5, tolerance=tolerance)
+  parts = [f'<path stroke="{color}" d="M {points[0][0]} {points[0][1]}']
+  for point in points[1:]:
+    if point.distance(points[0]) < tolerance:
       parts.append(f' Z')
     else:
-      parts.append(f' L {end[0]} {end[1]}')
+      parts.append(f' L {point[0]} {point[1]}')
   parts.append(f'" />')
   return "".join(parts)
   
