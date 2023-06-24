@@ -1,8 +1,7 @@
 import math
 
 from full_face_mask_definitions.constants import air_target, min_wall_thickness, CPAP_outer_radius, putative_eyeball, \
-    TowardsFrontOfHead
-from full_face_mask_definitions.headband import temple_distance_along_headband
+    TowardsFrontOfHead, contact_leeway
 from full_face_mask_definitions.headband_geometry import headband_top, headband_curve, headband_bottom
 from full_face_mask_definitions.shield_geometry import ShieldSample, shield_back_y, ShieldCurveInPlane, CurveSample, \
     shield_surface
@@ -252,11 +251,14 @@ def intake_fins():
 # The spout-shield contact face will be defined in shield.py, to avoid a mutual import (as shield.py also needs to cut away the intake solid).
 
 
+headband_to_intake_peg = None
 @run_if_changed
 def headband_to_intake_strut():
+    global headband_to_intake_peg
     y1 = shield_back_y + 2
     hoops = []
-    for z in subdivisions (headband_bottom, -100, amount = 50):
+    top_edge = None
+    for z in subdivisions (headband_bottom - contact_leeway, -100, amount = 50):
         p1 = ShieldSample(intersecting=RayIsh(Point(0, y1, z), Right)).position
         p2 = p1 + Left*1.5
 
@@ -279,9 +281,30 @@ def headband_to_intake_strut():
 
         p4 = ShieldSample(intersecting=RayIsh(p3, vector(1,y_lean,0))).position
         hoops.append(Wire([p1, p2, p3, p4], loop=True))
+
+        if top_edge is None:
+            top_edge = (p3, p4)
     strut = Loft(hoops, solid=True)
 
-    return strut.cut(intake_outer_solids[0])
+    w1 = 6
+    w2 = 4
+    d1 = Direction(*top_edge)
+    d2 = -d1 @ Rotate(Up, degrees=90)
+    peg_center = Between(*top_edge) + d2 * (w1 / 2)
+    #preview(strut, peg_center)
+    peg_hoops = [
+        Wire([
+            peg_center + d1 * radius + d2 * radius,
+            peg_center + d1 * radius - d2 * radius,
+            peg_center - d1 * radius - d2 * radius,
+            peg_center - d1 * radius + d2 * radius,
+        ], loop = True) @ Translate(Up*(z - peg_center[2]))
+        for z, radius in [(headband_bottom - contact_leeway, w1/2), (headband_top, w2/2)]
+    ]
+    headband_to_intake_peg = Loft(peg_hoops, solid=True)
+
+
+    return Compound(headband_to_intake_peg, strut.cut(intake_outer_solids[0]))
 
 
 

@@ -4,6 +4,9 @@ del Front, Back
 
 min_wall_thickness = 0.8
 
+# The amount of to leave between parts that are supposed to touch each other. This mainly reflects the amount of error in the 3D printing process. (My home Ender-3 makes holes smaller than they should be; for a more precise system (e.g. Shapeways) I would set it to more like 0.1.)
+contact_leeway = 0.4
+
 CPAP_outer_radius = 21.5/2
 CPAP_inner_radius = CPAP_outer_radius - min_wall_thickness
 

@@ -175,3 +175,15 @@ More design notes after using prototype #9 for a while:
 – …which means it's most convenient if the headband is printed right-side-up, adding an additional incentive to remove the dropdowns. I should move the side-joint up to headband height; this may help getting it at the intended angle as well. I need to make sure the headband is tough enough not to deform as the screw is inserted. (Adding a bit of bulk to that joint is okay.)
 – To make the top-cloth work, I want it to exactly conform to the headband curve. If it's Euclidean, this prevents the deformations I want to be possible. So I can make the top cloth non-Euclidean by having 2 pieces, joined by a curve that is evenly spaced between the headband and the top of the face shield, but is longer than it would be otherwise. This will make the cloth pleat, but not at the edges where it is fused to the plastic.
 
+
+Assembly notes from prototype #10.0:
+– forgot to mirror the intake for first test print, so decided to assemble non-working prototype
+– headband broke from raft and curled; maybe need to reduce raft z distance
+– fusion and screwing both worked fine for joint between printed parts; I would like a guidance hole for convenience, but it might come out irregular with the intake print orientation
+– hard to precisely control the seam locations; considered to put them all little more inboard, so that you can get the non-linen out of the way.
+– forgot to sew the neck-edge and temple-edges differently than the plastic-edges. Not a real problem, but remember that next time
+– only by luck did I make the chin cloth in the correct orientation; pay attention next time
+– ironing would've been easier if there was a more rigid grip on the face shield/headband, and a smaller/lighter iron; some of this can be improved with better jigging
+–
+
+

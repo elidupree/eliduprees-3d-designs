@@ -1,7 +1,8 @@
 import math
 
+from full_face_mask_definitions.intake import headband_to_intake_peg
 from pyocct_system import *
-from full_face_mask_definitions.constants import min_wall_thickness, TowardsFrontOfHead, neck_leeway
+from full_face_mask_definitions.constants import min_wall_thickness, TowardsFrontOfHead, neck_leeway, contact_leeway
 from full_face_mask_definitions.headband_geometry import headband_curve, headband_top, headband_bottom, \
     forehead_center_distance_on_headband_curve, extrude_flat_shape_to_headband, headband_curve_middle
 from full_face_mask_definitions.shield_geometry import temple_xy, ShieldSample
@@ -32,7 +33,7 @@ def temple_block_extrusion_direction():
 
 
 @run_if_changed
-def temple_block():
+def temple_block_uncut():
     global temple_block_far_corner, temple_block_near_corner
     hoops = []
     n = temple_block_extrusion_direction
@@ -53,6 +54,9 @@ def temple_block():
 
     return Loft(hoops, solid=True)
 
+@run_if_changed
+def temple_block():
+    return temple_block_uncut.cut(headband_to_intake_peg.offset(contact_leeway))
 
 # We also want a tiny extra lip for the cloth to fuse to.
 top_cloth_lip_back_for_shield = None
@@ -151,6 +155,7 @@ def temple_extender():
     for foo in range(3):
         bar = 11 + foo * 6
         result = result.cut(Loft(potential_hole_hoops[bar:bar + 6], solid=True))
+    result = result.cut(temple_block_uncut)
 
     return result
 

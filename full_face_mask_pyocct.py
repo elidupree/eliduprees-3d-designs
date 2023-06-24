@@ -5,7 +5,7 @@ from pyocct_system import *
 initialize_pyocct_system()
 
 from full_face_mask_definitions.headband import temple_block, headband_waves, temple_extender, forehead_band, \
-    top_cloth_lip, temple_knob
+    top_cloth_lip, temple_knob, temple_block_uncut
 from full_face_mask_definitions.intake import intake_wall, headband_to_intake_strut, intake_fins
 from full_face_mask_definitions.shield import shield_infinitesimal, eye_lasers, unrolled_shield_wire, \
     spout_to_shield_contact_part
@@ -16,7 +16,6 @@ from full_face_mask_definitions.chin_cloth import chin_cloth_3d, chin_cloth_flat
 @run_if_changed
 def mirrored_headband_parts():
     return Compound([
-        temple_block,
         temple_extender,
         temple_knob,
     ])
@@ -25,6 +24,8 @@ def mirrored_headband_parts():
 save_STL("headband", Compound([
     mirrored_headband_parts,
     mirrored_headband_parts @ Reflect(Right),
+    temple_block,
+    temple_block_uncut @ Reflect(Right),
     forehead_band,
     headband_waves,
     top_cloth_lip,
