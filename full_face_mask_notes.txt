@@ -194,27 +194,35 @@ Setup:
 – Pre-wash some pieces of linen so they won't shrink later, and let them dry.
 – FDM print headband.stl (mirrored horizontally), with 0.1 less raft z distance than usual.
 – FDM print intake.stl (mirrored), with Cura's auto-generated support, with the spout downwards.
-– Clean up 3D printed pieces: remove from support/raft, remove stringing using short bursts of max temperature heat gun, using the mid-sized nozzle (about the same inner diameter as the CPAP intakes), including briefly pointing them up the CPAP intakes.
+– Clean up 3D printed pieces: 
+– – remove from support/raft
+– – remove stringing using short bursts of max temperature heat gun, using the mid-sized nozzle (about the same inner diameter as the CPAP intakes), including briefly pointing them up the CPAP intakes.
+– – use soldering iron, nippers and/or sandpaper to smooth the CPAP intakes and remove other rough edges.
 – Print unrolled_shield.svg and cut that shape from 1/32in polycarbonate.
 – Print top_cloth.svg but with a 12mm inset, so it can be a guide for my sewing machine's presser foot. Cut linen, 2x cotton, and 2x microfiber to slightly bigger than the full-size. Cut cardboard to the inset size. Stack the cloth pieces, pin the carboard guide on top, and sew around the guide, with the "mending stitch". Cut all layers except the linen just outside the stitch.
 – Do the same with chin_cloth.svg, except:
 – – you only do the mending stitch on the edge that will actually be fused; the cardboard only needs to be inset on that side, and you can leave excess on the other sides
 – – the linen only needs to cover that edge, not the whole thing
 – – the other layers are cut with a fold on the neck edge, so you won't need a seam at the neck edge
+– – you must remember to get the orientation correct; it's almost symmetric, but not quite
 – – also add a straight stitch ~10mm from the folded edge, for elastic
-– Thread the elastic and clip it so it won't fall out (you could thread it later, but it's more convenient now).
+– Thread the elastic and tie/clip it so it won't fall out (you could thread it later, but it's more convenient now).
 
 Assembly:
 – Fuse top cloth onto lip on top of headband: Affix it in place with soldering iron, then run over it with clothes iron, while it is resting on a flat surface to prevent deforming it in the direction of pressure.
-– Fold foam over the headband, and sew it to top cloth.
-– Attach intake strut to headband, using soldering iron and screws.
+– Fold foam over the headband, and sew it to top cloth. (Sew the bottom first, as close as possible; then sew the top as close as possible beyond that; then cut off excess foam.)
+– Attach intake strut to headband, using soldering iron, hot glue, and screws.
 – Attach face shield to plastic parts, using soldering iron, hot glue, and screws.
 – Fuse top cloth onto face shield: Affix it in place with soldering iron, then run over it with clothes iron. This time, mount the clothes iron point-down in a vise, and press the shield edge onto it, so you can watch the melting with your eyes.
-– Fuse chin cloth onto face shield the same way.
-– Near the temples, cut excess chin cloth and foam, stuff the foam under the chin cloth, tie the elastic in place.
-
-Polishing:
-– Cut away access linen (be careful not to cut the melted plastic – it's structural). 
-– Further clean up CPAP intakes with nippers and/or sandpaper.
-– Seal any plastic-edge leaks with hot glue.
+– Fuse chin cloth onto face shield the same way; as part of this, hot-glue around the intake.
+– Cut away access linen (be careful not to cut the melted plastic – it's structural).
+– Near the temples, cut excess chin cloth and foam, stuff the foam under the chin cloth, sew it in place, tie the chin cloth elastic in place.
 – Add elastics for head.
+
+
+
+Initial impressions of the completed prototype #10.1:
+– The intake location is kinda wrong: it runs into my cheek if I use the mask in the standard position. This was an issue with the previous one but I guess I got used to wearing it in nonstandard position, or maybe it was assembled in a way that incorrectly gave it slightly more leeway. It's easy to adapt by wearing the mask in a different position, but the next version should correct this.
+– Visual range is great
+– No issues with bumping stuff as I turn my head
+– The aesthetics are nice and crisp, other than the fact that my linen was a tan color that doesn't look sci-fi.
