@@ -17,7 +17,7 @@ nut_long_radius = nut_short_radius / math.cos(math.tau / 12)
 nut_thickness = 3
 nut_holder_thickness = 2
 
-screw_offset = strong_filter_length / 4
+# screw_offset = strong_filter_length / 4
 screw_filter_contact_leeway = 1
 
 plate_thickness = 10
@@ -46,10 +46,16 @@ def nut_bracket():
 
     cutaway = HalfSpace(screw_center + Left*nut_long_radius + Up*(nut_holder_thickness + nut_thickness), Direction (-1,0, 1))
     nut_bracket_cuts = Compound(screw_hole, nut_hole)
+    
+    #sacrificial_bridge = Face (Circle (Axes(screw_center + Up*nut_holder_thickness, Up), screw_radius+ contact_leeway)).extrude (Down*0.28)
 
-    return Compound (cylinder, frustum).cut([
+    real = Compound (cylinder, frustum).cut([
         screw_hole, nut_hole, cutaway
     ])
+    return Compound(
+        real,
+        #sacrificial_bridge,
+    )
 
 
 @run_if_changed
@@ -82,30 +88,28 @@ def reinforcement():
 
 @run_if_changed
 def plate():
-    b1 = nut_bracket @ Translate(Left*(strong_filter_width/2) + Back*screw_offset)
-    c1 = nut_bracket_cuts @ Translate(Left*(strong_filter_width/2) + Back*screw_offset)
-    r1 = reinforcement @ Translate(Back*screw_offset)
+    b1 = nut_bracket @ Rotate(Up, degrees=90) @ Translate(Front*(strong_filter_length/2))
+    c1 = nut_bracket_cuts @ Rotate(Up, degrees=90) @ Translate(Front*(strong_filter_length/2))
+    # r1 = reinforcement @ Translate(Back*screw_offset)
     result = Compound ([
         b1,
-        b1 @ Mirror(Left),
         b1 @ Mirror(Back),
-        b1 @ Mirror(Left) @ Mirror(Back),
-        r1,
-        r1 @ Mirror(Back),
+        # r1,
+        # r1 @ Mirror(Back),
         frame.cut([
             c1,
-            c1 @ Mirror(Left),
             c1 @ Mirror(Back),
-            c1 @ Mirror(Left) @ Mirror(Back),
         ])
     ])
-    
+
+    # print the plate upside-down, because we want the filter-facing face to be the one that's less warped
+    # result = result @ Mirror(Up)
     save_STL("filter_plate", result)
     return result
 
 @run_if_changed
 def bracket_test():
-    result = plate.intersection(Face(Circle(Axes(Origin + Left*(strong_filter_width/2 + screw_radius) + Back*screw_offset, Up), 20)).extrude(Up*lots))
+    result = plate.intersection(Face(Circle(Axes(Origin + Back*(strong_filter_length/2 + screw_radius), Up), 20)).extrude(Up*lots, centered=True))
     save_STL("bracket_test", result)
     preview(result)
 
