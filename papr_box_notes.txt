@@ -1,0 +1,24 @@
+Design constraints:
+
+Rain cover:
+– The rain cover must cover basically everything: Battery, fan, and filters.
+– Since it covers everything, where are the brackets for the straps that let you wear the thing? They must be on the _outside_ of the rain cover; a natural design is to build them into the rain cover.
+– Since it covers everything, what is bearing the weight of the main assembly? The rain cover again?
+– Since it covers the battery, how do you toggle the switch for the battery?
+
+In the design from portable_air_purifier_2_pyocct.py (hereafter "2.0"),
+– I just put loops of webbing around the outside of the rain cover; this webbing both bore the weight and allowed a belt. But I would like the belt-loops to be more rigid in future versions. (If you have rigid belt-loops at both top and bottom, you can secure it better, making it more friendly to running.)
+– The battery switch is near the bottom, and has loose flexible plastic over it. This is a bit messy, but I don't have a better idea as long as I'm using a battery whose plug must stick out next to the switch. Also, the inset helps prevent switching them by accident, and the "bottom right" position turns out to be very convenient for switching it. The main downsides are that my cable management isn't great (the loose cable can hang out when shaken... but also it does have to be somewhat loose so you can unplug the fan to charge... hrm)
+
+Fan/filter geometry:
+– because the NMB fan seems happiest ("noise spectrum unaffected relative to open air") with at least ~15mm airspace on the back and ~20mm airspace on the front, it is surprisingly close to cubical (80 x 70-80 x 65). We could compact the device a little bit by choosing the appropriate direction, In 2.0, I put it in the "biggest" direction to give the most airspace possible, but I'm not sure if this was even useful/optimal for airflow; in fact, I'm not sure if the ear-based noise-spectrum test is relevant to best airflow; in fact, some tests even suggested higher airflow with _less_ airspace. Maybe I'll put 15 on the front and 10 on the back?
+– The angled version from 2.0 helps keep the thickness (back-front size) low, at the expense of making the width (left-right size) higher. We can probably compact it further: the prefilter can "overlap" the main filter, and/or the main filter can actually be angled _backwards_.
+– Doing some experimental layout with paper, it seems like non-angled, "overlap" design is the most compact, and has plenty of airspace (the 100mm filter width being the bottleneck).
+
+
+Materials:
+Plastic for walls (TODO: area)
+NMB fan
+battery
+screws and nuts/heat inserts, for filter-frame and fan-securing
+clear flexible plastic sheet for battery switch cover?

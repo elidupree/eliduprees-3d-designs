@@ -5,6 +5,7 @@ from pyocct_system import *
 initialize_pyocct_system()
 
 from air_adapters import elidupree_4in_output_outer_radius
+from pyocct_utils import wallify
 
 lots = 500
 
@@ -63,7 +64,7 @@ def nut_bracket():
     )
 
 
-def zigzag_loop(points, right_hand_offset):
+def zigzag_loop_control_points(points, right_hand_offset):
     result = []
     for a, b in pairs(points, loop=True):
         along = Direction(b - a)
@@ -79,8 +80,12 @@ def zigzag_loop(points, right_hand_offset):
                 control_points.append(c - perpendicular * right_hand_offset)
             else:
                 control_points.append(c + perpendicular * right_hand_offset * 2)
-        result.append(BSplineCurve(control_points))
-    return Wire(result)
+        result.append(control_points)
+    return result
+
+
+def zigzag_loop(points, right_hand_offset):
+    return Wire([BSplineCurve(p) for p in zigzag_loop_control_points(points, right_hand_offset)])
 
 
 def rectangle_points(o1, o2):
@@ -157,4 +162,28 @@ def bracket_test():
     preview(result)
 
 
-preview(plate)
+@run_if_changed
+def elidupree_4in_connector():
+    wall_thickness = 0.5
+    zig = zigzag_loop(rectangle_points(
+        Right * (strong_filter_width / 2 - strong_filter_rim_inset + wall_thickness + 1.8),
+        Back * (strong_filter_length / 2 - strong_filter_rim_inset + wall_thickness + 1.8)
+    ), -1.8)
+    row0 = points_along_wire(zig, max_length=2) #[p for edge in z for p in edge[:-1]]
+    rows = [
+        row0
+    ]
+    for z in [25, 50, 60, 75]:
+        rows.append([Origin + Up*z + Direction(p - Origin)*elidupree_4in_output_outer_radius for p in row0])
+
+    # deliberately expanding the wall inwards, because we need the outer radius correct
+    return wallify(rows, thickness=wall_thickness, loop=True) @ Translate(Up*plate_thickness)
+
+
+@run_if_changed
+def plate_to_elidupree_4in():
+    result = Compound(plate, elidupree_4in_connector)
+    save_STL("plate_to_elidupree_4in", result)
+    return result
+
+preview(plate, elidupree_4in_connector)

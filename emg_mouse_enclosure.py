@@ -3,6 +3,7 @@ import math
 from pyocct_system import *
 initialize_pyocct_system()
 
+from pyocct_utils import wallify
 
 printed_wall_thickness = 0.8
 contact_leeway = 0.4
