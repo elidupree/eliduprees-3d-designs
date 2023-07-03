@@ -9,47 +9,108 @@ cup_top_diameter = 71
 cup_bottom_radius = cup_bottom_diameter / 2
 cup_top_radius = cup_top_diameter / 2
 cup_approx_height = 190
+cup_slope = (cup_top_radius-cup_bottom_radius)/cup_approx_height
 
-grip_height = 30
-grip_leeway = 1
-num_flares = 7
-flare_depth = 10
+grip_leeway = 0.5
+
+inch = 25.4
+post_diameter = inch/2
+post_radius = post_diameter/2
+
+def cup_holder(bottom_radius, slope):
+    inside = []
+    outside = []
+    for z,expand in [(0,0),(15,0),(30,0),(33,1),(40,10),(45,15)]:
+        inner_radius = bottom_radius + grip_leeway + z*slope + expand
+        outer_radius = inner_radius + max(0.5, 4 - expand)
+
+        inside.append (Point(inner_radius,0,z))
+        outside.append (Point(outer_radius,0,z))
+
+    cross_section = Face(Wire([BSplineCurve(inside), outside [-1], BSplineCurve(outside[::-1]), inside[0]]))
+    result = Revolve(cross_section, Up)
+    interior_cross_section = Face(Wire([BSplineCurve(inside), Point(0,0,45), Origin, inside[0]]))
+    interior = Revolve(interior_cross_section, Up)
+
+    # bottom = Circle(Axes(Origin, Up), bottom_radius)
+    # bottom2 = Circle(Axes(Origin, Up), bottom_radius + grip_leeway)
+    # preview(bottom, bottom2, cross_section)
+    # save_STL("cup_holder_solid", result)
+    return result, interior
+
+centers = [Point(86, 0, 0) @ Rotate(Up, radians = math.tau*i/5) for i in range(5)]
+
+
+holders, interiors = None, None
+@run_if_changed
+def holders_and_interiors():
+    global holders, interiors
+    ch, ci = cup_holder(cup_bottom_radius, cup_slope)
+    jh, ji = cup_holder(73/2, 0)
+    holders = [(ch if i != 4 else jh) @ Translate(center-Origin) for i, center in enumerate (centers)]
+    interiors = [(ci if i != 4 else ji) @ Translate(center-Origin) for i, center in enumerate (centers)]
+
+
+post_holder, post_holder_interior = None, None
+@run_if_changed
+def post_holder_and_interior():
+    global post_holder, post_holder_interior
+
+    inside = []
+    outside = []
+    for z,w in [(0,4),(15,4),(30,4),(40,3),(50,2),(60,1)]:
+        inner_radius = post_radius + grip_leeway
+        outer_radius = inner_radius + w
+        inside.append (Point(inner_radius,0,z))
+        outside.append (Point(outer_radius,0,z))
+
+    cross_section = Face(Wire([BSplineCurve(inside), outside [-1], BSplineCurve(outside[::-1]), inside[0]]))
+    post_holder = Revolve(cross_section, Up)
+    interior_cross_section = Face(Wire([BSplineCurve(inside), Point(0,0,45), Origin, inside[0]]))
+    post_holder_interior = Revolve(interior_cross_section, Up)
+
+
+
+
+def strut(a, b, cuts):
+    along = Direction(b - a)
+    perp = along @ Rotate(Up, degrees = 90)
+    return Vertex(a).extrude(b - a).extrude(perp*3, centered=True).extrude(Up*45).cut(cuts)
+
+def bottom(center, interior):
+    along = Direction(center - Origin)
+    perp = along @ Rotate(Up, degrees = 90)
+    return Vertex(center).extrude(along*500, centered=True).extrude(perp*3, centered=True).extrude(Up*3).intersection(interior)
+
+@run_if_changed
+def struts():
+    return [strut(Origin, center, [interior, post_holder_interior]) for center, interior in zip(centers, interiors)] + [strut(c1, c2, [i1, i2]) for (c1, i1), (c2, i2) in pairs(list(zip(centers, interiors)), loop=True)]
+
+    #return Compound(holders)
 
 
 @run_if_changed
-def cup_holder_solid():
-    rows = []
-    for z,expand  in [(0,0),(15,0),(30,0),(40,10),(45,20)]:
-        row = []
-        rows.append (row)
-        inner_radius = cup_bottom_radius + grip_leeway + expand
-        center = Point(0,0,z)
-        for increment in range(num_flares):
-            radians = math.tau * increment / num_flares
-            normal = Right @ Rotate(Up, radians=radians)
-            base = center + normal * inner_radius
-            tangent = Back @ Rotate(Up, radians=radians)
-            flare_rounding = 5
-            row.append(base - tangent * flare_rounding)
-            row.append(base)
-            row.append(base + tangent * flare_rounding)
+def bottoms():
+    return [bottom(*p) for p in zip(centers, interiors)]
 
-            radians = math.tau * (increment + 0.5) / num_flares
-            normal = Right @ Rotate(Up, radians=radians)
-            base = center + normal * (inner_radius + flare_depth)
-            tangent = Back @ Rotate(Up, radians=radians)
-            flare_rounding = 3 + expand/3
-            row.append(base - tangent * flare_rounding)
-            #row.append(base)
-            row.append(base + tangent * flare_rounding)
 
-    bottom = Circle(Axes(Origin, Up), cup_bottom_radius)
-    bottom2 = Circle(Axes(Origin, Up), cup_bottom_radius + grip_leeway)
-    surface = BSplineSurface(rows, v = BSplineDimension (periodic = True))
-    flats = [Face(Edge( BSplineCurve(r, BSplineDimension (periodic = True)))) for r in [rows[0], rows[-1]]]
-    result = Solid (Shell (Face(surface), flats).complemented())
-    #preview(bottom, bottom2, result)
-    save_STL("cup_holder_solid", result)
+@run_if_changed
+def post():
+    return Face(Circle(Axes(Origin, Up), post_radius)).extrude(Up* (cup_approx_height + 30))
+
+@run_if_changed
+def post_bottom():
+    return Face(Circle(Axes(Origin, Up), post_radius + 3)).extrude(Down*(10))
+
+@run_if_changed
+def post_base():
+    return Face(Circle(Axes(Origin, Up), 130)).extrude(Down*(10)) @ Translate(Down*10)
+
+@run_if_changed
+def cup_holders():
+    result = Compound(holders, post_holder, struts)
+    save_STL("cup_holders", result)
     return result
 
-preview (cup_holder_solid)
+
+preview (holders, post_holder, struts, bottoms, post, post_bottom, post_base)
