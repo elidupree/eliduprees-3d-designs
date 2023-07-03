@@ -11,18 +11,22 @@ cup_top_radius = cup_top_diameter / 2
 cup_approx_height = 190
 cup_slope = (cup_top_radius-cup_bottom_radius)/cup_approx_height
 
-grip_leeway = 0.5
+grip_leeway = 0.4
 
 inch = 25.4
 post_diameter = inch/2
 post_radius = post_diameter/2
 
+funnel_radius = 48
+
 def cup_holder(bottom_radius, slope):
     inside = []
     outside = []
-    for z,expand in [(0,0),(15,0),(30,0),(33,1),(40,10),(45,15)]:
-        inner_radius = bottom_radius + grip_leeway + z*slope + expand
-        outer_radius = inner_radius + max(0.5, 4 - expand)
+    for z,expand_frac in [(0,0),(15,0),(30,0),(33,0.1),(40,0.66),(45,1.0)]:
+        base_radius = bottom_radius + grip_leeway + z*slope
+        expand = (funnel_radius - 0.8 - base_radius) * expand_frac
+        inner_radius = base_radius + expand
+        outer_radius = inner_radius + 0.8 + 3.2*(1.0 - expand_frac)
 
         inside.append (Point(inner_radius,0,z))
         outside.append (Point(outer_radius,0,z))
@@ -38,7 +42,8 @@ def cup_holder(bottom_radius, slope):
     # save_STL("cup_holder_solid", result)
     return result, interior
 
-centers = [Point(86, 0, 0) @ Rotate(Up, radians = math.tau*i/5) for i in range(5)]
+num_holders = 4
+centers = [Point(67.5, 0, 0) @ Rotate(Up, radians = math.tau*i/num_holders) for i in range(num_holders)]
 
 
 holders, interiors = None, None
@@ -47,8 +52,8 @@ def holders_and_interiors():
     global holders, interiors
     ch, ci = cup_holder(cup_bottom_radius, cup_slope)
     jh, ji = cup_holder(73/2, 0)
-    holders = [(ch if i != 4 else jh) @ Translate(center-Origin) for i, center in enumerate (centers)]
-    interiors = [(ci if i != 4 else ji) @ Translate(center-Origin) for i, center in enumerate (centers)]
+    holders = [(ch if i != 0 else jh) @ Translate(center-Origin) for i, center in enumerate (centers)]
+    interiors = [(ci if i != 0 else ji) @ Translate(center-Origin) for i, center in enumerate (centers)]
 
 
 post_holder, post_holder_interior = None, None
@@ -58,8 +63,8 @@ def post_holder_and_interior():
 
     inside = []
     outside = []
-    for z,w in [(0,4),(15,4),(30,4),(40,3),(50,2),(60,1)]:
-        inner_radius = post_radius + grip_leeway
+    for z,w in [(0,3),(15,3),(30,3),(45,3)]:
+        inner_radius = post_radius + 0.3
         outer_radius = inner_radius + w
         inside.append (Point(inner_radius,0,z))
         outside.append (Point(outer_radius,0,z))
