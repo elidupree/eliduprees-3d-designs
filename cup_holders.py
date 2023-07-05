@@ -14,7 +14,7 @@ cup_slope = (cup_top_radius-cup_bottom_radius)/cup_approx_height
 grip_leeway = 0.4
 
 inch = 25.4
-post_diameter = inch/2
+post_diameter = 22.4
 post_radius = post_diameter/2
 
 funnel_radius = 48
