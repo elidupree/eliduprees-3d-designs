@@ -28,16 +28,21 @@ battery_plug_diameter = 11.4
 battery_plug_length = 38.2
 cords_space = 25
 
+fan_socket_thickness = 11.5
+fan_socket_width = 13.7
+fan_socket_length = 36.3
+
 CPAP_outer_radius = 21.5 / 2
 
 flat_wall_thickness = inch * 0.030
 
-screw_radius = 2
-contact_leeway = 0.4
-nut_short_radius = 4.4
-nut_long_radius = nut_short_radius / math.cos(math.tau / 12)
-nut_thickness = 3
-nut_holder_thickness = 2
+screw_radius = 1.5
+screw_headspace_radius = 3.5
+screw_headspace_depth = 3
+screw_print_contact_leeway = 0.3
+threaded_insert_hole_radius = 2.2
+threaded_insert_depth = 4
+holder_radius = 4.5
 
 frame_outer_zigzag_width = 0.6
 
@@ -46,17 +51,16 @@ screw_filter_contact_leeway = 1
 
 plate_thickness = 10
 
-nut_bracket_cuts = None
+threaded_insert_bracket, screw_bracket, threaded_insert_bracket_cuts, screw_bracket_cuts, bracket_protrusion_length = None, None, None, None, None
 
-nut_bracket_protrusion_length = None
+
 @run_if_changed
-def nut_bracket():
-    global nut_bracket_cuts, nut_bracket_protrusion_length
-    holder_radius = nut_long_radius + nut_holder_thickness
+def brackets():
+    global threaded_insert_bracket, screw_bracket, threaded_insert_bracket_cuts, screw_bracket_cuts, bracket_protrusion_length
     screw_center = Origin + Left * max(screw_radius + screw_filter_contact_leeway,
                                        holder_radius - strong_filter_rim_inset)
 
-    nut_bracket_protrusion_length = -screw_center[0] + holder_radius
+    bracket_protrusion_length = -screw_center[0] + holder_radius
 
     cylinder = Face(Circle(Axes(screw_center, Up), holder_radius)).extrude(Up * plate_thickness)
     a = screw_center + Direction(-1, -1, 0) * holder_radius
@@ -65,26 +69,34 @@ def nut_bracket():
         b, a, a @ Mirror(Back), b @ Mirror(Back)
     ], loop=True)).extrude(Up * plate_thickness)
 
-    screw_hole = Face(Circle(Axes(screw_center, Up), screw_radius + contact_leeway)).extrude(Up * plate_thickness)
-    nut_hole = Face(Wire([
-        Point((nut_short_radius + contact_leeway) / math.cos(math.tau / 12), 0, nut_holder_thickness)
-        @ Rotate(Up, degrees=i * 60)
-        for i in range(6)
-    ], loop=True)).extrude(Up * plate_thickness) @ Translate(screw_center - Origin)
+    screw_hole = Face(Circle(Axes(screw_center, Up), screw_radius + screw_print_contact_leeway)).extrude(
+        Up * plate_thickness)
+    threaded_insert_hole = Face(Circle(Axes(screw_center, Up), threaded_insert_hole_radius)).extrude(
+        Up * plate_thickness)
+    screw_head_hole = Face(Circle(Axes(screw_center, Up), screw_headspace_radius + screw_print_contact_leeway)).extrude(
+        Up * 2, Up * plate_thickness)
+    # nut_hole = Face(Wire([
+    #     Point((nut_short_radius + screw_print_contact_leeway) / math.cos(math.tau / 12), 0, nut_holder_thickness)
+    #     @ Rotate(Up, degrees=i * 60)
+    #     for i in range(6)
+    # ], loop=True)).extrude(Up * plate_thickness) @ Translate(screw_center - Origin)
 
-    cutaway = HalfSpace(screw_center + Left * nut_long_radius + Up * (nut_holder_thickness + nut_thickness),
-                        Direction(-1, 0, 1))
-    nut_bracket_cuts = Compound(screw_hole, nut_hole)
+    threaded_insert_cutaway = HalfSpace(screw_center + Left * holder_radius + Up * threaded_insert_depth,
+                                        Direction(-1, 0, 1))
+    screw_cutaway = HalfSpace(screw_center + Left * screw_headspace_radius + Up * screw_headspace_depth,
+                              Direction(-1, 0, 1))
+    screw_bracket_cuts = Compound(screw_hole, screw_head_hole)
+    threaded_insert_bracket_cuts = threaded_insert_hole
 
-    # sacrificial_bridge = Face (Circle (Axes(screw_center + Up*nut_holder_thickness, Up), screw_radius+ contact_leeway)).extrude (Down*0.28)
+    # sacrificial_bridge = Face (Circle (Axes(screw_center + Up*nut_holder_thickness, Up), screw_radius+ screw_print_contact_leeway)).extrude (Down*0.28)
 
-    real = Compound(cylinder, frustum).cut([
-        screw_hole, nut_hole, cutaway
+    threaded_insert_bracket = Compound(cylinder, frustum).cut([
+        threaded_insert_hole, threaded_insert_cutaway
     ])
-    return Compound(
-        real,
-        # sacrificial_bridge,
-    )
+    screw_bracket = Compound(cylinder, frustum).cut([
+        screw_hole, screw_head_hole, screw_cutaway
+    ])
+    # preview (threaded_insert_bracket)
 
 
 def zigzag_loop_control_points(points, right_hand_offset):
@@ -143,7 +155,7 @@ def frame():
 
 
 frame_full_width = strong_filter_width + 2 * frame_outer_zigzag_width
-frame_full_length = strong_filter_length + 2 * nut_bracket_protrusion_length
+frame_full_length = strong_filter_length + 2 * bracket_protrusion_length
 
 
 # @run_if_changed
@@ -158,11 +170,9 @@ frame_full_length = strong_filter_length + 2 * nut_bracket_protrusion_length
 #
 #     return cross_section.extrude(Left * (strong_filter_width - strong_filter_rim_inset * 2), centered=True)
 
-
-@run_if_changed
-def plate():
-    b1 = nut_bracket @ Rotate(Up, degrees=90) @ Translate(Front * (strong_filter_length / 2))
-    c1 = nut_bracket_cuts @ Rotate(Up, degrees=90) @ Translate(Front * (strong_filter_length / 2))
+def filter_plate(bracket, bracket_cuts):
+    b1 = bracket @ Rotate(Up, degrees=90) @ Translate(Front * (strong_filter_length / 2))
+    c1 = bracket_cuts @ Rotate(Up, degrees=90) @ Translate(Front * (strong_filter_length / 2))
     # r1 = reinforcement @ Translate(Back*screw_offset)
     result = Compound([
         b1,
@@ -174,20 +184,33 @@ def plate():
             c1 @ Mirror(Back),
         ])
     ])
-
-    # print the plate upside-down, because we want the filter-facing face to be the one that's less warped
-    # result = result @ Mirror(Up)
-    save_STL("filter_plate", result)
     return result
 
 
 @run_if_changed
-def bracket_test():
-    result = plate.intersection(
-        Face(Circle(Axes(Origin + Back * (strong_filter_length / 2 + screw_radius), Up), 20)).extrude(Up * lots,
-                                                                                                      centered=True))
-    save_STL("bracket_test", result)
-    preview(result)
+def screw_filter_plate():
+    result = filter_plate(screw_bracket, screw_bracket_cuts)
+    save_STL("screw_filter_plate", result)
+    return result
+
+
+@run_if_changed
+def threaded_insert_filter_plate():
+    result = filter_plate(threaded_insert_bracket, threaded_insert_bracket_cuts)
+    save_STL("threaded_insert_filter_plate", result)
+    return result
+
+
+@run_if_changed
+def bracket_tests():
+    local_area = Face(Circle(Axes(Origin + Back * (strong_filter_length / 2 + screw_radius), Up), 10)).extrude(
+        Up * lots,
+        centered=True)
+    screw_bracket_test = screw_filter_plate.intersection(local_area)
+    threaded_insert_bracket_test = threaded_insert_filter_plate.intersection(local_area)
+    save_STL("screw_bracket_test", screw_bracket_test)
+    save_STL("threaded_insert_bracket_test", threaded_insert_bracket_test)
+    preview(screw_bracket_test, threaded_insert_bracket_test @ Translate(Right * 20))
 
 
 @run_if_changed
@@ -208,11 +231,11 @@ def elidupree_4in_connector():
     return wallify(rows, thickness=wall_thickness, loop=True) @ Translate(Up * plate_thickness)
 
 
-@run_if_changed
-def plate_to_elidupree_4in():
-    result = Compound(plate, elidupree_4in_connector)
-    save_STL("plate_to_elidupree_4in", result)
-    return result
+# @run_if_changed
+# def screw_filter_plate_to_elidupree_4in():
+#     result = Compound(screw_filter_plate, elidupree_4in_connector)
+#     save_STL("screw_filter_plate_to_elidupree_4in", result)
+#     return result
 
 
 # For the PAPR:
@@ -226,7 +249,8 @@ prefilter_airspace_right_x = 0
 main_airspace_top_z = 0
 prefilter_airspace_left_x = prefilter_airspace_right_x - frame_full_width
 filter2_plate1_right_x = prefilter_airspace_left_x - flat_wall_thickness
-filter2_plate2_left_x = filter2_plate1_right_x - putative_inplace_filter2_thickness_with_padding - plate_thickness*2
+filter2_plate2_left_x = filter2_plate1_right_x - putative_inplace_filter2_thickness_with_padding - plate_thickness * 2
+filter2_center_y = prefilter_airspace_front_y + frame_full_width / 2
 
 prefilter_airspace_back_y = prefilter_airspace_front_y + frame_full_width - flat_wall_thickness * 2
 
@@ -237,38 +261,47 @@ prefilter_plate2_back_y = prefilter_back_y + plate_thickness
 main_airspace_height = strong_filter_length - strong_filter_rim_inset * 2 + flat_wall_thickness * 2
 main_airspace_bottom_z = main_airspace_top_z - main_airspace_height
 filters_vertical_center = Between(main_airspace_top_z, main_airspace_bottom_z)
-filters_absolute_top = main_airspace_top_z + (frame_full_length - main_airspace_height)/2
+filters_absolute_top = main_airspace_top_z + (frame_full_length - main_airspace_height) / 2
+covered_top = filters_absolute_top
 
 fan_center_y = Between(prefilter_plate2_back_y, prefilter_airspace_back_y)
 fan_front_y = fan_center_y - fan_thickness / 2
 fan_back_y = fan_center_y + fan_thickness / 2
 fan_body_left_x = filter2_plate1_right_x + (fan_front_y - prefilter_plate2_back_y)
 fan_exit_left_x = fan_body_left_x + fan_exit_length
+fan_bottom_z = main_airspace_bottom_z
+fan_top_z = fan_bottom_z + fan_width
 
-battery_top = filters_absolute_top
+battery_top = covered_top
 battery_left = prefilter_airspace_right_x + flat_wall_thickness
 battery_front = prefilter_airspace_front_y + flat_wall_thickness
-battery_back =battery_front + battery_width
+battery_back = battery_front + battery_width
 battery_right = battery_left + battery_thickness
-battery_bottom =battery_top -battery_length
+battery_bottom = battery_top - battery_length
 
+covered_bottom = battery_bottom - battery_plug_length
+covered_right = battery_right + flat_wall_thickness
+covered_left = filter2_plate2_left_x - 5
+covered_front = filter2_center_y - frame_full_width/2
+covered_back = filter2_center_y + frame_full_width/2
 
 @run_if_changed
 def papr_filter2_plate1():
-    return plate @ Transform(Back, Up, Right) @ Translate(
-        Vector(filter2_plate1_right_x - plate_thickness, prefilter_airspace_front_y + frame_full_width / 2,
+    return threaded_insert_filter_plate @ Transform(Back, Up, Right) @ Translate(
+        Vector(filter2_plate1_right_x - plate_thickness, filter2_center_y,
                filters_vertical_center))
+
 
 @run_if_changed
 def papr_filter2_plate2():
-    return plate @ Transform(Back, Up, Left) @ Translate(
-        Vector(filter2_plate2_left_x + plate_thickness, prefilter_airspace_front_y + frame_full_width / 2,
+    return screw_filter_plate @ Transform(Back, Up, Left) @ Translate(
+        Vector(filter2_plate2_left_x + plate_thickness, filter2_center_y,
                filters_vertical_center))
 
 
 @run_if_changed
 def papr_prefilter_plate2():
-    return plate @ Transform(Left, Up, Back) @ Translate(
+    return threaded_insert_filter_plate @ Transform(Left, Up, Back) @ Translate(
         Vector(Between(prefilter_airspace_left_x, prefilter_airspace_right_x), prefilter_back_y,
                filters_vertical_center))
 
@@ -286,11 +319,11 @@ main_wall1_top_inner_wire_points = [
     Point(fan_body_left_x, fan_front_y),
     Point(fan_body_left_x, fan_back_y),
     Point(prefilter_airspace_left_x, prefilter_airspace_back_y),
-    #Point(prefilter_airspace_right_x, prefilter_airspace_back_y),
-    #Point(prefilter_airspace_right_x, prefilter_airspace_front_y),
+    # Point(prefilter_airspace_right_x, prefilter_airspace_back_y),
+    # Point(prefilter_airspace_right_x, prefilter_airspace_front_y),
 ]
 main_wall2_top_inner_wire_points = [
-    Point(prefilter_airspace_left_x- flat_wall_thickness, prefilter_airspace_back_y),
+    Point(prefilter_airspace_left_x - flat_wall_thickness, prefilter_airspace_back_y),
     Point(prefilter_airspace_right_x, prefilter_airspace_back_y),
     Point(prefilter_airspace_right_x, prefilter_airspace_front_y),
 ]
@@ -300,20 +333,57 @@ main_wall2_top_inner_wire_points = [
 def main_airspace_top_face():
     return Face(Wire(main_airspace_top_wire_points, loop=True)).extrude(Up * flat_wall_thickness)
 
+
 @run_if_changed
 def main_airspace_bottom_face():
-    return Face(Wire(main_airspace_top_wire_points, loop=True)).extrude(Down * flat_wall_thickness) @ Translate(Down*main_airspace_height)
+    return Face(Wire(main_airspace_top_wire_points, loop=True)).extrude(Down * flat_wall_thickness) @ Translate(
+        Down * main_airspace_height)
 
-
-# @run_if_changed
-# def main_wall1():
-    #preview(Wire(main_wall1_top_inner_wire_points))
-    #return Wire(main_wall1_top_inner_wire_points).offset2D(flat_wall_thickness, fill=True).extrude(Up * flat_wall_thickness, Down*main_airspace_height + flat_wall_thickness)
-    #return Wire(main_wall1_top_inner_wire_points).extrude(Up * flat_wall_thickness, Down*(main_airspace_height + flat_wall_thickness)).offset(flat_wall_thickness, fill=True)
 
 @run_if_changed
-def battery ():
-    return Vertex(battery_right, battery_back, battery_top).extrude(Front*battery_width).extrude(Down*battery_length).extrude(Left*battery_thickness)
+def main_wall1():
+    # preview(Wire(main_wall1_top_inner_wire_points))
+    # return Wire(main_wall1_top_inner_wire_points).offset2D(flat_wall_thickness, fill=True).extrude(Up * flat_wall_thickness, Down*main_airspace_height + flat_wall_thickness)
+    # return Wire(main_wall1_top_inner_wire_points).extrude(Up * flat_wall_thickness, Down*(main_airspace_height + flat_wall_thickness)).offset(flat_wall_thickness, fill=True)
+    return Wire(main_wall1_top_inner_wire_points).extrude(Up * flat_wall_thickness,
+                                                          Down * (main_airspace_height + flat_wall_thickness))
 
-preview(papr_filter2_plate1, papr_prefilter_plate2, main_airspace_top_face, main_airspace_bottom_face, papr_filter2_plate2, battery,Wire(main_wall1_top_inner_wire_points), Wire(main_wall2_top_inner_wire_points))
+
+@run_if_changed
+def main_wall2():
+    return Wire(main_wall2_top_inner_wire_points).extrude(Up * filters_absolute_top, Down * (main_airspace_height))
+
+
+@run_if_changed
+def battery():
+    return Vertex(battery_right, battery_back, battery_top).extrude(Front * battery_width).extrude(
+        Down * battery_length).extrude(Left * battery_thickness)
+
+
+@run_if_changed
+def battery_plug():
+    return Face(Wire(Edge(Circle(Axes(Point(battery_left + 13, battery_back - 16, battery_bottom), Up),
+                                 battery_plug_diameter / 2)))).extrude(Down * battery_plug_length)
+
+
+@run_if_changed
+def fan_exit():
+    return Vertex(fan_body_left_x, fan_back_y, fan_top_z).extrude(Front * fan_thickness).extrude(
+        Down * fan_exit_width).extrude(Left * fan_exit_length)
+
+
+@run_if_changed
+def fan_body():
+    return Vertex(fan_body_left_x, fan_back_y, fan_top_z).extrude(Front * fan_thickness).extrude(
+        Down * fan_width).extrude(Right * (fan_length - fan_exit_length))
+
+
+@run_if_changed
+def fan_socket():
+    return Vertex(battery_left, battery_back + flat_wall_thickness, battery_bottom).extrude(
+        Back * fan_socket_width).extrude(Up * fan_socket_length).extrude(Right * fan_socket_thickness)
+
+
+preview(papr_filter2_plate1, papr_prefilter_plate2, main_airspace_top_face.wires(), main_airspace_bottom_face.wires(),
+        papr_filter2_plate2, battery, battery_plug, main_wall1.wires(), main_wall2.wires(), fan_exit, fan_body, fan_socket)
 # preview(plate, elidupree_4in_connector)

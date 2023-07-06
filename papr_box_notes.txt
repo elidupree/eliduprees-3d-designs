@@ -22,3 +22,63 @@ NMB fan
 battery
 screws and nuts/heat inserts, for filter-frame and fan-securing
 clear flexible plastic sheet for battery switch cover?
+
+
+
+Assembly process:
+
+3D print the components (* = yet to be designed):
+– 2x threaded_insert_plate
+– 1x screw_plate
+–*1x CPAP
+–*1x fan bracket
+
+Cut out the outline of the flat walls, probably by 2D printing the shapes and then using [scissors, scroll saw]:
+– main wall
+– main chamber top
+– main chamber bottom
+– battery holder
+– wires cover
+– filter-to-CPAP
+– prefilter-holder-strip
+– rain cover top
+– rain cover sides
+– rain cover beltloops
+
+Fold the flat walls into the shape using heat
+– main wall
+– battery holder
+– wires cover
+– filter-to-CPAP?
+– rain cover sides
+– rain cover beltloops
+
+Puncture flat walls where needed, using [drill, soldering iron, knife]
+– main wall, for fan-exit, fan-bracket, and wires hole
+– prefilter-holder-strip
+– rain cover sides
+
+Insert the threaded heat inserts into the 2 relevant frames
+
+Add weatherstripping to the immediately-after-filter frames, padding with hot glue where needed
+
+Glue the pieces together
+– rain cover closed
+– main chamber closed
+– main chamber to filter-plates
+– second chamber to filter-plate and CPAP
+– battery holder
+– fan-socket
+– either hot glue or cyanoacrylate is fine for everything but the rain cover; for the rain cover, use cyanoacrylate. Cyanoacrylate probably makes it look nicer (less blobs and warping). Fan-socket maybe best with hot glue, make big blob to conform to shape
+– high precision doesn't matter except for the battery holder, which must leave enough room to fit the battery
+
+Insert the fan, thread wires through hole and screw into socket
+
+Tape the wires cover on
+
+Insert the battery, plug in the wires and stuff the extra up the hole
+
+Put weatherstripping in several places on the outside of the inner box, to pad for rain cover
+
+Attach snaps somewhere to both pieces
+
