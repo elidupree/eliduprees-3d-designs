@@ -40,7 +40,8 @@ screw_radius = 1.5
 screw_headspace_radius = 3.5
 screw_headspace_depth = 3
 screw_print_contact_leeway = 0.3
-threaded_insert_hole_radius = 2.2
+threaded_insert_hole_radius = 2.4
+threaded_insert_opening_radius = 2.9
 threaded_insert_depth = 4
 holder_radius = 4.5
 
@@ -71,8 +72,13 @@ def brackets():
 
     screw_hole = Face(Circle(Axes(screw_center, Up), screw_radius + screw_print_contact_leeway)).extrude(
         Up * plate_thickness)
-    threaded_insert_hole = Face(Circle(Axes(screw_center, Up), threaded_insert_hole_radius)).extrude(
-        Up * plate_thickness)
+    threaded_insert_hole = Face(Wire([
+        screw_center,
+        screw_center + Right*threaded_insert_opening_radius,
+        screw_center + Right*threaded_insert_hole_radius + Up*1.2,
+        screw_center + Right*threaded_insert_hole_radius + Up*plate_thickness,
+        screw_center + Up*plate_thickness,
+    ], loop=True)).revolve(Axis(screw_center, Up))
     screw_head_hole = Face(Circle(Axes(screw_center, Up), screw_headspace_radius + screw_print_contact_leeway)).extrude(
         Up * 2, Up * plate_thickness)
     # nut_hole = Face(Wire([
@@ -81,7 +87,7 @@ def brackets():
     #     for i in range(6)
     # ], loop=True)).extrude(Up * plate_thickness) @ Translate(screw_center - Origin)
 
-    threaded_insert_cutaway = HalfSpace(screw_center + Left * holder_radius + Up * threaded_insert_depth,
+    threaded_insert_cutaway = HalfSpace(screw_center + Left * threaded_insert_hole_radius + Up * threaded_insert_depth,
                                         Direction(-1, 0, 1))
     screw_cutaway = HalfSpace(screw_center + Left * screw_headspace_radius + Up * screw_headspace_depth,
                               Direction(-1, 0, 1))
@@ -96,7 +102,7 @@ def brackets():
     screw_bracket = Compound(cylinder, frustum).cut([
         screw_hole, screw_head_hole, screw_cutaway
     ])
-    # preview (threaded_insert_bracket)
+    preview (threaded_insert_bracket)
 
 
 def zigzag_loop_control_points(points, right_hand_offset):
