@@ -1,4 +1,7 @@
 
+filament_diameter = 1.75
+mm3_per_extrusion_distance = filament_diameter * filament_diameter
+
 def start_gcode(min_temp = 200, good_temp = 250):
     return f'''
 G90     ; Use absolute positioning
@@ -11,9 +14,10 @@ M104 S{min_temp}
 G28     ; Home all axes
 
 ; need to reach min temp before initial wipe:
-M109 S{min_temp}
+; M109 S{min_temp}
 ; ...but keep heating up while we do it:
-M104 S{good_temp}
+; M104 S{good_temp}
+M109 S{good_temp}
 
 ; start initial wipe, borrowed from Cura:
 G1 Z2.0 F3000 ; Move Z Axis up little to prevent scratching of Heat Bed
@@ -22,7 +26,7 @@ G1 X0.1 Y200.0 Z0.3 F1500.0 E15 ; Draw the first line
 G1 X0.4 Y200.0 Z0.3 F5000.0 ; Move to side a little
 
 ; ...want to reach max temp before we finish the initial wipe:
-M109 S{good_temp}
+; M109 S{good_temp}
 
 ; rest of initial wipe, borrowed from Cura:
 G1 X0.4 Y20 Z0.3 F1500.0 E30 ; Draw the second line
