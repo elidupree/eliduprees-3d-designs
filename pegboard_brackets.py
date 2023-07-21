@@ -40,6 +40,7 @@ def peg(other_board_thickness):
         )
     result = Compound (cap, shaft, [catch(tip) for tip in tips])
     result = result.intersection(Vertex(Origin).extrude(Up*peg_height, centered = True).extrude(Right*100, centered = True).extrude (Back *100, centered = True))
+    preview(result)
     return result
 
 @run_if_changed
@@ -101,7 +102,7 @@ def simple_funnel(bottom_diameter, top_diameter, height):
     ]
     wall = Wire(a).extrude(Right*stiff_wall_thickness).revolve(Up)
     inside = Face(Wire(b, loop=True)).revolve(Up)
-    plate = peg_attachment_plate(mount_radians = math.tau / 16) @ Translate(Left*(bottom_diameter/2 + stiff_wall_thickness*2 + catch_length + 1 + contact_leeway_one_sided*2))
+    plate = peg_attachment_plate(mount_radians = math.tau / 16) @ Translate(Left*(bottom_diameter/2 + stiff_wall_thickness*2 + catch_length + contact_leeway_one_sided*2))
     return Compound(wall, plate.cut(inside))
 
 @run_if_changed
@@ -110,5 +111,19 @@ def blower_holder():
     save_STL("blower_holder", result)
     return result
 
-preview(blower_holder)
+
+def hole_shrinking_washer(new_hole_radius):
+    washer_thickness = 1.2
+    washer = Face(Circle(Axes(Origin, Up), hole_radius + 5 - contact_leeway_one_sided)).extrude(Up*washer_thickness)
+    plug = Face(Circle(Axes(Origin, Up), hole_radius - contact_leeway_one_sided)).extrude(Up*(washer_thickness+pegboard_thickness))
+    new_hole = Face(Circle(Axes(Origin, Up), new_hole_radius + contact_leeway_one_sided)).extrude(Up*(washer_thickness+pegboard_thickness))
+    return Compound(washer,plug).cut(new_hole)
+
+@run_if_changed
+def hole_shrinking_washer_m4():
+    result = hole_shrinking_washer(2)
+    save_STL("hole_shrinking_washer_m4", result)
+    return result
+
+preview(hole_shrinking_washer_m4)
 preview (peg_attachment_plate(mount_radians = math.tau / 12))
