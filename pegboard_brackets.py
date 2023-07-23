@@ -91,30 +91,41 @@ def peg_attachment_plate():
     # hole = Face(Circle(Axes(Point(0,0,holes_radius), Right), hole_radius + contact_leeway_one_sided)).extrude(Right*(100), centered = True)
     hole = Face(Circle(Axes(hole_center, Up), hole_radius + contact_leeway_one_sided)).extrude(Up*stiff_wall_thickness)
       #  Face(Circle(Axes(hole_center + Up*stiff_wall_thickness, Right), hole_radius + peg_deflection + 1 + contact_leeway_one_sided)).extrude(Right*(catch_length + 1 + contact_leeway_one_sided*2))
-    holes = [hole @ Rotate(Up, radians=i*math.tau/num_holes) for i in range(num_holes)] + []
+    holes = [hole @ Rotate(Up, radians=(math.tau/8) + i*math.tau/num_holes) for i in range(num_holes)] + []
 
     rail_height = 14
     rail = Face(BSplineSurface([
         [Point(0,y,0), Point(-3 if abs(abs(y) - peg_attachment_plate_radius) > 0.01 else 0,y,4)] for y in subdivisions(-peg_attachment_plate_radius, peg_attachment_plate_radius, amount=7)
-    ], v = BSplineDimension(degree=1))).extrude(Right*stiff_wall_thickness)
-    wall = Vertex (Origin).extrude (Right * stiff_wall_thickness).extrude (Back * peg_attachment_plate_width,centered = True).extrude (Up*rail_height)
+    ], v = BSplineDimension(degree=1))).extrude(Right*peg_attachment_plate_holes_radius)
+    wall = Vertex (Origin).extrude (Right * peg_attachment_plate_holes_radius).extrude (Back * peg_attachment_plate_width,centered = True).extrude (Up*rail_height)
     wall = Compound(wall, rail@Translate(Up*rail_height))
     wall = wall @Translate(Left*peg_attachment_plate_radius)
+
+    walls = Compound(
+        wall,
+        wall @Rotate(Up, degrees=90),
+        wall @Rotate(Up, degrees=180),
+        wall @Rotate(Up, degrees=270),
+    )
+    walls = walls.cut(Face(Circle(Axes(Origin, Up), peg_attachment_plate_radius - 1.0)).extrude(Up*100))
 
     # wall2 = Vertex (Origin).extrude (Back * stiff_wall_thickness).extrude (Left * peg_attachment_plate_width,centered = True).extrude (Up*(rail_height+4))
 
     result = Compound(
         plate.cut(holes),
-        wall,
-        wall @Rotate(Up, degrees=90),
-        wall @Rotate(Up, degrees=180),
-        wall @Rotate(Up, degrees=270),
+        walls,
         # wall2 @Translate(Front*peg_attachment_plate_radius),
         # wall2 @Translate(Front*peg_attachment_plate_radius) @Mirror(Back),
     )
+    save_STL("pegboard_rotatable_plate", result)
     preview (result)
     return result #@ Translate(0, 0, peg_attachment_plate_radius) #@ r.inverse()
 
+
+# separate the plates by the appropriate distance,
+# but slightly less so it pressure-fits
+rail_slots_gap_radius = peg_attachment_plate_radius + 2*contact_leeway_one_sided - 0.15
+rail_slots_full_radius = rail_slots_gap_radius + 6
 
 @run_if_changed
 def rail_slots():
@@ -136,52 +147,93 @@ def rail_slots():
     # ], loop=True)).extrude(Back*3, Front*3)
 
     cc = Face(Circle(Axes(Origin,Front),h/2)).cut(Face(Circle(Axes(Origin,Front),h/2 - 1.2))).extrude(Front*16, centered=True).cut(HalfSpace(Origin, Down))
-    c = Vertex(0, -3, 0).extrude(Vector(4,3,0)).extrude(Front*4).extrude(Up*100, centered = True).cut(cc)
+    c = Vertex(-2, 0, 0).extrude(Vector(4,3,0)).extrude(Front*4).extrude(Up*100, centered = True).cut(cc)
     w = Compound(
-        Vertex(0, 0, 0).extrude(Right*100).extrude(Front*6, centered=True).extrude(Down*h),
-        Face(Circle(Axes(Origin,Front),h/2)).extrude(Front*6, centered=True).cut(HalfSpace(Origin, Left))
+        Vertex(0, 0, 0).extrude(Right*100).extrude(Back*6).extrude(Down*h),
+        Face(Circle(Axes(Origin,Front),h/2)).extrude(Back*6).cut(HalfSpace(Point(-2, 0, 0), Left))
     )
     def cut(angle):
         return c @ Rotate(Front, radians=angle)
     def wall(angle):
         return w @ Rotate(Front, radians=angle)
 
-    filter = Vertex(4 + stiff_wall_thickness, 0, 0).extrude(Left*100, centered=True).extrude(Front*8, centered=True).extrude(Up*h)
-    topwall = Vertex(0, 0, 0).extrude(Right*100).extrude(Front*6, centered=True).extrude(Up*h),
+    filter = Vertex(4 + stiff_wall_thickness, 0, 0).extrude(Left*100, centered=True).extrude(Front*100, centered=True).extrude(Up*h, centered=True)
+    topwall = Vertex(0, 0, 0).extrude(Right*100).extrude(Back*6).extrude(Up*h)
 
-    angles = [math.tau / 8, math.tau / 12, math.tau / 24]
-    result = Intersection(
-        Compound([wall(a) for a in angles] + [topwall]).cut([cut(a) for a in angles]) @ Translate(Up*h/2),
-        filter
-    ) @ Translate(Back*(peg_attachment_plate_radius + 3 + 2*contact_leeway_one_sided - 0.15))
+    angles = [math.tau / 8.5, math.tau / 12, math.tau / 24]
+
+    #q = cut(angles[0]).intersection(filter)
+    #preview(q)
+    left_bottom = min((v[2], v[0]) for v in cut(angles[-1]).intersection(filter).vertices())[1]
+    right_edge = max(v[0] for v in cut(angles[0]).intersection(filter).vertices())
+    filter = filter.cut(HalfSpace(Point(right_edge, 0, 0), Right))
+    wall_cross_section = Compound(
+        Face(Circle(Axes(Origin,Front),h/2)).intersection(
+            Compound(
+                HalfSpace(Point(-2, 0, 0), Right)@ Rotate(Front, radians=angles[0]),
+                HalfSpace(Point(-2, 0, 0), Right)@ Rotate(Front, radians=angles[-1]),
+                )
+        ),
+        Wire([
+            Point(0,0,h/2),
+            Point(5,0,0),
+            Point(left_bottom,0,-h/2),
+        ]).extrude(Right*100),
+    ).intersection(filter)
+
+
+    wall = wall_cross_section.extrude(Back*6).cut([cut(a) for a in angles]) @ Translate(Back*rail_slots_gap_radius)
+
+    behind = wall_cross_section.extrude(Back*rail_slots_gap_radius*2, centered = True).cut (
+        HalfSpace(Point(2, 0, 0), Left)@ Rotate(Front, radians=angles[0])).cut(
+           HalfSpace(Point(2, 0, 0), Left)@ Rotate(Front, radians=angles[-1]),
+        )
+
+    #preview(behind)
 
     result = Compound(
-        result,
-        result @ Mirror(Front)
-    )
+        wall,
+        wall @ Mirror(Front),
+        behind
+    ) @ Translate(Vector(
+        -right_edge,
+        0,
+        h/2,
+    ))
     preview(result)
     return result
 
 
-def simple_funnel(bottom_diameter, top_diameter, height):
+def simple_funnel(height, bottom_diameter, top_diameter, flare):
+    wall_thickness = 1.0
+    bottom_inner_radius = bottom_diameter/2 + contact_leeway_one_sided
+    bottom_outer_radius = bottom_inner_radius + wall_thickness
     a = [
         Point(bottom_diameter/2, 0, 0),
-        Point(top_diameter/2, 0, height),
-        Point(top_diameter/2+15, 0, height+15),
+        Point(top_diameter/2, 0, height                                             wall_thickness ),
+        Point(top_diameter/2+flare, 0, height+flare),
     ]
     b = a + [
-        Point(0, 0, height+15),
+        Point(0, 0, height+flare),
         Point(0, 0, 0),
     ]
-    wall = Wire(a).extrude(Right*stiff_wall_thickness).revolve(Up)
+    wall = Wire(a).extrude(Right*wall_thickness).revolve(Up)
     inside = Face(Wire(b, loop=True)).revolve(Up)
     #plate = peg_attachment_plate(mount_radians = math.tau / 16) @ Translate(Left*(bottom_diameter/2 + stiff_wall_thickness*2 + catch_length + contact_leeway_one_sided*2))
-    rs = rail_slots @ Translate(Left*55)
+    rs = Compound(
+        rail_slots @ Translate(Left*bottom_outer_radius),
+        Face(Wire([
+            Point(0, -bottom_outer_radius, 0),
+            Point(0, bottom_outer_radius, 0),
+            Point(-bottom_outer_radius, rail_slots_full_radius, 0),
+            Point(-bottom_outer_radius, -rail_slots_full_radius, 0),
+        ], loop = True)).extrude (Up*peg_attachment_plate_width)
+    )
     return Compound(wall, rs.cut(inside))
 
 @run_if_changed
 def blower_holder():
-    result = simple_funnel(53, 54.5, 43)
+    result = simple_funnel(bottom_diameter=54.1, top_diameter=56.4, height=43, flare=3.5)
     save_STL("blower_holder", result)
     return result
 
