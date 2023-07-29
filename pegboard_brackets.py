@@ -210,7 +210,7 @@ def simple_funnel(height, bottom_diameter, top_diameter, flare):
     bottom_outer_radius = bottom_inner_radius + wall_thickness
     a = [
         Point(bottom_diameter/2, 0, 0),
-        Point(top_diameter/2, 0, height                                             wall_thickness ),
+        Point(top_diameter/2, 0, height),
         Point(top_diameter/2+flare, 0, height+flare),
     ]
     b = a + [
@@ -251,5 +251,18 @@ def hole_shrinking_washer_m4():
     save_STL("hole_shrinking_washer_m4", result)
     return result
 
+
+@run_if_changed
+def drawer_rails_screw_cap():
+    height = 10
+    hex_long_radius = 6.95
+    hole_radius = 1.75
+    hex = Wire([Point(hex_long_radius - 2*contact_leeway_one_sided, 0, 0) @ Rotate(Up, radians = math.tau*i/6) for i in range(6)], loop = True)
+    solid = Loft([hex, hex @ Translate(Up*height/2), Wire(Circle(Axes(Origin + Up*height, Up), hole_radius*2))], ruled=True, solid=True)
+    hole = Face(Circle(Axes(Origin, Up), hole_radius + 2*contact_leeway_one_sided)).extrude(Up*(height - 1.2))
+    result = solid.cut(hole)
+    save_STL("drawer_rails_screw_cap", result)
+    return result
+
 #preview(hole_shrinking_washer_m4)
-preview (blower_holder)
+preview (drawer_rails_screw_cap)
