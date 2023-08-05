@@ -8,6 +8,7 @@ inch = 25.4
 
 shank_short_radius = inch / 8
 shank_long_radius = shank_short_radius / math.cos(math.tau / 12)
+lego_shaft_diameter = 4.75
 
 def keyless_chuck_shank(length):
 
@@ -32,6 +33,7 @@ def keyless_chuck_shank(length):
                indentation_cut_radius)).revolve(Up)
 
     shank = shank.cut(indentation)
+    shank = Chamfer(shank, [(e, 1.5) for e in shank.edges() if e.bounds().min()[2] > length - 0.01])
 
     #preview (shank)
     return shank
@@ -58,4 +60,86 @@ def stirrer_1():
     save_STL("stirrer_1", result)
     return result
 
-preview(stirrer_1)
+
+def lego_shaft_hole(length, end_closed):
+    contact_leeway = 0.3
+    chamfer = 1.5
+    def hoop(expand, z):
+        return Vertex(Origin + Up*z).extrude(Left*(1.9 + 2*expand), centered=True).extrude(Back*(lego_shaft_diameter + 2*expand), centered=True).outer_wire()
+    hoops = [hoop(chamfer + contact_leeway, 0), hoop(contact_leeway, chamfer)]
+    if end_closed:
+        hoops += [hoop(contact_leeway, length - 4), hoop(contact_leeway - 0.15, length)]
+    else:
+        hoops += [hoop(contact_leeway, length - chamfer), hoop(chamfer + contact_leeway, length)]
+
+    cut = Loft(hoops, ruled=True, solid=True)
+    return Compound(cut, cut @ Rotate(Up, degrees=90))
+
+
+@run_if_changed
+def drill_to_lego_shaft():
+    result = keyless_chuck_shank(inch)
+    sheath = Face(Circle(Axes(Origin, Up), 6)).extrude(Up*9)
+    sheath = Loft([
+        Wire(Circle(Axes(Origin, Up), 8)),
+        Wire(Circle(Axes(Origin + Up*1, Up), 8)),
+        Wire(Circle(Axes(Origin + Up*3, Up), 6)),
+        Wire(Circle(Axes(Origin + Up*9, Up), 6)),
+    ], ruled=True, solid=True)
+    cut = lego_shaft_hole(length = 9, end_closed = True)
+    result = Compound(result, sheath).cut(cut)
+    save_STL("drill_to_lego_shaft", result)
+    return result
+
+
+def sorted_points_from_edges(edges):
+    result = [v.point() for v in edges[0].vertices()]
+    rest = edges[1:]
+    while rest:
+        new_rest = []
+        for edge in rest:
+            points = [v.point() for v in edge.vertices()]
+            epsilon=0.00001
+            if points[0].distance(result[-1]) < epsilon:
+                result.append (points [1])
+            elif points[1].distance(result[-1]) < epsilon:
+                result.append (points [0])
+            else:
+                new_rest.append(edge)
+        if len(new_rest) == len(rest):
+            break
+        rest = new_rest
+    return result
+
+@run_if_changed
+def cardboard_roller_stuff():
+    crusher_diameter = 25.9
+    crush_to_width = 1.0
+    axle_distance = crusher_diameter + crush_to_width
+
+    gear = read_brep("involute_gear_12teeth_1pitchrad_fixed.brep")
+    # gear = read_brep("involute_gear_12teeth_1pitchrad.brep")
+    # gear = Wire(sorted_points_from_edges(gear.edges()))
+    # gear.write_brep("involute_gear_12teeth_1pitchrad_fixed.brep")
+
+    gear = gear @ Scale((crusher_diameter + crush_to_width)/2)
+    #preview(gear, gear.offset2D(-0.2))
+    gear = gear.offset2D(-0.2)
+    chamfer = 1.2
+    thickness = 6
+    # hoops = [
+    #     gear.offset2D(-0.2 - chamfer),
+    #     gear.offset2D(-0.2) @ Translate(Up*chamfer),
+    #     gear.offset2D(-0.2) @ Translate(Up*(thickness-chamfer)),
+    #     gear.offset2D(-0.2 - chamfer) @ Translate(Up*thickness),
+    # ]
+    # preview(hoops)
+    # gear = Loft(hoops[:2], ruled=True, solid=True)
+    gear = Face(gear).extrude(Up*thickness)
+    #gear = Chamfer(gear, [(e, chamfer) for e in gear.edges()])
+    gear = gear.cut(lego_shaft_hole(length = thickness, end_closed = False))
+    save_STL("cardboard_roller_drive_gear", gear)
+    preview(gear)
+
+
+preview(drill_to_lego_shaft)

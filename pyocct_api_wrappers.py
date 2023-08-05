@@ -686,7 +686,9 @@ def setup(wrap, unwrap, do_export, override_attribute):
     return result
 
   def write_brep(self, path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    dirname = os.path.dirname(path)
+    if dirname != "":
+      os.makedirs(os.path.dirname(path), exist_ok=True)
     Exchange.ExchangeBasic.write_brep (self, path)
   
   simple_override(Shape, "bounds", shape_bounds)
