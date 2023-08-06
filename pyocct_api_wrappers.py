@@ -391,14 +391,18 @@ def setup(wrap, unwrap, do_export, override_attribute):
       vector(0,0,1),
       vector(*args)
     )
-    
-  def Rotate(axis, *, radians=None, degrees=None):
+
+  def Rotate(axis, angle=None, *, radians=None, degrees=None):
     if isinstance (axis, Direction):
       axis = Axis (Origin, axis)
     if degrees is not None:
-      radians = degrees * math.tau/360
+      angle = Degrees(degrees)
+    if radians is not None:
+      angle = Radians(radians)
+    if not isinstance(angle, Angle):
+      raise RuntimeError("must specify an Angle for Rotate")
     transform = Transform()
-    transform.SetRotation(axis, radians)
+    transform.SetRotation(axis, angle.radians)
     return transform
     
   def Scale(ratio,*, center =Origin):
@@ -1014,17 +1018,44 @@ def setup(wrap, unwrap, do_export, override_attribute):
     check_shape(complete_shell)
     #print (complete_shell)
     return Solid (complete_shell)
-        
+
+  class Angle:
+    def cos(self):
+      return math.cos(self.radians)
+    def sin(self):
+      return math.sin(self.radians)
+
+  class Degrees(Angle):
+    def __init__(self, degrees):
+      self.degrees = degrees
+      self.turns = self.degrees / 360
+      self.radians = self.turns * math.tau
+
+  class Radians(Angle):
+    def __init__(self, radians):
+      self.radians = radians
+      self.turns = self.radians / math.tau
+      self.degrees = self.turns * 360
+
+  class Turns(Angle):
+    def __init__(self, turns):
+      self.turns = turns
+      self.radians = self.turns * math.tau
+      self.degrees = self.turns * 360
+
+  @export
+  def acos(ratio):
+    return Radians(math.acos(ratio))
       
   @export
-  def Revolve(shape, axis, *, radians=None, degrees=None):
+  def Revolve(shape, axis, angle = None, *, radians=None, degrees=None):
     if isinstance (axis, Direction):
       axis = Axis (Origin, axis)
-    if degrees:
-      radians = degrees * math.tau/360
-    if radians is None:
-      radians = math.tau
-    return BRepPrimAPI.BRepPrimAPI_MakeRevol(shape, axis, radians).Shape()
+    if degrees is not None:
+      angle = Degrees(degrees)
+    if radians is not None:
+      angle = Radians(radians)
+    return BRepPrimAPI.BRepPrimAPI_MakeRevol(shape, axis, angle and angle.radians).Shape()
   
     
   def Loft (*sections, solid = False, ruled = False):
@@ -1181,7 +1212,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
     faces = [Wire (*(vertices [index - 1] for index in triangle.Get (0, 0, 0))) for triangle in triangulation.triangles()]
     return Compound (faces)
   
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude LoadSTL ")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude LoadSTL Angle Degrees Radians Turns")
   
 
   

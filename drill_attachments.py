@@ -1,6 +1,7 @@
 import math
 
 from pyocct_system import *
+from gears import InvoluteGear
 
 initialize_pyocct_system()
 
@@ -62,7 +63,7 @@ def stirrer_1():
 
 
 def lego_shaft_hole(length, end_closed):
-    contact_leeway = 0.3
+    contact_leeway = 0.1
     chamfer = 1.5
     def hoop(expand, z):
         return Vertex(Origin + Up*z).extrude(Left*(1.9 + 2*expand), centered=True).extrude(Back*(lego_shaft_diameter + 2*expand), centered=True).outer_wire()
@@ -115,17 +116,18 @@ def sorted_points_from_edges(edges):
 def cardboard_roller_stuff():
     crusher_diameter = 25.9
     crush_to_width = 1.0
-    axle_distance = crusher_diameter + crush_to_width
+    shaft_distance = crusher_diameter + crush_to_width
 
-    gear = read_brep("involute_gear_12teeth_1pitchrad_fixed.brep")
+    #gear = read_brep("involute_gear_12teeth_1pitchrad_fixed.brep")
     # gear = read_brep("involute_gear_12teeth_1pitchrad.brep")
     # gear = Wire(sorted_points_from_edges(gear.edges()))
     # gear.write_brep("involute_gear_12teeth_1pitchrad_fixed.brep")
+    gear = InvoluteGear(12, pitch_radius=shaft_distance/2).shape
 
-    gear = gear @ Scale((crusher_diameter + crush_to_width)/2)
+    #gear = gear @ Scale((crusher_diameter + crush_to_width)/2)
     #preview(gear, gear.offset2D(-0.2))
-    gear = gear.offset2D(-0.2)
-    chamfer = 1.2
+    #gear = gear.offset2D(-0.2)
+    #chamfer = 1.2
     thickness = 6
     # hoops = [
     #     gear.offset2D(-0.2 - chamfer),
@@ -135,11 +137,21 @@ def cardboard_roller_stuff():
     # ]
     # preview(hoops)
     # gear = Loft(hoops[:2], ruled=True, solid=True)
-    gear = Face(gear).extrude(Up*thickness)
+    gear = gear.extrude(Up*thickness)
     #gear = Chamfer(gear, [(e, chamfer) for e in gear.edges()])
     gear = gear.cut(lego_shaft_hole(length = thickness, end_closed = False))
     save_STL("cardboard_roller_drive_gear", gear)
-    preview(gear)
+
+    r1 = lego_shaft_diameter/2 + 0.1
+    r2 = r1 + 3.0
+    bar = Vertex(Origin).extrude(Right*shaft_distance).extrude (Back * r2*2, centered = True).extrude (Up * 3)
+    centers = [Origin, Origin + Right*shaft_distance]
+    bar = Compound(bar, [Face(Circle(Axes(p, Up), r2)).extrude (Up * 3) for p in centers])
+    bar = bar.cut([Face(Circle(Axes(p, Up), r1)).extrude (Up * 3) for p in centers])
+    #bar = bar.extrude (Up * 3)
+    save_STL("cardboard_roller_bar", bar)
+
+    preview(bar)
 
 
 preview(drill_to_lego_shaft)
