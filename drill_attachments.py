@@ -11,36 +11,36 @@ shank_short_radius = inch / 8
 shank_long_radius = shank_short_radius / math.cos(math.tau / 12)
 lego_shaft_diameter = 4.75
 
-def keyless_chuck_shank(length):
+def hex_shank(length, indent = True):
 
     shank = Face(Wire([
         Point(shank_long_radius, 0, 0) @ Rotate(Up, degrees=i * 60)
         for i in range(6)
     ], loop=True)).extrude(Up * length)
 
-    indentation_result_radius = inch * 3 / 32
-    indentation_cut_halfwidth = inch * 3 / 32
-    knob_length = inch * 5 / 16
+    if indent:
+        indentation_result_radius = inch * 3 / 32
+        indentation_cut_halfwidth = inch * 3 / 32
+        knob_length = inch * 5 / 16
+        # algebra:
+        # indentation_cut_center_x - indentation_result_radius = sqrt((indentation_cut_width/2)**2 + (indentation_cut_center_x - shank_short_radius)**2)
+        # solve for indentation_cut_center_x:
+        indentation_cut_center_x = (
+                                               indentation_result_radius ** 2 - shank_short_radius ** 2 - indentation_cut_halfwidth ** 2) / (
+                                       2*(indentation_result_radius - shank_short_radius))
+        indentation_cut_radius = indentation_cut_center_x - indentation_result_radius
+        indentation = Face(
+            Circle(Axes(Point(indentation_cut_center_x, 0, length - knob_length - indentation_cut_halfwidth), Back),
+                   indentation_cut_radius)).revolve(Up)
 
-    # algebra:
-    # indentation_cut_center_x - indentation_result_radius = sqrt((indentation_cut_width/2)**2 + (indentation_cut_center_x - shank_short_radius)**2)
-    # solve for indentation_cut_center_x:
-    indentation_cut_center_x = (
-                                           indentation_result_radius ** 2 - shank_short_radius ** 2 - indentation_cut_halfwidth ** 2) / (
-                                   2*(indentation_result_radius - shank_short_radius))
-    indentation_cut_radius = indentation_cut_center_x - indentation_result_radius
-    indentation = Face(
-        Circle(Axes(Point(indentation_cut_center_x, 0, length - knob_length - indentation_cut_halfwidth), Back),
-               indentation_cut_radius)).revolve(Up)
-
-    shank = shank.cut(indentation)
+        shank = shank.cut(indentation)
     shank = Chamfer(shank, [(e, 1.5) for e in shank.edges() if e.bounds().min()[2] > length - 0.01])
 
     #preview (shank)
     return shank
 
 
-def stirrer(head_radius):
+def stirrer(head_radius, fin_height = shank_long_radius):
     length = 4 * inch
 
 
@@ -49,16 +49,22 @@ def stirrer(head_radius):
     shield = Vertex(shield_size,0,length-24).extrude(Right*0.8).extrude(Vector(-50, 0, -50)).intersection(HalfSpace(Origin, Right)).revolve(Up)
 
     fin_thickness = 0.8
-    fin = Vertex(0, -shank_long_radius/2, 0).extrude(Vector(0, shank_long_radius-fin_thickness, shank_long_radius)).extrude(Back*fin_thickness).extrude(Right*head_radius)
+    fin = Vertex(0, -shank_long_radius/2, 0).extrude(Vector(0, shank_long_radius-fin_thickness, fin_height)).extrude(Back*fin_thickness).extrude(Right*head_radius)
 
-    return Compound(keyless_chuck_shank(length), shield, [fin @ Rotate(Up, degrees=i * 60 + 30)
-                                                          for i in range(6)])
+    return Compound(hex_shank(length), shield, [fin @ Rotate(Up, degrees=i * 60 + 30)
+                                                for i in range(6)])
 
 
 @run_if_changed
 def stirrer_1():
     result = stirrer(13)
     save_STL("stirrer_1", result)
+    return result
+
+@run_if_changed
+def stirrer_2():
+    result = stirrer(25, 10)
+    save_STL("stirrer_2", result)
     return result
 
 
@@ -79,7 +85,7 @@ def lego_shaft_hole(length, end_closed):
 
 @run_if_changed
 def drill_to_lego_shaft():
-    result = keyless_chuck_shank(inch)
+    result = hex_shank(inch)
     sheath = Face(Circle(Axes(Origin, Up), 6)).extrude(Up*9)
     sheath = Loft([
         Wire(Circle(Axes(Origin, Up), 8)),
@@ -154,4 +160,39 @@ def cardboard_roller_stuff():
     preview(bar)
 
 
-preview(drill_to_lego_shaft)
+@run_if_changed
+def bending_brake_knob():
+    knob_diameter = 36
+    rod_outer_diameter = 12
+    rod_inner_diameter = 10.5
+    thread_length = 13
+    collet_hole_diameter = 18
+    collet_hole_length = 15
+    a = Point(rod_outer_diameter/2 + 2, 0, 0)
+    g = Point(0, 0, knob_diameter)
+    f = g + Right*collet_hole_diameter/2
+    h = f + Down*collet_hole_length
+    i = Point(0, 0, knob_diameter-collet_hole_length)
+    section = Face(Wire([
+        Edge(Origin, a),
+        BSplineCurve([
+            a,
+            a + Direction(1,0,1) * 10,
+            Point(knob_diameter/2, 0, knob_diameter/2 - 2),
+            Point(knob_diameter/2, 0, knob_diameter/2 + 8),
+            f + Right*5,
+            f,
+            f + Down*2,
+            h + Up*2,
+            h,
+            h + Left*2,
+        ]),
+        i,
+    ], loop = True))
+    result = section.revolve(Up)
+    result = Compound(result, hex_shank(knob_diameter, indent=False))
+    result = result.cut (Face(Circle(Axes(Origin, Up), rod_inner_diameter/2)).extrude (Up * thread_length))
+    save_STL("bending_brake_knob", result)
+    preview(result)
+
+preview(stirrer_2)

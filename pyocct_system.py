@@ -830,6 +830,8 @@ def preview(*preview_shapes, width=2000, height=1500):
       v.display_shape(unwrap(shape))
     v.start()
   _last_preview_start = datetime.datetime.now()
+  if len(preview_shapes) == 1:
+    return preview_shapes[0]
     
 _last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
 _last_preview_start = datetime.datetime.now()
