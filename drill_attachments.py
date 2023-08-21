@@ -159,40 +159,92 @@ def cardboard_roller_stuff():
 
     preview(bar)
 
+def screw_threads(*, pitch, radius1, radius2, turns):
+    profile = Wire([
+        Point (radius1, 0, 0),
+        Point (radius2, 0, pitch / 2),
+        Point (radius2, 0, - pitch / 2),
+    ], loop=True)
+    def hoop(position):
+        return profile @ Rotate(Up, Turns (position)) @ Translate(Up*position * pitch)
+    hoops = [
+        hoop(d)
+        for d in subdivisions (-0.5, turns +0.5, max_length = 1/360)
+    ]
+    result = Loft(hoops, solid=True)
+    #preview(result)
+    return result
+
+def hex_drive_hole_face(short_radius):
+    long_radius = short_radius / math.cos(math.tau / 12)
+    return Compound(
+        Face(Wire([
+            Point(long_radius, 0, 0) @ Rotate(Up, degrees=i * 60)
+            for i in range(6)
+        ], loop=True)),
+        # make it a little spiky, to compensate for print irregularities
+        Face(Wire([
+            p
+            for i in range(6)
+            for p in [Point(long_radius*0.5, 0, 0) @ Rotate(Up, degrees=i * 60 - 30),
+                      Point(long_radius + 1.6, 0, 0) @ Rotate(Up, degrees=i * 60),]
+        ], loop=True)),
+    )
 
 @run_if_changed
 def bending_brake_knob():
     knob_diameter = 36
-    rod_outer_diameter = 12
-    rod_inner_diameter = 10.5
+    rod_outer_diameter = 11.8
+    rod_inner_diameter = 10.4
     thread_length = 13
-    collet_hole_diameter = 18
-    collet_hole_length = 15
-    a = Point(rod_outer_diameter/2 + 2, 0, 0)
+    drive_hole_short_radius = 5
+    drive_hole_long_radius = drive_hole_short_radius / math.cos(math.tau / 12)
+    drive_hole_depth = 20
+    a = Point(rod_outer_diameter/2 + 3, 0, 0)
     g = Point(0, 0, knob_diameter)
-    f = g + Right*collet_hole_diameter/2
-    h = f + Down*collet_hole_length
-    i = Point(0, 0, knob_diameter-collet_hole_length)
+    f = g + Right*(drive_hole_long_radius + 2)
+    h = g + Right*drive_hole_short_radius
     section = Face(Wire([
         Edge(Origin, a),
         BSplineCurve([
             a,
-            a + Direction(1,0,1) * 10,
+            a + Direction(1,0,1) * 9,
             Point(knob_diameter/2, 0, knob_diameter/2 - 2),
             Point(knob_diameter/2, 0, knob_diameter/2 + 8),
-            f + Right*5,
+            f + Right*5 + Down*1,
             f,
-            f + Down*2,
-            h + Up*2,
-            h,
-            h + Left*2,
+            g + Right*drive_hole_short_radius + Down*1,
+            g + Down*15
         ]),
-        i,
+        #i,
     ], loop = True))
     result = section.revolve(Up)
-    result = Compound(result, hex_shank(knob_diameter, indent=False))
-    result = result.cut (Face(Circle(Axes(Origin, Up), rod_inner_diameter/2)).extrude (Up * thread_length))
+    result = result.cut (Face(Circle(Axes(Origin, Up), rod_outer_diameter/2-0.2)).extrude (Up * thread_length))
+    result = result.cut (hex_drive_hole_face(drive_hole_long_radius).extrude (Down * drive_hole_depth) @ Translate(Up*knob_diameter))
+
+    thread_pitch = 9.9/6
+    threads = screw_threads(pitch=thread_pitch, radius1=rod_inner_diameter/2, radius2=rod_outer_diameter/2, turns = thread_length/thread_pitch)
+    threads = threads.cut(HalfSpace(Origin, Down))
+    result = Compound(result, threads)
+
     save_STL("bending_brake_knob", result)
+    preview(result)
+
+@run_if_changed
+def hook_driver():
+    hook_diameter = 37
+    hook_thickness = 5.5
+    wall_thickness = 6
+    base_thickness = 10
+    tool_thickness = hook_thickness + wall_thickness* 2
+    tool_height = base_thickness + 12
+    result = Vertex (Origin).extrude (Up*tool_height).extrude (Back *tool_thickness, centered = True).extrude (Left * hook_diameter, centered = True)
+    result = result.cut (Face(Circle(Axes(Point(2.5, 0, hook_diameter/2 + base_thickness), Back), hook_diameter/2)).extrude (Back * hook_thickness, centered = True))
+    result = Chamfer(result, [(e, 1.5) for e in result.edges()])
+
+    result = result.cut (hex_drive_hole_face(short_radius=5).extrude (Up * (base_thickness-2)))
+
+    save_STL("hook_driver", result)
     preview(result)
 
 preview(stirrer_2)
