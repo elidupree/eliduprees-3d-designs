@@ -247,4 +247,58 @@ def hook_driver():
     save_STL("hook_driver", result)
     preview(result)
 
+
+def spiral_spring_winder(*, start_radius, wire_radius, wire_spacing, pitch, length):
+    def hoop(turns, z, inner_radius):
+        a = Point(inner_radius, 0, z)
+        b = a + vector(0, 0, wire_radius)
+        c = a + vector(0, 0, -wire_radius)
+        d = b + vector(2, 0, 2)
+        e = c + vector(2, 0, -2)
+        y = min((d[0] - 1.1)/2, length + wire_radius + 2.1 - d[2])
+        f = d + vector(-y*2, 0, y)
+        x = min(e[0] - 1.1, e[2] + wire_radius + 2.1)
+        g = e + vector(-x, 0, -x)
+        h = Point(1, 0, f[2])
+        i = Point(1, 0, g[2])
+        #preview(a,b,c,d,e,f,g)
+        profile = Wire([
+            i,g,e,c,b,d,f,h
+        ], loop=True)
+        
+        return profile @ Rotate(Up, Turns (turns))
+    
+    z = 0
+    turns = 0
+    turn_increment = 1/24
+    inner_radius = start_radius
+    hoops = []
+    while z < length:
+        hoops.append(hoop(turns, z, inner_radius))
+        turns += turn_increment
+        if turns > 0.5:
+            z += turn_increment * pitch
+            inner_radius -= wire_spacing * turn_increment
+    z = length
+
+    stop = turns + 0.5
+    while turns < stop:
+        hoops.append(hoop(turns, z, inner_radius))
+        turns += turn_increment
+    #preview(Compound(hoops))
+    #preview(Compound([Face(f) for f in hoops]))
+    result = Union([Loft(p, solid=True, ruled=True) for p in pairs(hoops)])
+    result = (result @ Translate(Up*(wire_radius + 2.1)))
+    #preview(result)
+    return result
+
+@run_if_changed
+def printer_spring_winder():
+    result = spiral_spring_winder(start_radius = 25, wire_radius = 1, wire_spacing = 2.5, pitch = 10, length = 40)
+    #preview(result)
+    result = result.cut(hex_drive_hole_face(short_radius=5).extrude (Down*10, Up * (150)))
+    save_STL("printer_spring_winder", result)
+    preview(result)
+
+
 preview(stirrer_2)
