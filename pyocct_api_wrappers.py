@@ -1024,6 +1024,11 @@ def setup(wrap, unwrap, do_export, override_attribute):
       return math.cos(self.radians)
     def sin(self):
       return math.sin(self.radians)
+    def __mul__(self, other):
+      return Radians(self.radians * other)
+    __rmul__ = __mul__
+    def __truediv__(self, other):
+      return Radians(self.radians / other)
 
   class Degrees(Angle):
     def __init__(self, degrees):
