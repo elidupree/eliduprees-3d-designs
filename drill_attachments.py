@@ -187,7 +187,7 @@ def hex_drive_hole_face(short_radius):
             p
             for i in range(6)
             for p in [Point(long_radius*0.5, 0, 0) @ Rotate(Up, degrees=i * 60 - 30),
-                      Point(long_radius + 1.6, 0, 0) @ Rotate(Up, degrees=i * 60),]
+                      Point(long_radius*1.28, 0, 0) @ Rotate(Up, degrees=i * 60),]
         ], loop=True)),
     )
 
@@ -246,6 +246,41 @@ def hook_driver():
 
     save_STL("hook_driver", result)
     preview(result)
+
+
+@run_if_changed
+def nozzle_driver():
+    nozzle_grip_diameter = 12.6
+    nozzle_grip_radius = nozzle_grip_diameter/2
+    nozzle_grip_depth = 5
+    nozzle_point_leeway = 2.5
+    hex_socket_short_radius = 2.5
+
+    nozzle_grip = Face (Circle(Axes(Origin,Up), nozzle_grip_radius)).extrude(Up*nozzle_grip_depth)
+
+    grabber = Face(Edge(BSplineCurve([
+        Point(1.5, 0, -10),
+        Point(nozzle_grip_radius, 0, -6),
+        Point(nozzle_grip_radius + 1.8, 0, -4),
+        Point(nozzle_grip_radius + 1.8, 0, 0),
+        Point(nozzle_grip_radius-0.5, 0, +0.5),
+        Point(nozzle_grip_radius-0.6, 0, nozzle_grip_depth/2),
+        Point(nozzle_grip_radius-0.5, 0, nozzle_grip_depth-0.5),
+        Point(nozzle_grip_radius + 1, 0, nozzle_grip_depth + 0.5),
+    ])).offset2D(1.2)).extrude(Back*5, centered=True).cut(HalfSpace(Origin+Down*(nozzle_point_leeway + hex_socket_short_radius*2 + 0.5), Down))
+    #preview(grabber, nozzle_grip)
+    
+    result = Face (Circle(Axes(Origin+Down*nozzle_point_leeway,Up), 5)).extrude(Down*(hex_socket_short_radius*2 + 0.5))
+    result = Compound(result, [grabber @ Rotate(Up, Turns(i/5)) for i in range(5)])
+
+    # result = Vertex (Origin).extrude (Up*tool_height).extrude (Back *tool_thickness, centered = True).extrude (Left * hook_diameter, centered = True)
+    # result = result.cut (Face(Circle(Axes(Point(2.5, 0, hook_diameter/2 + base_thickness), Back), hook_diameter/2)).extrude (Back * hook_thickness, centered = True))
+    # result = Chamfer(result, [(e, 1.5) for e in result.edges()])
+    #
+    result = result.cut ((hex_drive_hole_face(short_radius=2.5) @ Translate(Down*(nozzle_point_leeway+0.5))).extrude (Down * (50)))
+    #
+    save_STL("nozzle_driver", result)
+    preview(result, nozzle_grip.wires())
 
 
 def spiral_spring_winder(*, start_radius, wire_radius, wire_spacing, pitch, length):

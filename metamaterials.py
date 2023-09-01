@@ -33,8 +33,8 @@ def deforming_slot():
 
 @run_if_changed
 def single_fold_deforming_slot():
-    zig_length = 3
-    sheet_width = 10
+    zig_length = 5
+    sheet_width = 15
     throat_depth = sheet_width - zig_length*2
     deform_length = 50
     gap_thickness = 0.3
@@ -79,7 +79,7 @@ def single_fold_deforming_slot():
         ), Wire(outer_points, loop = True)
     hoops = [hoop(frac) for frac in subdivisions(0.01, 1, amount=7)]
     slot = Loft([h[0] for h in hoops], solid=True)
-    #preview(slot)
+    preview(slot)
     solid = Loft([h[1] for h in hoops], solid=True)
     result = solid.cut(slot)
     save_STL("single_fold_deforming_slot", result)
