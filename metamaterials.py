@@ -98,7 +98,7 @@ def bending_brake_diagonal_clamp():
 
     a = Vector(0, 52, 32)
     presser_plate_length = a.magnitude() + 2
-    slot_length = presser_plate_length + 5
+    slot_length = presser_plate_length + 18
     clamp_length = presser_plate_length + spring_space
     da = Direction (a)
     db = (Direction (a) @ Rotate(Right, Degrees(90)))
