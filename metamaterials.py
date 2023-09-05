@@ -144,6 +144,7 @@ def bending_brake_diagonal_clamp():
     spring_grabber = Compound(spring_grabber, s)
 
     save_STL("bending_brake_diagonal_clamp", clamp @ Rotate(Back, Degrees(90)))
+    save_STL("bending_brake_spring_grabber", spring_grabber @ Rotate(Back, Degrees(90)))
 
     preview (clamp, presser_plate_ish, spring_grabber @ Transform(Right,da,db) @ Translate(da*(presser_plate_length + 4/2 + 3 + 2) + db*presser_plate_thickness/2 + Left*(clamp_width + 6)))
 

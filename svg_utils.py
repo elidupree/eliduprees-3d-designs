@@ -88,11 +88,14 @@ def Inkscape_BSplineCurve(text):
     position = Point(float(things.popleft()), float(things.popleft()), 0)
     assert(things.popleft() == "c")
     control_points = []
-    while things:
-        print(things)
-        position = position + vector(float(things.popleft()), float(things.popleft()))
+    # while things:
+    #     print(things)
+    #     position = position + vector(float(things.popleft()), float(things.popleft()))
+    #     control_points.append (position)
+    for i in range(4, len(things), 6):
+        position = position + vector(float(things[i]), float(things[i+1]))
         control_points.append (position)
-    return BSplineCurve(control_points[::3], BSplineDimension(periodic = periodic))
+    return BSplineCurve(control_points, BSplineDimension(periodic = periodic))
 
 
 
