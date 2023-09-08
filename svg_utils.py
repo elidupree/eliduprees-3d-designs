@@ -92,6 +92,7 @@ def Inkscape_BSplineCurve(text):
     #     print(things)
     #     position = position + vector(float(things.popleft()), float(things.popleft()))
     #     control_points.append (position)
+    control_points.append (position)
     for i in range(4, len(things), 6):
         position = position + vector(float(things[i]), float(things[i+1]))
         control_points.append (position)
