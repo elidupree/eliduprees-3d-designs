@@ -342,13 +342,42 @@ def spiral_spring_winder(*, start_radius, wire_radius, wire_spacing, pitch, leng
     #preview(result)
     return result
 
+# @run_if_changed
+# def printer_spring_winder():
+#     result = spiral_spring_winder(start_radius = 25, wire_radius = 1, wire_spacing = 2.5, pitch = 10, length = 40)
+#     #preview(result)
+#     result = result.cut(hex_drive_hole_face(short_radius=5).extrude (Down*10, Up * (150)))
+#     save_STL("printer_spring_winder", result)
+#     preview(result)
+
+
+def bit_holder_row(*, bit_diameter, depth, separation, num_slots):
+    contact_leeway = 0.05
+    chamfer = 2
+    bit_radius = bit_diameter/2
+    hole = Face(Wire([
+        Point(0, 0, 0),
+        Point(bit_radius + contact_leeway + chamfer, 0, 0),
+        Point(bit_radius + contact_leeway, 0, chamfer),
+        Point(bit_radius + contact_leeway, 0, depth),
+        Point(0, 0, depth),
+    ], loop=True)).revolve(Up)
+    spring = Vertex(Point(-(bit_radius + contact_leeway + chamfer), 0, 0)).extrude(Up*5 + Right*(chamfer + contact_leeway + 1)).extrude(Back*2, centered=True).extrude(Left*1.0)
+    spring_shadow = spring.offset(0.4).intersection(HalfSpace(Point(0,0,2), Up))
+    block = Vertex(Origin).extrude(Left*separation, centered = True).extrude(Back*(bit_radius + chamfer + 1)*2, centered = True).extrude(Up*depth)
+    single_holder = Compound(spring, block.cut(hole).cut(spring_shadow))
+    return Compound([single_holder @ Translate(Right*i*separation) for i in range(num_slots)])
+
 @run_if_changed
-def printer_spring_winder():
-    result = spiral_spring_winder(start_radius = 25, wire_radius = 1, wire_spacing = 2.5, pitch = 10, length = 40)
-    #preview(result)
-    result = result.cut(hex_drive_hole_face(short_radius=5).extrude (Down*10, Up * (150)))
-    save_STL("printer_spring_winder", result)
-    preview(result)
+def bit_holder_3_32():
+    result = bit_holder_row(bit_diameter=inch*3/32, depth=7, separation=8,num_slots=7)
+    save_STL("bit_holder_3_32", result)
+    return result
 
+@run_if_changed
+def bit_holder_1_8():
+    result = bit_holder_row(bit_diameter=inch*1/8, depth=7, separation=10,num_slots=5)
+    save_STL("bit_holder_1_8", result)
+    return result
 
-preview(stirrer_2)
+preview(bit_holder_3_32, (bit_holder_1_8 @ Translate(Back * 20)).wires())
