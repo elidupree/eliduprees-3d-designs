@@ -20,6 +20,9 @@ import OCCT.gp
 BOPAlgo_Options.SetParallelMode_(True)
 
 
+class SerializeAsVars:
+  pass
+
 ##########################################################
 ###################   Wrapper system   ###################
 ##########################################################
@@ -219,7 +222,7 @@ def _setup_wrappers():
     globals()[name] = value
   def override_attribute(c, name, value):
     attribute_overrides [(unwrap(c), name)] = value
-  pyocct_api_wrappers.setup(wrap, unwrap, export, override_attribute)
+  pyocct_api_wrappers.setup(wrap, unwrap, export, override_attribute, SerializeAsVars)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
     globals() [export] = locals() [export]
@@ -231,9 +234,6 @@ _setup_wrappers()
 ##########################################################
 ##################   De/serialization   ##################
 ##########################################################
-
-class SerializeAsVars:
-  pass
 
 def _setup_serialization():
   # just a casual 128 bits of random data so there's no way it would occur by accident

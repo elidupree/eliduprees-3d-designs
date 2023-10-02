@@ -15,7 +15,7 @@ import os.path
 import functools
 
 
-def setup(wrap, unwrap, do_export, override_attribute):
+def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   def simple_override (c, name, value):
     override_attribute(c, name, lambda original: value)
   #import pkgutil
@@ -1019,7 +1019,7 @@ def setup(wrap, unwrap, do_export, override_attribute):
     #print (complete_shell)
     return Solid (complete_shell)
 
-  class Angle:
+  class Angle(SerializeAsVars):
     def cos(self):
       return math.cos(self.radians)
     def sin(self):

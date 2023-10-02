@@ -1,7 +1,7 @@
 import math
 from pyocct_system import *
 
-class InvoluteGear:
+class InvoluteGear(SerializeAsVars):
     def __init__(self, num_teeth, pitch_radius= None, base_radius = None, base_pitch = None, pressure_angle= Degrees(20)):
         def get_unfilled():
             return [a is None for a in [pitch_radius, base_radius, pressure_angle, base_pitch]]

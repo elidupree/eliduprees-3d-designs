@@ -1,8 +1,9 @@
 import math
-
 from pyocct_system import *
 
 initialize_pyocct_system()
+
+from gears import InvoluteGear
 
 lots=500
 motor_width = 42
@@ -23,9 +24,29 @@ dial_center = Origin+Right*(dial_radius+14) + Up*3
 dial_depth=24
 plate_descent = 30
 
+roller_smallest_radius = 5
+roller_largest_radius = 7
+gear_thickness =4
+teeth1 = 30
+teeth2 = 13
+
+pitch_radius = roller_smallest_radius+rod_radius
+
+@run_if_changed
+def first_gear_info():
+    return InvoluteGear(teeth1, pitch_radius =pitch_radius)
+@run_if_changed
+def drive_gear_info():
+    return InvoluteGear(teeth2, pitch_radius =pitch_radius*teeth2/teeth1)
+
+roller_center_y = -(first_gear_info.outside_radius + 1) #roller_largest_radius - min_exposed_rod_length
+
+#motor_shaft_tip_center = Origin+ Left * (max_knob_radius + 1)+ Front * motor_width / 2 + Down*(plate_descent - motor_width/2)
+motor_shaft_tip_center = Point(-(max_knob_radius + 1), roller_center_y - first_gear_info.pitch_radius - drive_gear_info.pitch_radius, -pitch_radius)
+
 @run_if_changed
 def motor():
-    center =Origin+ Left * (motor_shaft_length + max_knob_radius + 5)+ Front * motor_width / 2 + Down*(plate_descent - motor_width/2)
+    center =motor_shaft_tip_center+ Left * (motor_shaft_length)
     body = Vertex (center).extrude (Left *motor_depth).extrude (Front * motor_width, centered = True).extrude (Up * motor_width, centered = True)
     ring =Face (Circle (Axes (center, Right),motor_ring_radius)).extrude (Right *motor_ring_depth)
     shaft =Face (Circle (Axes (center, Right),motor_shaft_radius)).extrude (Right *motor_shaft_length).cut (Vertex (center + Right *(motor_shaft_length - motor_d_length)+ Down*(motor_shaft_radius - motor_d_diameter)).extrude (Right *lots).extrude (Up * lots).extrude (Back*lots, centered = True))
@@ -45,4 +66,13 @@ def rod():
     k = Face (Circle (Axes (Origin + Front *min_exposed_rod_length, Front),max_knob_radius)).extrude (Front *knob_length)
     return Compound(r,k)
 
-preview (plate, rod, motor, dial)
+@run_if_changed
+def gears():
+    first = (first_gear_info.shape @ Rotate(Back, Degrees(90))) @ Translate(Back*roller_center_y + Up*pitch_radius + Left*(max_knob_radius+1))
+    first = first.extrude(Left *gear_thickness)
+    second = first @ Translate(Down*pitch_radius*2)
+    third = (drive_gear_info.shape @ Rotate(Back, Degrees(90))) @ Translate(motor_shaft_tip_center - Origin)
+    third = third.extrude(Left *gear_thickness)
+    return [first, second, third]
+
+preview (plate, rod, motor, dial, gears)
