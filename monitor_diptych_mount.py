@@ -44,9 +44,9 @@ def bracket_shared():
     return Compound(sheath, wing).intersection(filter).cut(monitor_cut).cut(rod_cut)
 
 def bracket_cuts(parity):
-    f = Face(Circle(Axes(Origin, Up), sheath_radius + 0.4))
+    f = Face(Circle(Axes(Origin, Up), sheath_radius + 2))
     cuts = [
-        f.extrude(Up*(top+0.1), Up*(bottom-0.1))
+        f.extrude(Up*(top+0.0), Up*(bottom-0.0))
         for i, (top, bottom) in enumerate(pairs(subdivisions(bracket_wall_thickness, -bracket_inset, amount=7)))
         if i % 2 == parity
     ]

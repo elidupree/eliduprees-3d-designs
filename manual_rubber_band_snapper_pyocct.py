@@ -6,6 +6,9 @@ initialize_pyocct_system()
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
 
+# note:
+# rubber band force roughly 1-2lb,
+# mass 1.16g
 
 band_width = 6
 band_thickness = 1
@@ -125,7 +128,7 @@ def manual_rubber_band_snapper():
   cylinder_etc = Compound(cylinder, cylinder_block, side_wall, bottom_wall, top_wall, bottom_filler)
   cylinder_etc = Fillet(cylinder_etc , [
     (e, 0.7)
-    for e in cylinder_etc.edges()])
+    for e in cylinder_etc.edges()]);
   
   '''fillet_top = cylinder_outer_point[2] + cylinder_radius
   fillet_center_x = band_space_height/2

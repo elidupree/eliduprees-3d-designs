@@ -45,7 +45,7 @@ threaded_insert_opening_radius = 2.9
 threaded_insert_depth = 4
 holder_radius = 4.5
 
-frame_outer_zigzag_width = 0.6
+frame_outer_zigzag_width = 1.2
 
 # screw_offset = strong_filter_length / 4
 screw_filter_contact_leeway = 1
