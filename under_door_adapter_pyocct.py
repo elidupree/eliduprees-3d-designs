@@ -6,16 +6,19 @@ initialize_pyocct_system()
 from air_adapters import elidupree_4in_threshold, elidupree_4in_leeway_one_sided, elidupree_4in_intake_inner_radius, elidupree_4in_output_outer_radius
 
 
-wall_thickness = 0.5
+wall_thickness = 1.0
+inch = 25.4
 
-def elidupree_4in_wire(radius, index):
-  dirv = Direction(-1.3, 0, 1)
-  start = Point (-100,0,18 -dirv[0]*radius)
+def circle_wire(radius, index):
+  dirv = Direction(-1, 0, 0) #Direction(-1.3, 0, 1)
+  start = Point (-100,0,
+                  0 #18
+                  - dirv[0]*radius)
   return Wire (Edge (Circle (Axes (start + Vector (dirv)*index*2.5, dirv), radius)))
   
 zigzag_depth = -3
 curved_zigzag_offset = zigzag_depth/3
-top =32 - wall_thickness*2 - curved_zigzag_offset
+top = 30 - wall_thickness*2 - curved_zigzag_offset
 
 def loop_pairs(points):
   return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
@@ -24,7 +27,7 @@ def range_thing(increments, start, end):
   factor = 1/(increments - 1)
   return (start + dist*i*factor for i in range(increments))
 
-under_door_half_width = 80
+under_door_half_width = 1.5 * inch
 corners = [
   Point (0, -under_door_half_width, curved_zigzag_offset),
   Point (0, under_door_half_width, curved_zigzag_offset),
@@ -48,15 +51,18 @@ def under_door_wire():
   return Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True))))
   
 def half_shape(dir, radius):
-  e4ins = [elidupree_4in_wire(radius, index) for index in reversed(range (10))]
+  e4ins = [circle_wire(radius, index) for index in reversed(range (10))]
   loft = Loft (e4ins
-    + [under_door_wire@Translate (40*(index-5)/10, 0, 0) for index in range (6)]
-    #, solid=True
+    + [under_door_wire@Translate (x, 0, 0) for x in subdivisions(0, 50, amount=5)]
+    , solid=True
     )
+  return loft
   #hollow = thicken_solid (solid, solid.Faces()[-2:], wall_thickness)
+  # preview(e4ins, loft)
   offset = Offset (loft, wall_thickness,
     tolerance = 0.001,
     fill = True)
+  # preview (loft, offset @ Translate (0,0,1))
   print(offset)
   return {
     "loft": loft,
@@ -64,15 +70,20 @@ def half_shape(dir, radius):
   }
 
 
+# @run_if_changed
+# def intake_half():
+#   return half_shape (-1, elidupree_4in_intake_inner_radius)
+#
+#
+# @run_if_changed
+# def output_half():
+#   return half_shape (1, elidupree_4in_output_outer_radius - wall_thickness)
+
 @run_if_changed
-def intake_half():
-  return half_shape (-1, elidupree_4in_intake_inner_radius)
+def symmetric_smaller_hose_version():
+  result = half_shape (-1, 46/2 + wall_thickness)
+  save_STL("under_door_adapter_smaller_hose_half_solid", result, linear_deflection=0.02)
+  return result
+preview(symmetric_smaller_hose_version)
 
-
-@run_if_changed
-def output_half():
-  return half_shape (1, elidupree_4in_output_outer_radius - wall_thickness)
-
-
-
-preview(intake_half ["offset"])
+# preview(intake_half ["offset"])
