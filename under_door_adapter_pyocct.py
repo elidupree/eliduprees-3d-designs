@@ -11,14 +11,14 @@ inch = 25.4
 
 def circle_wire(radius, index):
   dirv = Direction(-1, 0, 0) #Direction(-1.3, 0, 1)
-  start = Point (-100,0,
+  start = Point (-80,0,
                   0 #18
                   - dirv[0]*radius)
   return Wire (Edge (Circle (Axes (start + Vector (dirv)*index*2.5, dirv), radius)))
   
-zigzag_depth = -3
-curved_zigzag_offset = zigzag_depth/3
-top = 30 - wall_thickness*2 - curved_zigzag_offset
+zigzag_depth = 3
+curved_zigzag_offset = zigzag_depth*2/3
+top = 30 - curved_zigzag_offset
 
 def loop_pairs(points):
   return [(a,b) for a,b in zip(points, points[1:] + points[:1])]
@@ -27,7 +27,7 @@ def range_thing(increments, start, end):
   factor = 1/(increments - 1)
   return (start + dist*i*factor for i in range(increments))
 
-under_door_half_width = 1.5 * inch
+under_door_half_width = 1 * inch - curved_zigzag_offset
 corners = [
   Point (0, -under_door_half_width, curved_zigzag_offset),
   Point (0, under_door_half_width, curved_zigzag_offset),
@@ -45,17 +45,18 @@ def under_door_wire():
     perpendicular = vector (0, - direction [2], direction [1])
     divisions = math.ceil(distance/12)*2 + 1
     for index, position in enumerate ( range_thing (divisions, a,b)):
-      offset = 0 if index % 2 == 0 else zigzag_depth
+      offset = 0 if index % 2 == 0 else -zigzag_depth
       if index != 0:
         points.append (position + perpendicular*offset)
   return Wire (Edge (BSplineCurve (points, BSplineDimension (periodic = True))))
-  
+# preview(under_door_wire, corners)
 def half_shape(dir, radius):
   e4ins = [circle_wire(radius, index) for index in reversed(range (10))]
   loft = Loft (e4ins
-    + [under_door_wire@Translate (x, 0, 0) for x in subdivisions(0, 50, amount=5)]
+    + [under_door_wire@Translate (x, 0, 0) for x in subdivisions(0, 40, amount=5)]
     , solid=True
     )
+  # preview(loft, under_door_wire, corners)
   return loft
   #hollow = thicken_solid (solid, solid.Faces()[-2:], wall_thickness)
   # preview(e4ins, loft)
@@ -79,11 +80,28 @@ def half_shape(dir, radius):
 # def output_half():
 #   return half_shape (1, elidupree_4in_output_outer_radius - wall_thickness)
 
+small_hose_outer_radius = 46/2
+
 @run_if_changed
 def symmetric_smaller_hose_version():
-  result = half_shape (-1, 46/2 + wall_thickness)
+  result = half_shape (-1, small_hose_outer_radius + wall_thickness)
   save_STL("under_door_adapter_smaller_hose_half_solid", result, linear_deflection=0.02)
   return result
+
+@run_if_changed
+def small_hose_spout():
+  join_len = 40
+  def cir(z, radius):
+    return Wire (Edge (Circle (Axes (Origin + Up*z, Up), radius)))
+  loft = Loft (
+    [cir(z, small_hose_outer_radius + wall_thickness) for z in subdivisions(0, join_len, amount=5)]
+    +
+    [cir(radius + join_len, radius) for radius in subdivisions(2*inch, 4*inch, amount=20)]
+               , solid=True
+               )
+  save_STL("small_hose_spout", loft, linear_deflection=0.02)
+  preview(loft)
+  return loft
 preview(symmetric_smaller_hose_version)
 
 # preview(intake_half ["offset"])
