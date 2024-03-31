@@ -630,11 +630,15 @@ def save_STL (name, shape, **kwargs):
   export_path = os.path.join (_export_directory, name) + ".stl"
   SaveSTL_raw (cache_path, shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
-  shutil.copyfile(cache_path, export_path)
     
 def save_STEP (name, shape, **_kwargs):
   SaveSTEP_raw(os.path.join (_cache_directory, name) + ".step", shape)
   
+def export(name, target):
+  cache_path = os.path.join (_cache_directory, name)
+  export_path = os.path.join (_export_directory, target)
+  shutil.copyfile(cache_path, export_path)
+
   
 ########################################################################
 ########  SVG bureaucracy  #######
