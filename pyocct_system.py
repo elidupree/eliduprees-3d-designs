@@ -8,6 +8,7 @@ import re
 import sys
 import os
 import os.path
+import shutil
 import json
 import traceback
 import io
@@ -390,21 +391,24 @@ _serialize, _deserialize, _atomic_write_json = _setup_serialization()
 
 
 _cache_directory = None
+_export_directory = None
 _cache_info_by_global_key = {}
 _global_location_by_deserialized_object_id = {}
 
 _cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
-def _initialize_cache_system (cache_directory):
-  global _cache_directory
+def _initialize_cache_system (cache_directory, export_directory):
+  global _cache_directory, _export_directory
 
   if _cache_directory is not None:
     raise RuntimeError ("called initialize_pyocct_system more than once")
   
   os.makedirs(os.path.join(cache_directory, "cache_info"), exist_ok=True)
+  os.makedirs(os.path.join(export_directory), exist_ok=True)
 
   _cache_directory = cache_directory
+  _export_directory = export_directory
 
 def _get_code (value):
   if value is None:
@@ -622,8 +626,11 @@ def save_BREP (name, shape):
   
 def save_STL (name, shape, **kwargs):
   BuildMesh (shape, **kwargs)
-  SaveSTL_raw (os.path.join (_cache_directory, name) + ".stl", shape)
+  cache_path = os.path.join (_cache_directory, name) + ".stl"
+  export_path = os.path.join (_export_directory, name) + ".stl"
+  SaveSTL_raw (cache_path, shape)
   # note that we haven't implemented reloading STL, so for now, do NOT store it anywhere in the globals
+  shutil.copyfile(cache_path, export_path)
     
 def save_STEP (name, shape, **_kwargs):
   SaveSTEP_raw(os.path.join (_cache_directory, name) + ".step", shape)
@@ -788,15 +795,19 @@ def initialize_pyocct_system (argument_parser = None):
   if argument_parser is None:
     argument_parser = argparse.ArgumentParser()
   parser = argument_parser
-  parser.add_argument ("--cache-directory", type=str, required=True)
+  # parser.add_argument ("--cache-directory", type=str, required=True)
   parser.add_argument ("--skip-previews", action="store_true")
   parse_result = parser.parse_args()
+
+  cache_directory = os.environ["EPYOCCT_CACHE_DIR"]
+  export_directory = os.environ["EPYOCCT_EXPORT_DIR"]
   
   import __main__
   main_name = os.path.splitext(os.path.basename (__main__.__file__))[0]
-  specific_cache_directory = os.path.join (parse_result.cache_directory, main_name)
+  specific_cache_directory = os.path.join (cache_directory, main_name)
+  specific_export_directory = os.path.join (export_directory, main_name)
   
-  _initialize_cache_system(specific_cache_directory)
+  _initialize_cache_system(specific_cache_directory, specific_export_directory)
   global skip_previews
   skip_previews = parse_result.skip_previews
   
