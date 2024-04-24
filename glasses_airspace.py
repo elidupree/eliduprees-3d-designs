@@ -20,11 +20,15 @@ c 5.4793845,-1.455719 10.95876852,-2.911437 16.4381523,-4.367155 5.3566137,-0.41
 z""") @ Translate(63.494634, 24.361793, 0)
 
 
+
+flat_face_curve_pupil_x = 284
+flat_face_curve_pupil_y = 43
+
 @run_if_changed
 def face_curve_outer_front_source():
     return Inkscape_BSplineCurve("""m 267.97761,18.638847
 c 3.71658,-0.706818 7.43316,-1.413636 11.14975,-2.120455 4.62474,-0.399428 9.24948,-0.798856 13.87423,-1.198285 7.44779,1.875986 14.89556,3.75197 22.34334,5.627954 1.10118,9.239522 2.20235,18.479043 3.30353,27.718565 -2.96848,8.220855 -5.93696,16.441711 -8.90544,24.662566 -6.98237,1.229945 -13.96474,2.459889 -20.94711,3.689834 -7.37407,-4.338641 -14.74815,-8.677281 -22.12222,-13.015922 -3.24215,-6.247936 -6.48431,-12.495871 -9.72646,-18.743807 0.57693,-4.778699 1.15386,-9.557399 1.73079,-14.336098 1.11801,-2.864678 2.23602,-5.729359 3.35402,-8.594039 1.98186,-1.230105 3.96372,-2.460209 5.94557,-3.690313
-z""")
+z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 
 
 @run_if_changed
@@ -32,12 +36,11 @@ def face_curve_outer_flat_source():
     return Inkscape_BSplineCurve("""m 254.90448,123.39286
 c 0,0 19.68614,9.11073 29.52922,13.6661 3.7129,10.5104 7.4258,21.02078 11.1387,31.53117 16.67258,3.19809 33.34514,6.39617 50.01771,9.59426 6.1954,-9.59979 12.39079,-19.19956 18.5862,-28.79936 5.07892,-0.71402 10.15784,-1.42804 15.23675,-2.14206 1.4986,-1.42247 2.99719,-2.84494 4.4958,-4.26741 3.77354,-0.71402 7.54704,-1.42802 11.32056,-2.14203 3.40276,-1.49261 6.80551,-2.98522 10.20827,-4.47784 2.85921,0.83488 5.71842,1.66976 8.57763,2.50464 2.37722,-1.69533 4.75443,-3.39065 7.13166,-5.08598 1.74693,-1.88071 3.49384,-3.76142 5.24077,-5.64213 2.45137,-0.36058 4.90273,-0.72116 7.35411,-1.08174 2.26825,-0.50703 4.53648,-1.01405 6.80472,-1.52107""")
 
-
 @run_if_changed
 def face_curve_inner_front_source():
     return Inkscape_BSplineCurve("""m 268.02832,24.955572
 c 1.90795,-0.964532 3.81589,-1.929057 5.72384,-2.893586 5.8667,-0.833446 11.73339,-1.666889 17.60009,-2.500334 6.8178,1.825415 13.6356,3.650829 20.4534,5.476243 0.55062,7.587858 1.10125,15.175716 1.65187,22.763574 -1.92299,7.622365 -3.84597,15.24473 -5.76896,22.867095 -6.19268,0.386506 -12.38537,0.773013 -18.57805,1.159519 -5.99589,-3.530735 -11.99178,-7.06147 -17.98767,-10.592205 -3.2268,-4.91319 -6.45359,-9.82638 -9.68039,-14.73957 0.39923,-4.294844 0.79846,-8.589689 1.19769,-12.884533 1.26213,-2.275825 2.52427,-4.55165 3.7864,-6.827475 0.53392,-0.609572 1.06785,-1.219151 1.60178,-1.828728
-z""")
+z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 
 
 @run_if_changed
@@ -69,8 +72,8 @@ tz /= td
 
 
 def from_image_coordinates(front_x, front_y, top_y):
-    front_y = (12.9 - front_y)
-    top_y = (94.4 - top_y)
+    front_y = (31 - front_y)
+    top_y = (100 - top_y)
     # front_y = y*fy+z*fz,
     # y = (front_y-z*fz)/fy
     # y = (top_y-z*tz)/ty
@@ -78,7 +81,7 @@ def from_image_coordinates(front_x, front_y, top_y):
     # z*fz*ty - z*tz*fy = ty*front_y-fy*top_y
     z = (ty * front_y - fy * top_y) / (fz * ty - tz * fy)
     y = (front_y - z * fz) / fy
-    return Point(front_x, y, z)
+    return Point(front_x - 110, y, z)
 
 
 def from_image_points(front, top):
@@ -90,6 +93,9 @@ def glasses_outer_curve():
     return BSplineCurve([from_image_points(front, top) for front, top in
                          zip(glasses_outer_front_view_curve_source.poles(), glasses_top_view_curve_source.poles())],
                         BSplineDimension(periodic=True))
+
+
+pupillary_distance = 67
 
 
 def face_curve(front, flat):
@@ -107,8 +113,8 @@ def face_curve(front, flat):
         flat_x = (flat_position[0] - left_x)
         front_position = front.position(distance = flat_x * correction_factor)
         result.append (Point(
-            -front_position[0],
-            (flat_position[1] - skew*flat_x),
+            (-front_position[0]) - pupillary_distance/2,
+            (flat_position[1] - skew*flat_x) - 125,
             -front_position[1],
         ))
     return BSplineCurve(result, BSplineDimension(periodic = True))
@@ -121,7 +127,7 @@ def face_curve_outer():
 
 @run_if_changed
 def face_curve_inner():
-    return face_curve(face_curve_inner_front_source, face_curve_inner_flat_source)
+    return face_curve(face_curve_inner_front_source, face_curve_inner_flat_source) @ Translate(Front*1)
 
 
 @run_if_changed
@@ -154,6 +160,7 @@ earpiece_depth = 3.5
 
 @run_if_changed
 def frame():
+    return None
     frame_sections = []
     shadow_sections = []
     wall_thickness = 0.7
@@ -196,4 +203,27 @@ def frame():
     export("frame.stl", "frame_test_1.stl")
     return result
 
-preview(face_curve_outer, face_curve_inner, frame, glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, [p for p in glasses_outer_curve.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
+
+@run_if_changed
+def face_curve_test():
+    wall_thickness = 0.7
+
+    poles = [[],[]]
+    for distance in subdivisions(0, face_curve_outer.length(), max_length = 0.2)[:-1]:
+        a = face_curve_outer.position(distance = distance)
+        b = face_curve_inner.position(closest = a)
+        poles [0].append (a)
+        poles [1].append (b)
+
+    result = Face(BSplineSurface(poles, BSplineDimension (degree =1), BSplineDimension (periodic = True)))
+    result = result.extrude(Front*wall_thickness)
+
+    save_STL("face_curve_test", result)
+    export("face_curve_test.stl", "face_curve_test_1.stl")
+    return result
+
+
+
+preview(face_curve_outer, face_curve_inner, face_curve_test,
+        #frame,
+glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, [p for p in glasses_outer_curve.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
