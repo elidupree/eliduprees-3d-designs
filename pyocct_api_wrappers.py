@@ -637,6 +637,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   simple_override (Surface, "parameter", surface_parameter)
   
   override_attribute (Surface, "value", lambda original: surface_parameter_function(lambda surface, parameter: original(*parameter)))
+  simple_override (Surface, "position", lambda self, *args, **kwargs: self.value(*args, **kwargs))
   simple_override (Surface, "normal", surface_parameter_function(lambda surface, parameter: GeomLProp.GeomLProp_SLProps(surface, *parameter, 2, default_tolerance).Normal()))
   
   class CurveDerivatives:
@@ -657,7 +658,8 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   
   simple_override (Curve, "derivatives", curve_parameter_function (lambda curve, parameter, **kwargs: CurveDerivatives(curve, parameter, **kwargs)))
   simple_override (Curve, "curvature", curve_parameter_function (lambda curve, parameter: GeomLProp.GeomLProp_CLProps(curve, parameter, 2, default_tolerance).Curvature()))
-  override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))  
+  override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))
+  simple_override (Curve, "position", lambda self, *args, **kwargs: self.value(*args, **kwargs))
   
   for transformable in [Vector, Point, Curve, Surface]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))

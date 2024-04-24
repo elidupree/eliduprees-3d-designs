@@ -96,6 +96,8 @@ def Inkscape_BSplineCurve(text):
     for i in range(4, len(things), 6):
         position = position + vector(float(things[i]), float(things[i+1]))
         control_points.append (position)
+    if periodic and (control_points[0] - control_points[-1]).length() <= 0.001:
+        control_points.pop()
     return BSplineCurve(control_points, BSplineDimension(periodic = periodic))
 
 
