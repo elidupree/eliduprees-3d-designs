@@ -34,7 +34,7 @@ z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 @run_if_changed
 def face_curve_outer_flat_source():
     return Inkscape_BSplineCurve("""m 254.90448,123.39286
-c 0,0 19.68614,9.56934 29.52922,14.35402 4.19522,9.19145 8.39043,18.38288 12.58564,27.57432 7.85398,4.35527 15.70795,8.71054 23.56192,13.0658 9.35942,-1.94822 18.71885,-3.89644 28.07827,-5.84466 5.17226,-7.47216 10.34452,-14.94431 15.51678,-22.41648 5.07892,-0.96096 10.15784,-1.92193 15.23675,-2.88289 1.4986,-1.42247 2.99719,-2.84494 4.4958,-4.26741 3.77354,-0.71402 7.54704,-1.42802 11.32056,-2.14203 3.40276,-1.49261 6.80551,-2.98522 10.20827,-4.47784 2.85921,0.83488 5.71842,1.66976 8.57763,2.50464 2.37722,-1.69533 4.75443,-3.39065 7.13166,-5.08598 1.74693,-1.88071 3.49384,-3.76142 5.24077,-5.64213 2.45137,-0.36058 4.90273,-0.72116 7.35411,-1.08174 2.26825,-0.50703 4.53648,-1.01405 6.80472,-1.52107""")
+c 0,0 10.69532,5.24502 16.04299,7.86753 4.49542,4.19905 9.8899,9.23787 13.48623,12.59711 3.76959,6.11216 9.42395,15.28037 14.13593,22.92056 7.33722,3.86965 14.67443,7.7393 22.01163,11.60894 9.35942,-1.94822 18.71885,-3.89644 28.07827,-5.84466 5.17226,-7.47216 10.34452,-14.94431 15.51678,-22.41648 5.07892,-0.96096 10.15784,-1.92193 15.23675,-2.88289 1.4986,-1.08899 2.99719,-2.17797 4.4958,-3.26697 3.77354,-1.0475 7.54704,-2.09498 11.32056,-3.14247 3.40276,-1.49261 6.80551,-2.98522 10.20827,-4.47784 2.85921,0.83488 5.71842,1.66976 8.57763,2.50464 1.32718,-1.36994 2.65436,-2.73987 3.98155,-4.10981 2.5974,-2.35524 5.19477,-4.71046 7.79217,-7.0657 1.85923,-0.0653 3.71844,-0.13057 5.57767,-0.19585 3.05997,-0.65319 6.11991,-1.30637 9.17987,-1.95956""")
 
 @run_if_changed
 def face_curve_inner_front_source():
@@ -46,7 +46,7 @@ z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 @run_if_changed
 def face_curve_inner_flat_source():
     return Inkscape_BSplineCurve("""m 469.49164,124.14049
-c 1.63582,-0.003 3.27165,-0.006 4.90747,-0.009 3.43402,0.99116 6.86804,1.98233 10.30206,2.97349 5.80771,5.83878 11.61542,11.67756 17.42313,17.51634 4.06664,5.0519 8.13328,10.1038 12.19992,15.1557 6.89189,4.71699 13.78379,9.43399 20.67568,14.15098 8.09005,-5.38392 16.1801,-10.76785 24.27015,-16.15177 2.94457,-3.79535 5.88915,-7.5907 8.83372,-11.38605 5.66441,0.29561 11.32882,0.59121 16.99323,0.88682 4.70043,-1.04833 9.40086,-2.09667 14.10128,-3.145 3.99972,-0.1315 7.99946,-0.26299 11.99917,-0.39449 1.72085,-4.17382 3.4417,-8.34764 5.16256,-12.52148 2.83191,-2.35828 5.66381,-4.71656 8.49571,-7.07483 1.80828,-0.003 3.61657,-0.007 5.42485,-0.0104""")
+c 1.63582,-0.003 3.27165,-0.006 4.90747,-0.009 3.43402,0.99116 6.86804,1.98233 10.30206,2.97349 5.80771,6.5267 11.61542,13.0534 17.42313,19.58009 4.06664,5.0519 8.13328,10.10381 12.19992,15.1557 7.37421,3.78792 14.74841,7.57584 22.12262,11.36376 7.60774,-5.14277 15.21547,-10.28553 22.82321,-15.4283 2.94457,-3.79535 5.88915,-7.5907 8.83372,-11.38605 5.66441,0.29561 11.32882,0.59121 16.99323,0.88682 4.70043,-0.38167 9.40085,-0.76333 14.10128,-1.145 6.47137,-0.97042 12.94275,-1.94083 19.41411,-2.91125 -0.0273,-3.93267 -0.0546,-7.86533 -0.082,-11.79801 2.10844,-2.42719 4.21687,-4.85437 6.3253,-7.28154 1.80828,-0.003 3.61657,-0.007 5.42485,-0.0104""")
 
 
 print(face_curve_outer_front_source.length(), face_curve_inner_front_source.length())
@@ -104,7 +104,7 @@ def face_curve(front, flat):
     left_x = flat_poles[0][0]
     right_x = flat_poles[-1][0]
     correction_factor = front_length/(right_x - left_x)
-    print(correction_factor)
+    print("Correction factor:", correction_factor)
     skew = (flat_poles[-1][1] - flat_poles[0][1]) / (right_x - left_x)
     assert (abs(1 - correction_factor) < 0.02)
     result = []
@@ -219,29 +219,42 @@ def face_curve_test():
     result = result.extrude(Front*wall_thickness)
 
     save_STL("face_curve_test", result)
-    export("face_curve_test.stl", "face_curve_test_2.stl")
+    export("face_curve_test.stl", "face_curve_test_3.stl")
     return result
 
 
-def marker_points(curve, offset=0):
-    period = 160/17.6
+def marker_points(curve, flat_source, offset=0):
+    flat_poles = [a for a in flat_source.poles()]
+    left_x = flat_poles[0][0]
+    right_x = flat_poles[-1][0]
+    flat_length = (right_x - left_x)
+    prev = None
+    projected_length = 0
+    for distance in subdivisions(0, curve.length(), max_length = 0.1):
+        p = curve.position(distance=distance)
+        if prev is not None:
+            projected_length += (p - prev).projected_perpendicular(Front).length()
+        prev = p
+
+    period = 164/18
     prev = None
     dist = 0
     next = offset
     result = []
-    for distance in subdivisions(0, curve.length(), max_length = 0.2):
+    for distance in subdivisions(0, curve.length(), max_length = 0.1):
         p = curve.position(distance=distance)
         if prev is not None:
-            dist += (p - prev).projected_perpendicular(Front).length()
+            dist += (p - prev).projected_perpendicular(Front).length() * flat_length / projected_length
             if dist >= next:
                 result.append (Segment(p, p + Back*3))
                 next += period
         prev = p
+    print("Total distance:", dist)
 
     return result
 
 
 preview(face_curve_outer, face_curve_inner, face_curve_test,
         #frame,
-        marker_points(face_curve_outer), marker_points(face_curve_inner, 3),
+        marker_points(face_curve_outer, face_curve_outer_flat_source), marker_points(face_curve_inner, face_curve_inner_flat_source, 3),
 glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, [p for p in glasses_outer_curve.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
