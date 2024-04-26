@@ -27,19 +27,19 @@ flat_face_curve_pupil_y = 43
 @run_if_changed
 def face_curve_outer_front_source():
     return Inkscape_BSplineCurve("""m 267.97761,18.638847
-c 3.71658,-0.706818 7.43316,-1.413636 11.14975,-2.120455 4.62474,-0.399428 9.24948,-0.798856 13.87423,-1.198285 7.44779,1.875986 14.89556,3.75197 22.34334,5.627954 1.10118,9.239522 2.20235,18.479043 3.30353,27.718565 -2.96848,8.220855 -5.93696,16.441711 -8.90544,24.662566 -6.98237,1.229945 -13.96474,2.459889 -20.94711,3.689834 -7.37407,-4.338641 -14.74815,-8.677281 -22.12222,-13.015922 -3.24215,-6.247936 -6.48431,-12.495871 -9.72646,-18.743807 0.57693,-4.778699 1.15386,-9.557399 1.73079,-14.336098 1.11801,-2.864678 2.23602,-5.729359 3.35402,-8.594039 1.98186,-1.230105 3.96372,-2.460209 5.94557,-3.690313
+c 3.71658,-0.706818 7.43317,-1.413637 11.14975,-2.120455 4.62474,-0.399428 9.24949,-0.798857 13.87423,-1.198285 6.27645,1.634828 12.55289,3.269656 18.82934,4.904484 1.72192,4.860918 3.44384,9.721835 5.16576,14.582753 -1.45882,2.870321 -2.91765,5.74064 -4.37647,8.610962 -0.16961,2.09395 -0.33922,4.1879 -0.50883,6.281849 0.69478,3.765918 1.38957,7.531836 2.08435,11.297754 -2.14197,4.037346 -4.28395,8.074692 -6.42592,12.112038 -6.32464,1.303026 -12.64927,2.606053 -18.97391,3.909079 -7.37407,-4.338641 -14.74815,-8.677281 -22.12222,-13.015922 -3.24215,-6.247936 -6.48431,-12.495871 -9.72646,-18.743807 0.57693,-4.778699 1.15386,-9.557399 1.73079,-14.336098 1.11801,-2.86468 2.23601,-5.729359 3.35402,-8.594039 1.98186,-1.230104 3.96371,-2.460209 5.94557,-3.690313
 z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 
 
 @run_if_changed
 def face_curve_outer_flat_source():
     return Inkscape_BSplineCurve("""m 254.90448,123.39286
-c 0,0 10.69532,5.24502 16.04299,7.86753 4.49542,4.19905 9.8899,9.23787 13.48623,12.59711 3.76959,6.11216 9.42395,15.28037 14.13593,22.92056 7.33722,3.86965 14.67443,7.7393 22.01163,11.60894 9.35942,-1.94822 18.71885,-3.89644 28.07827,-5.84466 5.17226,-7.47216 10.34452,-14.94431 15.51678,-22.41648 5.07892,-0.96096 10.15784,-1.92193 15.23675,-2.88289 1.4986,-1.08899 2.99719,-2.17797 4.4958,-3.26697 3.77354,-1.0475 7.54704,-2.09498 11.32056,-3.14247 3.40276,-1.49261 6.80551,-2.98522 10.20827,-4.47784 2.85921,0.83488 5.71842,1.66976 8.57763,2.50464 1.32718,-1.36994 2.65436,-2.73987 3.98155,-4.10981 2.5974,-2.35524 5.19477,-4.71046 7.79217,-7.0657 1.85923,-0.0653 3.71844,-0.13057 5.57767,-0.19585 3.05997,-0.65319 6.11991,-1.30637 9.17987,-1.95956""")
+c 0,0 10.69532,6.16224 16.04299,9.24337 4.49542,4.19904 9.88989,9.23787 13.48623,12.59711 3.76959,5.74527 9.42395,14.36314 14.13593,21.54472 7.33722,3.86965 14.67443,7.7393 22.01163,11.60894 9.35942,-1.94822 18.71885,-3.89644 28.07827,-5.84466 5.17226,-7.47216 10.34452,-14.94431 15.51678,-22.41648 5.07892,-0.96096 10.15784,-1.92193 15.23675,-2.88289 1.4986,-1.08899 2.99719,-2.17797 4.4958,-3.26697 3.77354,-1.0475 7.54704,-2.09498 11.32056,-3.14247 3.40276,-1.49261 6.80551,-2.98522 10.20827,-4.47784 2.85921,0.83488 5.71842,1.66976 8.57763,2.50464 1.32718,-1.36994 2.65436,-2.73987 3.98155,-4.10981 2.5974,-2.35524 5.19477,-4.71046 7.79217,-7.0657 1.85923,-0.0653 3.71844,-0.13057 5.57767,-0.19585 3.05997,-0.65319 6.11991,-1.30637 9.17987,-1.95956""")
 
 @run_if_changed
 def face_curve_inner_front_source():
     return Inkscape_BSplineCurve("""m 268.02832,24.955572
-c 1.90795,-0.964532 3.81589,-1.929057 5.72384,-2.893586 5.8667,-0.833446 11.73339,-1.666889 17.60009,-2.500334 6.8178,1.825415 13.6356,3.650829 20.4534,5.476243 0.55062,7.587858 1.10125,15.175716 1.65187,22.763574 -1.92299,7.622365 -3.84597,15.24473 -5.76896,22.867095 -6.19268,0.386506 -12.38537,0.773013 -18.57805,1.159519 -5.99589,-3.530735 -11.99178,-7.06147 -17.98767,-10.592205 -3.2268,-4.91319 -6.45359,-9.82638 -9.68039,-14.73957 0.39923,-4.294844 0.79846,-8.589689 1.19769,-12.884533 1.26213,-2.275825 2.52427,-4.55165 3.7864,-6.827475 0.53392,-0.609572 1.06785,-1.219151 1.60178,-1.828728
+c 1.90795,-0.964529 3.81589,-1.929057 5.72384,-2.893586 5.8667,-0.833445 11.73339,-1.666889 17.60009,-2.500334 5.94082,1.679251 11.88164,3.358503 17.82247,5.037754 1.15228,3.940092 2.30457,7.880184 3.45686,11.820276 -2.28254,3.3798 -4.56508,6.759601 -6.84762,10.139401 1.59636,4.225311 3.19272,8.450623 4.78908,12.675933 -1.78975,3.738101 -3.5795,7.476203 -5.36925,11.214303 -5.36443,0.459588 -10.72886,0.919176 -16.09328,1.378764 -5.99589,-3.530735 -11.99178,-7.06147 -17.98767,-10.592205 -3.2268,-4.91319 -6.45359,-9.82638 -9.68039,-14.73957 0.39923,-4.294844 0.79846,-8.589689 1.19769,-12.884533 1.26213,-2.275825 2.52427,-4.55165 3.7864,-6.827475 0.53393,-0.609576 1.06785,-1.219152 1.60178,-1.828728
 z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 
 
@@ -47,6 +47,12 @@ z""") @ Translate(-flat_face_curve_pupil_x, -flat_face_curve_pupil_y, 0)
 def face_curve_inner_flat_source():
     return Inkscape_BSplineCurve("""m 469.49164,124.14049
 c 1.63582,-0.003 3.27165,-0.006 4.90747,-0.009 3.43402,0.99116 6.86804,1.98233 10.30206,2.97349 5.80771,6.5267 11.61542,13.0534 17.42313,19.58009 4.06664,5.0519 8.13328,10.10381 12.19992,15.1557 7.37421,3.78792 14.74841,7.57584 22.12262,11.36376 7.60774,-5.14277 15.21547,-10.28553 22.82321,-15.4283 2.94457,-3.79535 5.88915,-7.5907 8.83372,-11.38605 5.66441,0.29561 11.32882,0.59121 16.99323,0.88682 4.70043,-0.38167 9.40085,-0.76333 14.10128,-1.145 6.47137,-0.97042 12.94275,-1.94083 19.41411,-2.91125 -0.0273,-3.93267 -0.0546,-7.86533 -0.082,-11.79801 2.10844,-2.42719 4.21687,-4.85437 6.3253,-7.28154 1.80828,-0.003 3.61657,-0.007 5.42485,-0.0104""")
+
+
+@run_if_changed
+def frame_depth_curve():
+    return Inkscape_BSplineCurve("""m 271.13649,331.12171
+c 0,0 21.00764,0.92847 31.51149,1.3927 8.61014,0.92388 17.22025,1.84776 25.83039,2.77165 4.22569,-0.55427 8.45135,-1.10853 12.67704,-1.6628 3.89918,0.14369 7.79834,0.28737 11.69751,0.43106 1.88283,0.0942 3.76565,0.18837 5.64847,0.28255 5.93994,-0.046 11.87985,-0.0919 17.81979,-0.13788 9.66285,-0.0709 19.32564,-0.1417 28.98849,-0.21256 4.94038,-0.17374 9.88074,-0.34748 14.82112,-0.52122 2.41098,-0.36478 4.82197,-0.72956 7.23296,-1.09435""")
 
 
 print(face_curve_outer_front_source.length(), face_curve_inner_front_source.length())
@@ -88,11 +94,58 @@ def from_image_points(front, top):
     return from_image_coordinates(front[0], front[1], top[1])
 
 
+# measurements I made:
+# xy angle: 1/21
+# yz angle: 8 degrees
+right_lens_aggregate_outwards_normal = Direction(-1/21, -1, -Degrees(8).sin())
+
+
 @run_if_changed
-def glasses_outer_curve():
+def glasses_outer_curve_from_2_scans():
     return BSplineCurve([from_image_points(front, top) for front, top in
                          zip(glasses_outer_front_view_curve_source.poles(), glasses_top_view_curve_source.poles())],
                         BSplineDimension(periodic=True))
+
+
+@run_if_changed
+def glasses_outer_curve():
+    samples = [glasses_outer_curve_from_2_scans.position (distance= distance) for distance in subdivisions (0,glasses_outer_curve_from_2_scans.length(), max_length =0.5)[:-1]]
+    best, _ = max (enumerate (samples), key = lambda pair: (pair[1] - Origin).dot(Vector(-1.5, 0, 1)))
+    # preview (glasses_outer_curve_from_2_scans, samples [best])
+    samples = samples[best:] + samples[:best]
+    def planar_distance (a, b):
+        return (a - b).projected_perpendicular(right_lens_aggregate_outwards_normal).length()
+    planar_length = sum(planar_distance(a, b) for a, b in pairs (samples, loop = True))
+
+    depth_curve_poles = [p for p in frame_depth_curve.poles()]
+    depth_curve_left = depth_curve_poles[0][0]
+    depth_curve_right = depth_curve_poles[-1][0]
+    depth_curve_skew = depth_curve_poles[-1][1] - depth_curve_poles[0][1]
+    depth_curve_planar_length = depth_curve_right - depth_curve_left
+    correction_factor = depth_curve_planar_length / planar_length
+
+    bad_frame_depth_average = sum((sample - Origin) . projected (right_lens_aggregate_outwards_normal).length() for sample in samples )/ len (samples)
+    bad_frame_average_depth_plane = Plane(Origin + right_lens_aggregate_outwards_normal * bad_frame_depth_average, right_lens_aggregate_outwards_normal)
+    depth_curve_average = sum(p [1] for p in depth_curve_poles)/len(depth_curve_poles)
+
+    running_distance = 0
+    result = []
+    for a, b in pairs (samples, loop = True):
+        depth_curve_distance = running_distance*correction_factor
+        depth_curve_frac = depth_curve_distance / depth_curve_planar_length
+        depth_point = frame_depth_curve.intersections (Plane(Origin + Right*(depth_curve_left + depth_curve_distance), Right)).point()
+        depth = - (depth_point[1] - (depth_curve_skew * depth_curve_frac) - depth_curve_average)
+        
+        print(depth_curve_frac, depth)
+
+        result.append (
+            a.projected(bad_frame_average_depth_plane) + right_lens_aggregate_outwards_normal*depth
+        )
+
+        running_distance += planar_distance (a, b)
+
+    return BSplineCurve(result, BSplineDimension(periodic=True))
+
 
 
 pupillary_distance = 67
@@ -219,7 +272,7 @@ def face_curve_test():
     result = result.extrude(Front*wall_thickness)
 
     save_STL("face_curve_test", result)
-    export("face_curve_test.stl", "face_curve_test_3.stl")
+    # export("face_curve_test.stl", "face_curve_test_3.stl")
     return result
 
 
@@ -257,4 +310,4 @@ def marker_points(curve, flat_source, offset=0):
 preview(face_curve_outer, face_curve_inner, face_curve_test,
         #frame,
         marker_points(face_curve_outer, face_curve_outer_flat_source), marker_points(face_curve_inner, face_curve_inner_flat_source, 3),
-glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, [p for p in glasses_outer_curve.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
+glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, glasses_outer_curve_from_2_scans.position(distance=0), [p for p in glasses_outer_curve_from_2_scans.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
