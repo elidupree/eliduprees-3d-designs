@@ -168,9 +168,9 @@ def face_curve(front, flat):
         flat_x = (flat_position[0] - left_x)
         front_position = front.position(distance = flat_x * correction_factor)
         result.append (Point(
-            (-front_position[0]) - pupillary_distance/2,
+            (-front_position[0]) - pupillary_distance/2 - 2,
             (flat_position[1] - skew*flat_x) - 130,
-            -front_position[1],
+            -front_position[1] - 3,
         ))
     return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
 
@@ -289,8 +289,16 @@ def printed_full_shield():
     
     sections = []
     # for now, not [:-1] because Loft doesn't support loops
-    for distance in subdivisions(0, face_curve_outer.length(), max_length = 0.7):
-        a = face_curve_outer.position(distance = distance)
+    p0 = p1 = Point(100,0,0)
+    pd0 = pd1 = Vector(100,0,0)
+    distance = 0
+    default_increment = 4
+    increment = default_increment
+    length = face_curve_outer.length()
+    done = False
+    while not done:
+        da = face_curve_outer.derivatives(distance = distance)
+        a = da.position
         b = face_curve_inner.position(closest = a)
 
         face_tangent = Direction (a, b)
@@ -314,6 +322,23 @@ def printed_full_shield():
 
         # uhh = Segment(on_frame, outer).intersections(Plane(, model_up @ Rotate(through, Turns(1/8)))).point()
 
+        close = ((a - p0).length() < 5 and (da.tangent*1 - pd0).length() < 0.1 and
+            (on_frame - p1).length() < 5 and (on_frame_d.tangent*1 - pd1).length() < 0.1)
+        done = (distance == length)
+        print(close, distance/length, done)
+
+        # print(close)
+        if not close and distance != 0 and increment > 0.1:
+            increment /= 2
+            distance -= increment
+            continue
+
+        p0, p1, pd0, pd1 = a, on_frame, da.tangent*1, on_frame_d.tangent*1
+        increment = default_increment
+        distance += increment
+        if distance > length:
+            distance = length
+
         sections.append (Wire([
             # join_location + Direction((face_tangent*1).projected_perpendicular(model_up)) * wall_thickness,
             join_location - frame_outwards * wall_thickness,
@@ -328,7 +353,8 @@ def printed_full_shield():
             on_frame + model_up * frame_inset - frame_outwards * frame_inset,
         ], loop = True))
 
-    # preview(sections[::20])
+
+    # preview(sections)
     model_right = Direction((Right*1).projected_perpendicular(model_up))
     model_back = model_up.cross(model_right)
     result = Loft (sections, solid = True) @ Transform(
@@ -337,7 +363,7 @@ def printed_full_shield():
         model_up,
     ).inverse()
     save_STL("printed_full_shield", result)
-    export("printed_full_shield.stl", "printed_full_shield_2.stl")
+    export("printed_full_shield.stl", "printed_full_shield_3.stl")
     preview(result)
     return result
 
