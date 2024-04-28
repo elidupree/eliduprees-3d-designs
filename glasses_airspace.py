@@ -5,6 +5,8 @@ from svg_utils import Inkscape_BSplineCurve
 
 initialize_pyocct_system()
 
+inch = 25.4
+
 
 @run_if_changed
 def glasses_outer_front_view_curve_source():
@@ -52,7 +54,7 @@ c 1.63582,-0.003 3.27165,-0.006 4.90747,-0.009 3.43402,0.99116 6.86804,1.98233 1
 @run_if_changed
 def frame_depth_curve():
     return Inkscape_BSplineCurve("""m 271.13649,331.12171
-c 0,0 21.00764,0.92847 31.51149,1.3927 8.61014,0.92388 17.22025,1.84776 25.83039,2.77165 4.22569,-0.55427 8.45135,-1.10853 12.67704,-1.6628 3.89918,0.14369 7.79834,0.28737 11.69751,0.43106 1.88283,0.0942 3.76565,0.18837 5.64847,0.28255 5.93994,-0.046 11.87985,-0.0919 17.81979,-0.13788 9.66285,-0.0709 19.32564,-0.1417 28.98849,-0.21256 4.94038,-0.17374 9.88074,-0.34748 14.82112,-0.52122 2.41098,-0.36478 4.82197,-0.72956 7.23296,-1.09435""")
+c 0,0 21.00764,0.92847 31.51149,1.3927 8.61014,0.92388 17.22025,1.84776 25.83039,2.77165 4.22569,-0.55427 8.45135,-1.10853 12.67704,-1.6628 3.89918,0.14369 7.79834,0.28737 11.69751,0.43106 1.88283,0.0942 3.76565,0.18837 5.64847,0.28255 10.26148,-0.046 20.52289,-0.0919 30.78437,-0.13788 5.39004,-0.5337 10.78004,-1.0674 16.17007,-1.60111 4.89167,-0.0519 9.7833,-0.10387 14.67496,-0.15581 2.41099,-0.0237 4.82197,-0.0475 7.23296,-0.0712""")
 
 
 print(face_curve_outer_front_source.length(), face_curve_inner_front_source.length())
@@ -276,6 +278,70 @@ def face_curve_test():
     return result
 
 
+@run_if_changed
+def printed_full_shield():
+    wall_thickness = 0.7
+    model_up = -right_lens_aggregate_outwards_normal
+    frame_inset = 1.5
+    frame_thickness = 2.0
+    frame_funnel = 1.5
+    
+    sections = []
+    # for now, not [:-1] because Loft doesn't support loops
+    for distance in subdivisions(0, face_curve_outer.length(), max_length = 0.7):
+        a = face_curve_outer.position(distance = distance)
+        b = face_curve_inner.position(closest = a)
+
+        face_tangent = Direction (a, b)
+
+        inner = a + face_tangent*inch/8
+        outer = a - face_tangent*inch/8
+        on_frame_d = glasses_outer_curve.derivatives(closest = a)
+        on_frame = on_frame_d.position
+        frame_outwards = Direction((on_frame_d.tangent*1).projected_perpendicular (model_up) @ Rotate(model_up, Turns(-1/4)))
+        frame_first_point = on_frame + model_up * frame_inset + frame_outwards * (wall_thickness - frame_inset)
+
+        through = Direction((inner - outer).cross(on_frame - outer))
+
+        diagonal = model_up @ Rotate(through, Turns(-1/8))
+
+        try:
+            join_location = Segment(frame_first_point, outer).intersections(Plane(inner, diagonal)).point()
+        except RuntimeError:
+            join_location = outer
+            # preview(face_curve_outer, Segment(on_frame, outer), inner, inner + through*1, inner + through*3, RayIsh(inner, diagonal, length = 4))
+
+        # uhh = Segment(on_frame, outer).intersections(Plane(, model_up @ Rotate(through, Turns(1/8)))).point()
+
+        sections.append (Wire([
+            # join_location + Direction((face_tangent*1).projected_perpendicular(model_up)) * wall_thickness,
+            join_location - frame_outwards * wall_thickness,
+            inner, outer,
+            frame_first_point,
+            on_frame + frame_outwards * wall_thickness,
+            on_frame - model_up * frame_thickness + frame_outwards * wall_thickness,
+            on_frame - model_up * (frame_thickness + frame_funnel) + frame_outwards * (frame_funnel + wall_thickness),
+            on_frame - model_up * (frame_thickness + frame_funnel) + frame_outwards * frame_funnel,
+            on_frame - model_up * frame_thickness,
+            on_frame,
+            on_frame + model_up * frame_inset - frame_outwards * frame_inset,
+        ], loop = True))
+
+    # preview(sections[::20])
+    model_right = Direction((Right*1).projected_perpendicular(model_up))
+    model_back = model_up.cross(model_right)
+    result = Loft (sections, solid = True) @ Transform(
+        model_right,
+        model_back,
+        model_up,
+    ).inverse()
+    save_STL("printed_full_shield", result)
+    export("printed_full_shield.stl", "printed_full_shield_1.stl")
+    preview(result)
+    return result
+
+
+
 def marker_points(curve, flat_source, offset=0):
     flat_poles = [a for a in flat_source.poles()]
     left_x = flat_poles[0][0]
@@ -310,4 +376,11 @@ def marker_points(curve, flat_source, offset=0):
 preview(face_curve_outer, face_curve_inner, face_curve_test,
         #frame,
         marker_points(face_curve_outer, face_curve_outer_flat_source), marker_points(face_curve_inner, face_curve_inner_flat_source, 3),
-glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, glasses_outer_curve_from_2_scans.position(distance=0), [p for p in glasses_outer_curve_from_2_scans.poles()], simple_wall, RayIsh (Origin, Direction(0, fy, fz), 50), RayIsh (Origin, Direction(0, ty, tz), 50))
+glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curve_source.poles()][:-1], glasses_top_view_curve_source, [p for p in glasses_top_view_curve_source.poles()], glasses_outer_curve, glasses_outer_curve_from_2_scans.position(distance=0), [p for p in glasses_outer_curve_from_2_scans.poles()], simple_wall,
+
+        RayIsh (Origin, Up, 50),
+        RayIsh (Origin, Left, 50),
+        RayIsh (Origin, Front, 50),
+        RayIsh (Origin, Direction(0, fy, fz), 25),
+        RayIsh (Origin, Direction(0, ty, tz), 25),
+        )
