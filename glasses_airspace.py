@@ -169,10 +169,10 @@ def face_curve(front, flat):
         front_position = front.position(distance = flat_x * correction_factor)
         result.append (Point(
             (-front_position[0]) - pupillary_distance/2,
-            (flat_position[1] - skew*flat_x) - 125,
+            (flat_position[1] - skew*flat_x) - 130,
             -front_position[1],
         ))
-    return BSplineCurve(result, BSplineDimension(periodic = True))
+    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
 
 
 @run_if_changed
@@ -255,7 +255,7 @@ def frame():
         earpiece_grip
     )
     save_STL("frame", result)
-    export("frame.stl", "frame_test_1.stl")
+    # export("frame.stl", "frame_test_1.stl")
     return result
 
 
@@ -285,6 +285,7 @@ def printed_full_shield():
     frame_inset = 1.5
     frame_thickness = 2.0
     frame_funnel = 1.5
+    frame_leeway = 0.5
     
     sections = []
     # for now, not [:-1] because Loft doesn't support loops
@@ -297,8 +298,8 @@ def printed_full_shield():
         inner = a + face_tangent*inch/8
         outer = a - face_tangent*inch/8
         on_frame_d = glasses_outer_curve.derivatives(closest = a)
-        on_frame = on_frame_d.position
         frame_outwards = Direction((on_frame_d.tangent*1).projected_perpendicular (model_up) @ Rotate(model_up, Turns(-1/4)))
+        on_frame = on_frame_d.position + frame_outwards * frame_leeway
         frame_first_point = on_frame + model_up * frame_inset + frame_outwards * (wall_thickness - frame_inset)
 
         through = Direction((inner - outer).cross(on_frame - outer))
@@ -336,7 +337,7 @@ def printed_full_shield():
         model_up,
     ).inverse()
     save_STL("printed_full_shield", result)
-    export("printed_full_shield.stl", "printed_full_shield_1.stl")
+    export("printed_full_shield.stl", "printed_full_shield_2.stl")
     preview(result)
     return result
 
@@ -381,6 +382,7 @@ glasses_outer_front_view_curve_source, [p for p in glasses_outer_front_view_curv
         RayIsh (Origin, Up, 50),
         RayIsh (Origin, Left, 50),
         RayIsh (Origin, Front, 50),
+        RayIsh (Origin, right_lens_aggregate_outwards_normal, 75),
         RayIsh (Origin, Direction(0, fy, fz), 25),
         RayIsh (Origin, Direction(0, ty, tz), 25),
         )
