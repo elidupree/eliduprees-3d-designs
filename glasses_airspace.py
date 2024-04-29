@@ -170,7 +170,7 @@ def face_curve(front, flat):
         result.append (Point(
             (-front_position[0]) - pupillary_distance/2 - 2,
             (flat_position[1] - skew*flat_x) - 130,
-            -front_position[1] - 3,
+            -front_position[1] - 8,
         ))
     return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
 
@@ -325,7 +325,7 @@ def printed_full_shield():
         close = ((a - p0).length() < 5 and (da.tangent*1 - pd0).length() < 0.1 and
             (on_frame - p1).length() < 5 and (on_frame_d.tangent*1 - pd1).length() < 0.1)
         done = (distance == length)
-        print(close, distance/length, done)
+        # print(close, distance/length, done)
 
         # print(close)
         if not close and distance != 0 and increment > 0.1:
@@ -363,7 +363,7 @@ def printed_full_shield():
         model_up,
     ).inverse()
     save_STL("printed_full_shield", result)
-    export("printed_full_shield.stl", "printed_full_shield_3.stl")
+    export("printed_full_shield.stl", "printed_full_shield_4.stl")
     preview(result)
     return result
 
