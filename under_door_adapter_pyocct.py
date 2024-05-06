@@ -102,6 +102,38 @@ def small_hose_spout():
   save_STL("small_hose_spout", loft, linear_deflection=0.02)
   preview(loft)
   return loft
+
+
+@run_if_changed
+def small_hose_to_sound_suppressor():
+  join_len = 40
+  # def cir(z, radius):
+  #   return Wire (Edge (Circle (Axes (Origin + Up*z, Up), radius)))
+  suppressor_radius = 15.5*inch / math.tau
+  mid_len = 40
+  a = Origin + Right*(small_hose_outer_radius + wall_thickness)
+  c = Origin + Up*(join_len*2+mid_len)
+  b = c + Right*suppressor_radius
+  profile = Wire(
+    [Origin, a, BSplineCurve (
+       [a + Up*z for z in subdivisions(0, join_len, amount=4)]
+      + [b + Up*z for z in subdivisions(-join_len, 0, amount=4)]
+    ), c],
+     loop = True)
+  # result = Loft (
+  #   [cir(z, small_hose_outer_radius + wall_thickness) for z in subdivisions(0, join_len, amount=5)]
+  #   +
+  #   [cir(join_len+mid_len+z, suppressor_radius) for z in subdivisions(0, join_len, amount=5)]
+  #   , solid=True
+  # )
+  result = Revolve(profile, Up)
+  save_STL("small_hose_to_sound_suppressor", result, linear_deflection=0.02)
+  export("small_hose_to_sound_suppressor.stl", "small_hose_to_sound_suppressor_1.stl")
+  preview(result)
+  return result
+
+
+
 preview(symmetric_smaller_hose_version)
 
 # preview(intake_half ["offset"])

@@ -362,9 +362,137 @@ def printed_full_shield():
         model_back,
         model_up,
     ).inverse()
-    save_STL("printed_full_shield", result)
-    export("printed_full_shield.stl", "printed_full_shield_4.stl")
-    preview(result)
+    # save_STL("printed_full_shield", result)
+    # export("printed_full_shield.stl", "printed_full_shield_4.stl")
+    # preview(result)
+    return result
+
+
+vf_model_up = -right_lens_aggregate_outwards_normal
+
+@run_if_changed
+def vf_model_base():
+    return Plane(Origin - vf_model_up * 10, vf_model_up)
+
+
+@run_if_changed
+def lens_support_for_vacuum_forming():
+    wall_thickness = 2
+    frame_thickness = 2.0
+    model_up = vf_model_up
+    model_base = vf_model_base
+    rows = []
+    for distance in subdivisions(0, glasses_outer_curve.length(), max_length = 0.2):
+        d = glasses_outer_curve.derivatives(distance=distance)
+        outwards = Direction((d.tangent*1).projected_perpendicular (model_up) @ Rotate(model_up, Turns(-1/4)))
+        a = d.position - model_up * frame_thickness
+        b = a - outwards * wall_thickness
+        c = b.projected(model_base)
+        e = a.projected(model_base)
+        rows.append([a,b,c,e])
+
+    result = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in rows))]))
+
+    model_right = Direction((Right*1).projected_perpendicular(model_up))
+    model_back = model_up.cross(model_right)
+    result = result @ Transform(
+        model_right,
+        model_back,
+        model_up,
+    ).inverse()
+
+    save_STL("lens_support_for_vacuum_forming", result)
+    export("lens_support_for_vacuum_forming.stl", "lens_support_for_vacuum_forming_1.stl")
+    preview (result)
+    return result
+
+
+@run_if_changed
+def vacuum_forming_mold():
+    model_up = vf_model_up
+    model_base = vf_model_base
+    frame_expansion = 5
+    frame_leeway = 0.5
+
+    nose_exclusion = from_image_coordinates(94, 33, 98)
+    ear_exclusion = from_image_coordinates(54, 25, 102)
+    poles = [p for p in glasses_outer_curve.poles()][::5]
+    lens_center = Vector()
+    for p in poles:
+        lens_center = lens_center + (p - Origin)
+    lens_center = Origin + lens_center/len(poles)
+
+    cg_poles = [
+        p + model_up*frame_leeway + model_up @ Rotate(Right, Turns(1/4)) * frame_expansion * (-1 if p[2] < 0 else 1)
+        for p in poles
+        if (p - nose_exclusion).dot(Vector(1, 0, -0.3)) < 0
+        and (p - ear_exclusion).dot(Vector(-1, 0, 0.1)) < 0
+    ]
+    clipped_glasses_curve = BSplineCurve(cg_poles, BSplineDimension (periodic = True))
+    base_curve = BSplineCurve([p.projected(model_base) for p in cg_poles], BSplineDimension (periodic = True))
+    expanded_base_curve = Edge(base_curve).offset2D(2)
+
+    rows = []
+    cut_rows = []
+    for turns in subdivisions(0, 1, amount = 100):
+        lots = 500
+        angle = Turns(turns)
+        anglewards = Direction(model_up.cross(Right)) @ Rotate(model_up, angle)
+        sheet = BSplineSurface(
+            [
+                [lens_center - model_up*lots, lens_center + model_up*lots],
+                [lens_center - model_up*lots + anglewards*lots, lens_center + model_up*lots + anglewards*lots],
+            ]
+            , BSplineDimension(degree = 1), BSplineDimension(degree = 1)
+        )
+        try:
+            gorig = glasses_outer_curve.intersections (sheet).point()
+            cg = clipped_glasses_curve.intersections (sheet).point()
+            f = face_curve_outer.intersections (sheet).point()
+            g = face_curve_inner.intersections (sheet).point()
+            base = base_curve.intersections (sheet).point()
+            ebase = expanded_base_curve.intersections (sheet).point()
+        except RuntimeError:
+            preview(sheet, clipped_glasses_curve, face_curve_outer, face_curve_inner, base_curve, expanded_base_curve)
+        face_tangent = Direction (f, g)
+        inner = f + face_tangent*inch/8
+        outer = f - face_tangent*inch/8
+
+        rows.append(
+            subdivisions(base, cg, amount = 4) + subdivisions(inner, outer, amount = 4)
+            # + subdivisions(ebase, base, amount = 4)[:-1]
+            + [ebase]
+        )
+        h = gorig+anglewards*frame_leeway+model_up*frame_leeway
+        j = lens_center+anglewards*1+model_up*frame_leeway
+        cut_rows.append([
+            h, j, j.projected(model_base), h.projected(model_base)
+        ])
+
+    surf = BSplineSurface(rows,
+                          BSplineDimension(periodic=True),
+                          # BSplineDimension(periodic=True)
+                          )
+    face2 = Face(
+        BSplineCurve([r[-1] for r in rows], BSplineDimension(periodic=True)),
+        holes = [BSplineCurve([r[0] for r in rows[::-1]], BSplineDimension(periodic=True))]
+    )
+    cut = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in cut_rows))]))
+
+    result = Solid(Shell(Face(surf), face2).reversed()).cut(cut)
+    # preview(Solid(Shell(Face(surf))), cut)
+
+    model_right = Direction((Right*1).projected_perpendicular(model_up))
+    model_back = model_up.cross(model_right)
+    result = result @ Transform(
+        model_right,
+        model_back,
+        model_up,
+    ).inverse()
+
+    save_STL("vacuum_forming_mold", result)
+    export("vacuum_forming_mold.stl", "vacuum_forming_mold_1.stl")
+    preview(glasses_outer_curve, clipped_glasses_curve, result)
     return result
 
 

@@ -292,6 +292,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   simple_override(Direction, "cross", Direction_cross)
   
   simple_override(Vector, "__rmul__", lambda self, other: self * other)
+  simple_override(Vector, "__radd__", lambda self, other: self + other)
   simple_override(Direction, "__rmul__", lambda self, other: self * other)
     
   simple_override(Point, "__add__", lambda self, other: self.translated (other))
@@ -609,6 +610,11 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
       builder = GeomAPI.GeomAPI_IntSS (self, other, tolerance)
       return GeomIntersections(curves = [builder.Line (index + 1) for index in range ( builder.NbLines())])
     raise RuntimeError (f"don't know how to intersect a surface with {other}")
+  def merge_intersections(iss):
+    return GeomIntersections(
+      points = [p for i in iss for p in i.points],
+      curves = [c for i in iss for c in i.curves],
+    )
 
   simple_override (Surface, "intersections", surface_intersections)
   simple_override (Curve, "intersections", curve_intersections)
@@ -748,6 +754,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   simple_override(Vertex, "__getitem__", lambda self, index: Vector_index(self.point(), index))
   simple_override(Edge, "curve", lambda self: BRep.BRep_Tool.Curve_(self, 0, 0))
   simple_override(Wire, "orient_edges", lambda self: RuntimeError("OrientEdgesOnWire_ doesn't work (apparent bug in OCCT?)"))#BOPTools.BOPTools_AlgoTools.OrientEdgesOnWire_(self))
+  simple_override(Wire, "intersections", lambda self, other: merge_intersections([e.trimmed_curve().intersections(other) for e in self.edges()]))
   simple_override(Face, "outer_wire", lambda self: BRepTools.BRepTools.OuterWire_(self))
   simple_override(Face, "surface", lambda self: BRep.BRep_Tool.Surface_(self))
   
@@ -755,6 +762,10 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
     curve, a, b = self.curve()
     return curve.length(a, b)
   simple_override(Edge, "length", edge_length)
+  def edge_trimmed_curve(self):
+    curve, a, b = self.curve()
+    return TrimmedCurve(curve, a, b)
+  simple_override(Edge, "trimmed_curve", edge_trimmed_curve)
   
   def compounded_shapes (compound):
     if not isinstance (compound, Compound):
@@ -879,6 +890,8 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
         args = [Wire(args[0])]
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeFace(*args)
       for hole in recursive_flatten(holes):
+        if not isinstance (hole, Wire):
+          hole = Wire(hole)
         builder.Add (hole)
       if not builder.IsDone():
         raise RuntimeError(f"Invalid face (detected by builder) {args}, {holes} => {builder.Error()}")
