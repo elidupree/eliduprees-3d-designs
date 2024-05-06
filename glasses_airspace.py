@@ -54,7 +54,7 @@ c 1.63582,-0.003 3.27165,-0.006 4.90747,-0.009 3.43402,0.99116 6.86804,1.98233 1
 @run_if_changed
 def frame_depth_curve():
     return Inkscape_BSplineCurve("""m 271.13649,331.12171
-c 0,0 21.00764,0.92847 31.51149,1.3927 8.61014,0.92388 17.22025,1.84776 25.83039,2.77165 4.22569,-0.55427 8.45135,-1.10853 12.67704,-1.6628 3.89918,0.14369 7.79834,0.28737 11.69751,0.43106 1.88283,0.0942 3.76565,0.18837 5.64847,0.28255 10.26148,-0.046 20.52289,-0.0919 30.78437,-0.13788 5.39004,-0.5337 10.78004,-1.0674 16.17007,-1.60111 4.89167,-0.0519 9.7833,-0.10387 14.67496,-0.15581 2.41099,-0.0237 4.82197,-0.0475 7.23296,-0.0712""")
+c 0,0 16.74533,-0.41447 25.118,-0.62171 10.7413,1.59535 21.48257,3.1907 32.22388,4.78606 4.22569,-0.55427 8.45135,-1.10853 12.67704,-1.6628 3.89918,0.14369 7.79834,0.28737 11.69751,0.43106 1.88283,0.0942 3.76565,0.18837 5.64847,0.28255 8.16622,-0.54562 16.33238,-1.09125 24.49861,-1.63687 7.4853,-0.034 14.97054,-0.0681 22.45583,-0.10212 4.89167,-0.0519 9.7833,-0.10387 14.67496,-0.15581 2.41099,-0.0237 4.82197,-0.0475 7.23296,-0.0712""")
 
 
 print(face_curve_outer_front_source.length(), face_curve_inner_front_source.length())
@@ -372,7 +372,7 @@ vf_model_up = -right_lens_aggregate_outwards_normal
 
 @run_if_changed
 def vf_model_base():
-    return Plane(Origin - vf_model_up * 10, vf_model_up)
+    return Plane(Origin - vf_model_up * 8, vf_model_up)
 
 
 @run_if_changed
@@ -401,8 +401,8 @@ def lens_support_for_vacuum_forming():
         model_up,
     ).inverse()
 
-    save_STL("lens_support_for_vacuum_forming", result)
-    export("lens_support_for_vacuum_forming.stl", "lens_support_for_vacuum_forming_1.stl")
+    # save_STL("lens_support_for_vacuum_forming", result)
+    # export("lens_support_for_vacuum_forming.stl", "lens_support_for_vacuum_forming_2.stl")
     preview (result)
     return result
 
@@ -412,7 +412,8 @@ def vacuum_forming_mold():
     model_up = vf_model_up
     model_base = vf_model_base
     frame_expansion = 5
-    frame_leeway = 0.5
+    frame_sides_leeway = 0.5
+    frame_thickness_leeway = 1.5
 
     nose_exclusion = from_image_coordinates(94, 33, 98)
     ear_exclusion = from_image_coordinates(54, 25, 102)
@@ -423,7 +424,7 @@ def vacuum_forming_mold():
     lens_center = Origin + lens_center/len(poles)
 
     cg_poles = [
-        p + model_up*frame_leeway + model_up @ Rotate(Right, Turns(1/4)) * frame_expansion * (-1 if p[2] < 0 else 1)
+        p + model_up*frame_thickness_leeway + model_up @ Rotate(Right, Turns(1/4)) * frame_expansion * (-1 if p[2] < 0 else 1)
         for p in poles
         if (p - nose_exclusion).dot(Vector(1, 0, -0.3)) < 0
         and (p - ear_exclusion).dot(Vector(-1, 0, 0.1)) < 0
@@ -463,8 +464,8 @@ def vacuum_forming_mold():
             # + subdivisions(ebase, base, amount = 4)[:-1]
             + [ebase]
         )
-        h = gorig+anglewards*frame_leeway+model_up*frame_leeway
-        j = lens_center+anglewards*1+model_up*frame_leeway
+        h = gorig+anglewards*frame_sides_leeway+model_up*frame_thickness_leeway
+        j = lens_center+anglewards*1+model_up*frame_thickness_leeway
         cut_rows.append([
             h, j, j.projected(model_base), h.projected(model_base)
         ])
@@ -490,8 +491,8 @@ def vacuum_forming_mold():
         model_up,
     ).inverse()
 
-    save_STL("vacuum_forming_mold", result)
-    export("vacuum_forming_mold.stl", "vacuum_forming_mold_1.stl")
+    # save_STL("vacuum_forming_mold", result)
+    # export("vacuum_forming_mold.stl", "vacuum_forming_mold_1.stl")
     preview(glasses_outer_curve, clipped_glasses_curve, result)
     return result
 
