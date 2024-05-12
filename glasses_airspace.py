@@ -412,7 +412,7 @@ def vacuum_forming_mold():
     model_up = vf_model_up
     model_base = vf_model_base
     frame_expansion = 5
-    frame_sides_leeway = 0.5
+    frame_sides_leeway = 0.35 #0.5
     frame_thickness_leeway = 1.5
 
     nose_exclusion = from_image_coordinates(94, 33, 98)
@@ -422,6 +422,7 @@ def vacuum_forming_mold():
     for p in poles:
         lens_center = lens_center + (p - Origin)
     lens_center = Origin + lens_center/len(poles)
+    base_center = lens_center.projected(model_base)
 
     cg_poles = [
         p + model_up*frame_thickness_leeway + model_up @ Rotate(Right, Turns(1/4)) * frame_expansion * (-1 if p[2] < 0 else 1)
@@ -456,13 +457,23 @@ def vacuum_forming_mold():
         except RuntimeError:
             preview(sheet, clipped_glasses_curve, face_curve_outer, face_curve_inner, base_curve, expanded_base_curve)
         face_tangent = Direction (f, g)
-        inner = f + face_tangent*inch/8
-        outer = f - face_tangent*inch/8
+        inner = f + face_tangent*inch/8*1.4
+        outer = f - face_tangent*inch/8*1.4
+
+        ob = outer.projected(model_base)
+        l = (ob - base_center).length()
+        h = (outer - ob).length()
+        l2 = l + h*0.25
+
+        if (ebase - base_center).length() < l2:
+            ebase = base_center + anglewards*l2
 
         rows.append(
-            subdivisions(base, cg, amount = 4) + subdivisions(inner, outer, amount = 4)
+            subdivisions(base, cg, amount = 4)
+            + subdivisions(inner, outer, amount = 7)
             # + subdivisions(ebase, base, amount = 4)[:-1]
             + [ebase]
+            # + subdivisions(ebase + model_up*8, ebase, amount = 4)
         )
         h = gorig+anglewards*frame_sides_leeway+model_up*frame_thickness_leeway
         j = lens_center+anglewards*1+model_up*frame_thickness_leeway
@@ -474,13 +485,22 @@ def vacuum_forming_mold():
                           BSplineDimension(periodic=True),
                           # BSplineDimension(periodic=True)
                           )
-    face2 = Face(
-        BSplineCurve([r[-1] for r in rows], BSplineDimension(periodic=True)),
-        holes = [BSplineCurve([r[0] for r in rows[::-1]], BSplineDimension(periodic=True))]
-    )
+    ebe = BSplineCurve([r[-1] for r in rows], BSplineDimension(periodic=True))
+    be = BSplineCurve([r[0] for r in rows[::-1]], BSplineDimension(periodic=True))
+    face2 = Face(ebe, holes = [be])
+
     cut = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in cut_rows))]))
 
     result = Solid(Shell(Face(surf), face2).reversed()).cut(cut)
+    earpiece_cut = Vertex(earpiece_reference_point).extrude(Up*frame_sides_leeway, Down*(earpiece_depth+frame_sides_leeway)).extrude(Front*100, Back*12).extrude(Left*4, Right*1)
+    result = result.cut(earpiece_cut)
+    bridge_cut = Vertex(from_image_coordinates(106, 21, 93)).extrude(Down*(10)).extrude(Front*100, Back*4).extrude(Left*10, Right*10)
+    result = result.cut(bridge_cut)
+
+    nosepiece_cut_tip = from_image_coordinates(98, 34, 105)
+    nosepiece_cut_radius = 7
+    nosepiece_cut = Face(Circle(Axes(nosepiece_cut_tip + Front*(nosepiece_cut_radius - 3), Right), nosepiece_cut_radius)).extrude(Left*10, Right*10)
+    result = result.cut(nosepiece_cut)
     # preview(Solid(Shell(Face(surf))), cut)
 
     model_right = Direction((Right*1).projected_perpendicular(model_up))
@@ -491,8 +511,9 @@ def vacuum_forming_mold():
         model_up,
     ).inverse()
 
-    # save_STL("vacuum_forming_mold", result)
-    # export("vacuum_forming_mold.stl", "vacuum_forming_mold_1.stl")
+
+    save_STL("vacuum_forming_mold", result)
+    export("vacuum_forming_mold.stl", "vacuum_forming_mold_2.stl")
     preview(glasses_outer_curve, clipped_glasses_curve, result)
     return result
 
