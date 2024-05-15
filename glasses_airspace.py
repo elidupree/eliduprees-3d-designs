@@ -415,8 +415,8 @@ def vacuum_forming_mold():
     frame_sides_leeway = 0.35 #0.5
     frame_thickness_leeway = 1.5
 
-    nose_exclusion = from_image_coordinates(94, 33, 98)
-    ear_exclusion = from_image_coordinates(54, 25, 102)
+    nose_exclusion = from_image_coordinates(94, 33, 98) + Right*3
+    ear_exclusion = from_image_coordinates(54, 25, 102) + Left*5
     poles = [p for p in glasses_outer_curve.poles()][::5]
     lens_center = Vector()
     for p in poles:
@@ -427,7 +427,7 @@ def vacuum_forming_mold():
     cg_poles = [
         p + model_up*frame_thickness_leeway + model_up @ Rotate(Right, Turns(1/4)) * frame_expansion * (-1 if p[2] < 0 else 1)
         for p in poles
-        if (p - nose_exclusion).dot(Vector(1, 0, -0.3)) < 0
+        if (p - nose_exclusion).dot(Vector(1, 0, -0.1)) < 0
         and (p - ear_exclusion).dot(Vector(-1, 0, 0.1)) < 0
     ]
     clipped_glasses_curve = BSplineCurve(cg_poles, BSplineDimension (periodic = True))
@@ -497,10 +497,10 @@ def vacuum_forming_mold():
     bridge_cut = Vertex(from_image_coordinates(106, 21, 93)).extrude(Down*(10)).extrude(Front*100, Back*4).extrude(Left*10, Right*10)
     result = result.cut(bridge_cut)
 
-    nosepiece_cut_tip = from_image_coordinates(98, 34, 105)
-    nosepiece_cut_radius = 7
-    nosepiece_cut = Face(Circle(Axes(nosepiece_cut_tip + Front*(nosepiece_cut_radius - 3), Right), nosepiece_cut_radius)).extrude(Left*10, Right*10)
-    result = result.cut(nosepiece_cut)
+    # nosepiece_cut_tip = from_image_coordinates(98, 34, 105)
+    # nosepiece_cut_radius = 7
+    # nosepiece_cut = Face(Circle(Axes(nosepiece_cut_tip + Front*(nosepiece_cut_radius - 3), Right), nosepiece_cut_radius)).extrude(Left*10, Right*10)
+    # result = result.cut(nosepiece_cut)
     # preview(Solid(Shell(Face(surf))), cut)
 
     model_right = Direction((Right*1).projected_perpendicular(model_up))
@@ -512,10 +512,140 @@ def vacuum_forming_mold():
     ).inverse()
 
 
-    save_STL("vacuum_forming_mold", result)
-    export("vacuum_forming_mold.stl", "vacuum_forming_mold_2.stl")
+    # save_STL("vacuum_forming_mold", result)
+    # export("vacuum_forming_mold.stl", "vacuum_forming_mold_2.stl")
     preview(glasses_outer_curve, clipped_glasses_curve, result)
     return result
+
+
+face_interface_mold, lens_interface_mold, shield_cutout = None,None,None
+@run_if_changed
+def multiple_vacuum_forming_molds():
+    global face_interface_mold, lens_interface_mold, shield_cutout
+
+    lens_mold_up = -right_lens_aggregate_outwards_normal
+    face_mold_up = Direction(0.7, 1, 0)
+    frame_thickness = 2.0
+
+    def center_stuff(up, curve, extra_depth):
+        center = Vector()
+        points = [curve.position (distance = d) for d in subdivisions (0, curve.length(), amount = 100)]
+        for p in points:
+            center = center + (p - Origin)
+        center = Origin + center/len(points)
+        lowest = min((p - center).dot(up) for p in points)
+        bottom = center + up * (lowest - extra_depth)
+        base = Plane(bottom, up)
+        return center, bottom, base
+
+    lens_center, lens_mold_base_point, lens_mold_base = center_stuff(lens_mold_up, glasses_outer_curve, frame_thickness + 3)
+    face_center, face_mold_base_point, face_mold_base = center_stuff(face_mold_up, face_curve_outer, 5)
+
+    def sheets(center, up):
+        for turns, is_wraparound in zip(subdivisions(0, 1, amount = 200), [False]*199 + [True]):
+            lots = 500
+            angle = Turns(turns)
+            anglewards = Direction(up.cross(Right)) @ Rotate(up, angle)
+            yield angle, anglewards, BSplineSurface(
+                [
+                    [center - up*lots, center + up*lots],
+                    [center - up*lots + anglewards*lots, center + up*lots + anglewards*lots],
+                ]
+                , BSplineDimension(degree = 1), BSplineDimension(degree = 1)
+            ), is_wraparound
+
+
+    lens_rows = []
+    trough_depth = 2
+    wall_thickness = 1.5
+    for angle, anglewards, sheet, is_wraparound in sheets(lens_center, lens_mold_up):
+        if is_wraparound:
+            continue
+        p = glasses_outer_curve.intersections (sheet).point()
+        d = glasses_outer_curve.derivatives (closest = p)
+        frame_outwards = Direction((d.tangent*1).projected_perpendicular (lens_mold_up) @ Rotate(lens_mold_up, Turns(-1/4)))
+
+        a = p - lens_mold_up * frame_thickness - frame_outwards*wall_thickness
+        b = p - lens_mold_up * frame_thickness
+        c = b - lens_mold_up * trough_depth
+        d = c + frame_outwards * 3
+        e = d + lens_mold_up * trough_depth
+        f = e + frame_outwards * wall_thickness
+        g = f.projected(lens_mold_base)
+        h = a.projected(lens_mold_base)
+        lens_rows.append([h,a,b,c,d,e,f,g])
+
+
+    face_rows = []
+    previous = None
+    unrolled_rows = []
+    for angle, anglewards, sheet, is_wraparound in sheets(face_center, face_mold_up):
+        f = face_curve_outer.intersections (sheet).point()
+        g = face_curve_inner.intersections (sheet).point()
+        face_tangent = Direction (f, g)
+        inner = f + face_tangent*inch/8*1.4
+        outer = f - face_tangent*inch/8*1.4
+        assert((inner - face_mold_base_point).dot(face_mold_up) > 0)
+        assert((outer - face_mold_base_point).dot(face_mold_up) > 0)
+        assert(abs(anglewards.dot(face_mold_up) - 0) < 0.00001)
+        ib = inner.projected (face_mold_base, by = Direction(face_mold_up + anglewards/3))
+        ob = outer.projected (face_mold_base, by = Direction(face_mold_up - anglewards*0.55))
+
+        if not is_wraparound:
+            face_rows.append(
+                [ib]
+                + subdivisions(inner, outer, amount = 7)
+                + [ob]
+            )
+
+        partner = glasses_outer_curve.position(closest = outer) - lens_mold_up*(frame_thickness + trough_depth)
+        if previous is None:
+            unrolled_rows.append([Origin, Origin + Back*(partner - outer).length()])
+        else:
+            pouter, ppartner = previous
+            pdir = Direction (pouter, ppartner)
+            yo = (outer - pouter).dot(pdir)
+            xo = (outer - pouter).projected_perpendicular(pdir).length()
+            yp = (partner - ppartner).dot(pdir)
+            xp = (partner - ppartner).projected_perpendicular(pdir).length()
+            uo, up = unrolled_rows[-1]
+            udiry = Direction(uo, up)
+            udirx = udiry @ Rotate(Up, Turns(1/4))
+            unrolled_rows.append([
+                uo + udirx * xo + udiry * yo,
+                up + udirx * xp + udiry * yp,
+            ])
+        previous = (outer, partner)
+    unrolled_shield = Wire([row[0] for row in unrolled_rows] + [row[1] for row in unrolled_rows[::-1]], loop = True)
+
+    def to_mold(rows, v = BSplineDimension()):
+        surf = BSplineSurface(rows,
+                              BSplineDimension(periodic=True),
+                              v
+                              # BSplineDimension(periodic=True)
+                              )
+        ebe = BSplineCurve([r[-1] for r in rows], BSplineDimension(periodic=True))
+        be = BSplineCurve([r[0] for r in rows[::-1]], BSplineDimension(periodic=True))
+        # preview(ebe, be)
+        face2 = Face(ebe, holes = [be])
+        # preview(face2, surf)
+
+        return Solid(Shell(Face(surf), face2).reversed())
+
+    face_mold = to_mold(face_rows)
+    # lens_mold = to_mold(lens_rows, BSplineDimension(degree = 1))
+    lens_mold = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in lens_rows))]).reversed())
+
+    face_interface_mold = face_mold
+    lens_interface_mold = lens_mold
+    save_STL("face_interface_mold", face_interface_mold)
+    export("face_interface_mold.stl", "face_interface_mold_1.stl")
+    # save_STL("lens_interface_mold", lens_interface_mold)
+    # export("lens_interface_mold.stl", "lens_interface_mold_1.stl")
+
+    preview (lens_mold, face_mold, unrolled_shield)
+
+
 
 
 
