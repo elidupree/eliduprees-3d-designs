@@ -556,6 +556,7 @@ def multiple_vacuum_forming_molds():
 
 
     lens_rows = []
+    lens_shadow_points = []
     trough_depth = 2
     wall_thickness = 1.5
     for angle, anglewards, sheet, is_wraparound in sheets(lens_center, lens_mold_up):
@@ -574,7 +575,9 @@ def multiple_vacuum_forming_molds():
         g = f.projected(lens_mold_base)
         h = a.projected(lens_mold_base)
         lens_rows.append([h,a,b,c,d,e,f,g])
-
+        lens_shadow_points.append(p.projected(lens_mold_base))
+    
+    lens_shadow = Face(BSplineCurve(lens_shadow_points, BSplineDimension(periodic = True))).extrude (lens_mold_up*500)
 
     face_rows = []
     previous = None
@@ -636,14 +639,28 @@ def multiple_vacuum_forming_molds():
     # lens_mold = to_mold(lens_rows, BSplineDimension(degree = 1))
     lens_mold = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in lens_rows))]).reversed())
 
+    below_lens_base = Face(lens_mold_base).extrude(lens_mold_up*-500)
+
+    earpiece_block = Vertex(earpiece_reference_point).extrude(Up*wall_thickness, Down*(earpiece_depth+wall_thickness)).extrude(Front*100, Back*3).extrude(Left*(4 + wall_thickness), Right*1)
+    earpiece_cut = Vertex(earpiece_reference_point).extrude(Down*earpiece_depth).extrude(Front*100, Back*12).extrude(Left*4, Right*1)
+    earpiece_block = earpiece_block.cut(earpiece_cut).cut(below_lens_base).cut(lens_shadow)
+
+    bridge_point = from_image_coordinates(101, 29, 93)
+    bridge_depth = 6
+    bridge_block = Vertex(bridge_point).extrude(Down*wall_thickness*3, Up*(bridge_depth+wall_thickness*3)).extrude(Front*100, Back*10).extrude(Left*5, Right*5)
+    bridge_cut = Vertex(bridge_point).extrude(Up*bridge_depth).extrude(Front*100, Back*12).extrude(Left*10, Right*10)
+    # preview(lens_mold.wires(), bridge_block.cut(bridge_cut).cut(below_lens_base).cut(lens_shadow), (lens_shadow @ Translate(Right*wall_thickness)).wires())
+    bridge_block = bridge_block.cut(bridge_cut).cut(below_lens_base).cut(lens_shadow).intersection(lens_shadow @ Translate(Right*wall_thickness)).intersection(below_lens_base @ Translate(lens_mold_up*10))
+    lens_mold = Compound(lens_mold, earpiece_block, bridge_block)
+
     face_interface_mold = face_mold
     lens_interface_mold = lens_mold
-    save_STL("face_interface_mold", face_interface_mold)
-    export("face_interface_mold.stl", "face_interface_mold_1.stl")
-    # save_STL("lens_interface_mold", lens_interface_mold)
-    # export("lens_interface_mold.stl", "lens_interface_mold_1.stl")
+    # save_STL("face_interface_mold", face_interface_mold)
+    # export("face_interface_mold.stl", "face_interface_mold_1.stl")
+    save_STL("lens_interface_mold", lens_interface_mold)
+    export("lens_interface_mold.stl", "lens_interface_mold_1.stl")
 
-    preview (lens_mold, face_mold, unrolled_shield)
+    preview (lens_mold, face_mold.wires(), unrolled_shield)
 
 
 
