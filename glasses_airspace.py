@@ -582,26 +582,31 @@ def multiple_vacuum_forming_molds():
     face_rows = []
     previous = None
     unrolled_rows = []
+    rolled_rows = []
     for angle, anglewards, sheet, is_wraparound in sheets(face_center, face_mold_up):
         f = face_curve_outer.intersections (sheet).point()
         g = face_curve_inner.intersections (sheet).point()
         face_tangent = Direction (f, g)
-        inner = f + face_tangent*inch/8*1.4
-        outer = f - face_tangent*inch/8*1.4
-        assert((inner - face_mold_base_point).dot(face_mold_up) > 0)
-        assert((outer - face_mold_base_point).dot(face_mold_up) > 0)
-        assert(abs(anglewards.dot(face_mold_up) - 0) < 0.00001)
+        inner = f + face_tangent*inch/8
+        outer = f - face_tangent*inch/8
+        beyond_inner = inner + face_tangent*inch/8*0.4
+        beyond_outer = outer - face_tangent*inch/8*0.4
+        # assert((inner - face_mold_base_point).dot(face_mold_up) > 0)
+        # assert((outer - face_mold_base_point).dot(face_mold_up) > 0)
+        # assert(abs(anglewards.dot(face_mold_up) - 0) < 0.00001)
         ib = inner.projected (face_mold_base, by = Direction(face_mold_up + anglewards/3))
         ob = outer.projected (face_mold_base, by = Direction(face_mold_up - anglewards*0.55))
+
+        partner = glasses_outer_curve.position(closest = outer) - lens_mold_up*(frame_thickness + trough_depth)
 
         if not is_wraparound:
             face_rows.append(
                 [ib]
-                + subdivisions(inner, outer, amount = 7)
+                + subdivisions(beyond_inner, beyond_outer, amount = 7)
                 + [ob]
             )
+            rolled_rows.append([outer, partner, partner + anglewards * 0.6, outer + anglewards * 0.6])
 
-        partner = glasses_outer_curve.position(closest = outer) - lens_mold_up*(frame_thickness + trough_depth)
         if previous is None:
             unrolled_rows.append([Origin, Origin + Back*(partner - outer).length()])
         else:
@@ -620,6 +625,7 @@ def multiple_vacuum_forming_molds():
             ])
         previous = (outer, partner)
     unrolled_shield = Wire([row[0] for row in unrolled_rows] + [row[1] for row in unrolled_rows[::-1]], loop = True)
+    rolled_shield = Solid(Shell([Face(BSplineSurface(pairs, BSplineDimension(periodic = True), BSplineDimension(degree = 1))) for pairs in zip(*(pairs(row, loop=True) for row in rolled_rows))]))
 
     def to_mold(rows, v = BSplineDimension()):
         surf = BSplineSurface(rows,
@@ -655,12 +661,17 @@ def multiple_vacuum_forming_molds():
 
     face_interface_mold = face_mold
     lens_interface_mold = lens_mold
+    shield_cutout = unrolled_shield
     # save_STL("face_interface_mold", face_interface_mold)
     # export("face_interface_mold.stl", "face_interface_mold_1.stl")
-    save_STL("lens_interface_mold", lens_interface_mold)
-    export("lens_interface_mold.stl", "lens_interface_mold_1.stl")
+    # save_STL("lens_interface_mold", lens_interface_mold)
+    # export("lens_interface_mold.stl", "lens_interface_mold_1.stl")
+    # save_STL("rolled_shield", rolled_shield)
+    # export("rolled_shield.stl", "rolled_shield_1.stl")
+    save_inkscape_svg("unrolled_shield", unrolled_shield)
+    export("unrolled_shield.svg", "unrolled_shield_2.svg")
 
-    preview (lens_mold, face_mold.wires(), unrolled_shield)
+    preview (lens_mold, face_mold, unrolled_shield, rolled_shield)
 
 
 
