@@ -172,8 +172,8 @@ def face_curve(front, flat):
             (flat_position[1] - skew*flat_x) - 135,
             -front_position[1] - 8,
         ))
-    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
-    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-7.7)) @ Rotate(Up, Degrees(4))
+    # return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
+    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(8.5)) @ Rotate(Right, Degrees(-7.7)) # @ Rotate(Up, Degrees(4))
 
 
 @run_if_changed
@@ -670,7 +670,7 @@ def multiple_vacuum_forming_molds():
     # save_STL("rolled_shield", rolled_shield)
     # export("rolled_shield.stl", "rolled_shield_1.stl")
     save_inkscape_svg("unrolled_shield", unrolled_shield)
-    export("unrolled_shield.svg", "unrolled_shield_3.svg")
+    export("unrolled_shield.svg", "unrolled_shield_4.svg")
 
     preview (lens_mold, face_mold, unrolled_shield, rolled_shield)
 
