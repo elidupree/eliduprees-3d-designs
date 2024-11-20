@@ -23,13 +23,13 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="0.42050406"
-     inkscape:cx="527.93783"
-     inkscape:cy="273.48131"
+     inkscape:zoom="0.59468254"
+     inkscape:cx="89.123182"
+     inkscape:cy="344.72174"
      inkscape:window-width="1182"
      inkscape:window-height="980"
-     inkscape:window-x="407"
-     inkscape:window-y="1"
+     inkscape:window-x="410"
+     inkscape:window-y="101"
      inkscape:window-maximized="0"
      inkscape:current-layer="layer1" />
   <defs
@@ -96,12 +96,12 @@
        sodipodi:type="arc"
        sodipodi:cx="20.495472"
        sodipodi:cy="149.46983"
-       sodipodi:rx="68.198997"
-       sodipodi:ry="68.198997"
+       sodipodi:rx="66.192398"
+       sodipodi:ry="66.192398"
        sodipodi:start="4.712389"
        sodipodi:end="1.5707963"
        sodipodi:arc-type="arc"
-       d="m 20.495472,81.270836 a 68.198997,68.198997 0 0 1 68.198997,68.198994 68.198997,68.198997 0 0 1 -68.198997,68.199"
+       d="M 20.495472,83.277435 A 66.192398,66.192398 0 0 1 86.68787,149.46983 66.192398,66.192398 0 0 1 20.495472,215.66223"
        sodipodi:open="true" />
   </g>
 </svg>
