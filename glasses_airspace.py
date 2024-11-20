@@ -1,4 +1,5 @@
 import math
+from PIL import Image
 
 from pyocct_system import *
 from svg_utils import Inkscape_BSplineCurve
@@ -173,7 +174,7 @@ def face_curve(front, flat):
             -front_position[1] - 8,
         ))
     # return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(17.5)) @ Rotate(Right, Degrees(-14.5))
-    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(8.5)) @ Rotate(Right, Degrees(-7.7)) # @ Rotate(Up, Degrees(4))
+    return BSplineCurve(result, BSplineDimension(periodic = True)) @ Rotate(Back, Degrees(8.5)) @ Rotate(Right, Degrees(-10.25)) # @ Rotate(Up, Degrees(4))
 
 
 @run_if_changed
@@ -184,6 +185,25 @@ def face_curve_outer():
 @run_if_changed
 def face_curve_inner():
     return face_curve(face_curve_inner_front_source, face_curve_inner_flat_source) @ Translate(Front*1)
+
+
+depthmap_res = 750
+depthmap_size = 250
+depthmap_image = Image.open("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.png")
+
+def depthmap_sample(x, z):
+    x = (x + depthmap_size/2) * depthmap_res/depthmap_size
+    y = (z + depthmap_size/2 - 8) * depthmap_res/depthmap_size
+    x0 = math.floor(x)
+    y0 = math.floor(y)
+    xfrac = math.trunc(x)
+    yfrac = math.trunc(y)
+    interpolated = sum(
+        depthmap_image.getpixel((xn,yn)) * xweight * yweight
+          for (xn,xweight) in [(x0, 1-xfrac), (x0+1, xfrac)]
+          for (yn,yweight) in [(y0, 1-yfrac), (y0+1, yfrac)]
+    )
+    return interpolated * 250 - 100
 
 
 @run_if_changed
@@ -670,7 +690,7 @@ def multiple_vacuum_forming_molds():
     # save_STL("rolled_shield", rolled_shield)
     # export("rolled_shield.stl", "rolled_shield_1.stl")
     save_inkscape_svg("unrolled_shield", unrolled_shield)
-    export("unrolled_shield.svg", "unrolled_shield_4.svg")
+    export("unrolled_shield.svg", "unrolled_shield_5.svg")
 
     preview (lens_mold, face_mold, unrolled_shield, rolled_shield)
 
