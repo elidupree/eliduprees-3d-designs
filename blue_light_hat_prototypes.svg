@@ -24,9 +24,9 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="0.29734127"
-     inkscape:cx="818.92433"
-     inkscape:cy="373.30842"
+     inkscape:zoom="0.42050406"
+     inkscape:cx="1259.2031"
+     inkscape:cy="340.06806"
      inkscape:window-width="1446"
      inkscape:window-height="980"
      inkscape:window-x="11"
@@ -50,6 +50,12 @@
   </sodipodi:namedview>
   <defs
      id="defs1">
+    <rect
+       x="975.02032"
+       y="-154.57639"
+       width="16.646688"
+       height="47.561967"
+       id="rect245" />
     <inkscape:path-effect
        effect="powerclip"
        id="path-effect7"
@@ -155,15 +161,15 @@
          id="path6"
          sodipodi:nodetypes="cccc"
          clip-path="url(#clipPath7)"
-         inkscape:path-effect="#path-effect7"
-         inkscape:original-d="m 203.131,152.662 -165.205253,-3.5 165.205253,-3.5 z"
          inkscape:transform-center-x="-82.611242"
          inkscape:tile-cx="37.917131"
          inkscape:tile-cy="149.162"
          inkscape:tile-w="165.7042"
          inkscape:tile-h="7.4999988"
          inkscape:tile-x0="37.676793"
-         inkscape:tile-y0="145.412" />
+         inkscape:tile-y0="145.412"
+         inkscape:original-d="m 203.131,152.662 -165.205253,-3.5 165.205253,-3.5 z"
+         inkscape:path-effect="#path-effect7" />
       <use
          x="0"
          y="0"
@@ -258,5 +264,21 @@
          id="use223"
          transform="matrix(1,0,0,-1,0,298.30789)" />
     </g>
+    <text
+       xml:space="preserve"
+       style="font-size:9.04989px;line-height:125%;font-family:'Alegreya Sans SC';-inkscape-font-specification:'Alegreya Sans SC';letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.904989px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="225.08269"
+       y="-24.038759"
+       id="text246"><tspan
+         sodipodi:role="line"
+         id="tspan246"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.904989px"
+         x="225.08269"
+         y="-24.038759">Note: Have to set Rendering to Bitmap when printing</tspan><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:Arial;-inkscape-font-specification:Arial;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.904989px"
+         x="225.08269"
+         y="-12.506978"
+         id="tspan247">or it'll leave out the clipped paths</tspan></text>
   </g>
 </svg>
