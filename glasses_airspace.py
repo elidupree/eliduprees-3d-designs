@@ -8,6 +8,19 @@ initialize_pyocct_system()
 
 inch = 25.4
 
+#####################################################################
+######################   Legacy Code Note   #########################
+#####################################################################
+'''
+...It's a shame to leave code in this state, but reorganizing it isn't work I want to do right now, or maybe ever. I should probably make a fresh-file version of this whole code once I settle on a design better.
+
+Here's the key points of the “currently used code”:
+* multiple_vacuum_forming_molds - specifically the "lens_" part of that function - defines the current jig for holding up my cut-in-half glasses parts to vacuum form onto them. Its model of the lens shape is imperfect, but good enough. The outer shape of _that model_ - and not the real-life lens - is what determines the "edge shape" that you would want to join any shield onto, I think. (Note the "trough" part, and compare to the physical vacuum-forming result.)
+  * ...which means its callees, most notably glasses_outer_curve, are also currently-used.
+  * lens_support_for_vacuum_forming is an older, simpler thing which is unused, but might provide a simpler glance at the idea of lens_mold
+* depthmap_ stuff is for loading and sampling the rendered depthmap based on my 3D scan.
+'''
+
 
 @run_if_changed
 def glasses_outer_front_view_curve_source():
