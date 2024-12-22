@@ -79,7 +79,7 @@ def make_hepa_to_nothing():
   solid = Compound(wall, plate, right_pegs, right_pegs@Mirror(Left))
 
   save_STL("hepa_to_nothing", solid)
-  preview(solid)
+  # preview(solid)
   
 @run_if_changed
 def make_hepa_to_nothing_clips():
@@ -124,7 +124,7 @@ def make_hepa_to_nothing_clips():
 
   save_STL ("hepa_to_nothing_clips", solid)
   
-  preview(solid)
+  # preview(solid)
 
   
 @run_if_changed
@@ -185,4 +185,94 @@ def make_flat_wall_to_cpaps():
 
   save_STL ("flat_wall_to_cpaps", adapter)
   
-  preview(adapter)
+  # preview(adapter)
+
+
+class CircleSizing:
+  def __init__(self, id=None, od=None, wall_thickness=1.2):
+    if id is None:
+      id = od - wall_thickness*2
+    if od is None:
+      od = id + wall_thickness*2
+    self.id = id
+    self.od = od
+
+  def __add__(self, other):
+    return self.__class__(self.id+other.id, self.od+other.od)
+  def __sub__(self, other):
+    return self.__class__(self.id-other.id, self.od-other.od)
+  def __mul__(self, other):
+    return self.__class__(self.id*other, self.od*other)
+
+  def wires(self, axes):
+    return [Wire(Circle(axes, self.id/2)), Wire(Circle(axes, self.od/2))]
+  def face(self, axes):
+    w = self.wires(axes)
+    return Face(w[1], holes=[w[0].reversed()])
+
+class Taper:
+  def __init__(self, opening: CircleSizing, connected_end: CircleSizing, length):
+    self.opening = opening
+    self.connected_end = connected_end
+    self.length = length
+
+  def solid(self, exiting_direction, opening_center=None, connected_end_center=None):
+    if opening_center is None:
+      opening_center = connected_end_center + exiting_direction*self.length
+    if connected_end_center is None:
+      connected_end_center = opening_center - exiting_direction*self.length
+
+    wires = list(zip(
+      self.opening.wires(Axes(opening_center, exiting_direction)),
+      self.connected_end.wires(Axes(connected_end_center, exiting_direction)),
+    ))
+
+    faces = [
+      Loft(wires[0][0], wires[0][1], ruled=True).faces(),
+      Face(wires[1][1], holes=[wires[0][1].reversed()]),
+      Loft(wires[1][1], wires[1][0], ruled=True).faces(),
+      Face(wires[1][0], holes=[wires[0][0].reversed()]),
+    ]
+    # preview(faces)
+
+    return Shell(faces)
+    return Solid(Shell(faces))
+
+
+def round_adapter(tapers, joiner_length=None, joiner_radius=None):
+  result = [tapers[0].solid(Down, connected_end_center=Origin)]
+  base = Origin
+  basedir = Up
+  if joiner_length is not None:
+    face = tapers[0].connected_end.face(Axes(Origin, Up))
+    if joiner_radius is None:
+      # result.append(face.extrude(Up*joiner_length))
+      raise RuntimeError("oops didn't implement this right, it needs to be another taper")
+      base = base + Up*joiner_length
+    else:
+      hoops = []
+      axis = Axis(Origin+Right*joiner_radius, Back)
+      # angle = Radians(joiner_length/joiner_radius)
+      for x in subdivisions(0,1,amount=8):
+        angle = Radians(x*joiner_length/joiner_radius)
+        b2 = base @ Rotate(axis, angle)
+        b2dir = Up @ Rotate(axis, angle)
+        hoops.append(Between(tapers[0].connected_end, tapers[1].connected_end, x).wires(Axes(b2, b2dir)))
+      base = base @ Rotate(axis, angle)
+      basedir = Up @ Rotate(axis, angle)
+      result.append(Loft([h[1] for h in hoops], solid=True).cut(Loft([h[0] for h in hoops], solid=True)))
+
+  result.append(tapers[1].solid(basedir, connected_end_center=base))
+  return Compound(result)
+
+@run_if_changed
+def make_sander_dustport_to_shopvac1_adapter():
+  result = round_adapter([
+    Taper(opening=CircleSizing(id=31.5, wall_thickness=2), connected_end=CircleSizing(id=30.1, wall_thickness=2), length=30),
+    Taper(opening=CircleSizing(id=38.7, wall_thickness=2), connected_end=CircleSizing(id=38.3, wall_thickness=2), length=35)],
+    joiner_length=50,
+    joiner_radius = 100
+  )
+  # preview(result)
+  save_STL("sander_dustport_to_shopvac1_adapter", result)
+  export("sander_dustport_to_shopvac1_adapter.stl", "sander_dustport_to_shopvac1_adapter_1.stl")

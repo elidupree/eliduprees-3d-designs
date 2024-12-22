@@ -38,7 +38,7 @@ def arms_bolt_hexer_jig():
     housing_enclosure = housing_enclosure.cut([notch @ Rotate(Up, Degrees(-17+i*60)) for i in range(-1, 2)])
 
     save_STL("arms_bolt_hexer_jig", housing_enclosure)
-    export("arms_bolt_hexer_jig.stl", "arms_bolt_hexer_jig_1.stl")
+    # export("arms_bolt_hexer_jig.stl", "arms_bolt_hexer_jig_1.stl")
     return housing_enclosure
     # cuts =
 preview(arms_bolt_hexer_jig)
