@@ -1,5 +1,4 @@
 import math
-from PIL import Image
 
 from pyocct_system import *
 from svg_utils import Inkscape_BSplineCurve
@@ -18,7 +17,6 @@ Here's the key points of the “currently used code”:
 * multiple_vacuum_forming_molds - specifically the "lens_" part of that function - defines the current jig for holding up my cut-in-half glasses parts to vacuum form onto them. Its model of the lens shape is imperfect, but good enough. The outer shape of _that model_ - and not the real-life lens - is what determines the "edge shape" that you would want to join any shield onto, I think. (Note the "trough" part, and compare to the physical vacuum-forming result.)
   * ...which means its callees, most notably glasses_outer_curve, are also currently-used.
   * lens_support_for_vacuum_forming is an older, simpler thing which is unused, but might provide a simpler glance at the idea of lens_mold
-* depthmap_ stuff is for loading and sampling the rendered depthmap based on my 3D scan.
 '''
 
 
@@ -198,25 +196,6 @@ def face_curve_outer():
 @run_if_changed
 def face_curve_inner():
     return face_curve(face_curve_inner_front_source, face_curve_inner_flat_source) @ Translate(Front*1)
-
-
-depthmap_res = 750
-depthmap_size = 250
-depthmap_image = Image.open("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.png")
-
-def depthmap_sample(x, z):
-    x = (x + depthmap_size/2) * depthmap_res/depthmap_size
-    y = (z + depthmap_size/2 - 8) * depthmap_res/depthmap_size
-    x0 = math.floor(x)
-    y0 = math.floor(y)
-    xfrac = math.trunc(x)
-    yfrac = math.trunc(y)
-    interpolated = sum(
-        depthmap_image.getpixel((xn,yn)) * xweight * yweight
-          for (xn,xweight) in [(x0, 1-xfrac), (x0+1, xfrac)]
-          for (yn,yweight) in [(y0, 1-yfrac), (y0+1, yfrac)]
-    )
-    return interpolated * 250 - 100
 
 
 @run_if_changed
