@@ -1,6 +1,8 @@
 
 filament_diameter = 1.75
 mm3_per_extrusion_distance = filament_diameter * filament_diameter
+ender3_center_x = 235/2
+ender3_center_y = 235/2
 
 def start_gcode(min_temp = 200, good_temp = 250):
     return f'''
@@ -57,3 +59,21 @@ M84 X Y E ;Disable all steppers but Z
 
 def wrap_gcode(gcode, **kwargs):
     return start_gcode(**kwargs) + gcode + finish_gcode(**kwargs)
+
+def fastmove(x, y, z):
+    return f'G0 X{ender3_center_x + x:.5f} Y{ender3_center_y + y:.5f} Z{z:.5f} F18000',
+
+def g1(x=None, y=None, z=None, e=None, f=None):
+    result = ["G1"]
+    if x is not None:
+        result.append(f'X{ender3_center_x + x:.5f}')
+    if y is not None:
+        result.append(f'Y{ender3_center_y + y:.5f}')
+    if z is not None:
+        result.append(f'Z{z:.5f}')
+    if e is not None:
+        result.append(f'E{e:.5f}')
+    if f is not None:
+        result.append(f'F{f}')
+    
+    return " ".join(result)
