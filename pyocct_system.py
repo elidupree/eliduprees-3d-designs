@@ -639,6 +639,10 @@ def export(name, target):
   export_path = os.path.join (_export_directory, target)
   shutil.copyfile(cache_path, export_path)
 
+def export_string(val, target):
+  export_path = os.path.join (_export_directory, target)
+  with open(export_path, "w") as file:
+    file.write(val)
   
 ########################################################################
 ########  SVG bureaucracy  #######

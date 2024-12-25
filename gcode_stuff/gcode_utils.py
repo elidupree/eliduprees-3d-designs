@@ -61,7 +61,7 @@ def wrap_gcode(gcode, **kwargs):
     return start_gcode(**kwargs) + gcode + finish_gcode(**kwargs)
 
 def fastmove(x, y, z):
-    return f'G0 X{ender3_center_x + x:.5f} Y{ender3_center_y + y:.5f} Z{z:.5f} F18000',
+    return f'G0 X{ender3_center_x + x:.5f} Y{ender3_center_y + y:.5f} Z{z:.5f} F18000'
 
 def g1(x=None, y=None, z=None, e=None, f=None):
     result = ["G1"]

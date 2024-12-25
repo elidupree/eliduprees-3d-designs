@@ -241,6 +241,10 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
     if index == 2:
       return self.Z()
     raise IndexError("point/vector can only be indexed with 0-2")
+  def Vector3_coords(self):
+    return (self.X(), self.Y(), self.Z())
+  def Vector2_coords(self):
+    return (self.X(), self.Y())
   def Vector_setindex(self, index, value):
     if index == 0:
       return self.SetX(value)
@@ -266,15 +270,23 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   represent (Vector, Vector_str)
   represent (Point, Point_str)
   represent (Direction, Direction_str)
-  
+
+  for whatever in [Vector2, Point2, Direction2]:
+    simple_override(whatever, "coords", Vector2_coords)
+    simple_override(whatever, "__len__", lambda self: 2)
+  for whatever in [Vector, Point, Direction]:
+    simple_override(whatever, "coords", Vector3_coords)
+    simple_override(whatever, "__len__", lambda self: 3)
   for whatever in [Vector, Point, Direction, Vector2, Point2, Direction2]:
     simple_override(whatever, "__getitem__", Vector_index)
     simple_override(whatever, "__setitem__", Vector_setindex)
+    simple_override(whatever, "__iter__", lambda self: iter(self.coords()))
     simple_override(whatever, "clone", lambda self: wrap(unwrap(self).__class__)(self))
     simple_override(whatever, "with_coordinate", Vector_withindex)
     simple_override(whatever, "with_x", lambda self, value: self.with_coordinate(0, value))
     simple_override(whatever, "with_y", lambda self, value: self.with_coordinate(1, value))
     simple_override(whatever, "with_z", lambda self, value: self.with_coordinate(2, value))
+
   
   simple_override(Vector, "translated", lambda self, other: self + other)
   simple_override(Vector, "__neg__", lambda self: self * -1)

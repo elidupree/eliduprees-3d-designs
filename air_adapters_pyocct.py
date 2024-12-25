@@ -273,6 +273,6 @@ def make_sander_dustport_to_shopvac1_adapter():
     joiner_length=50,
     joiner_radius = 100
   )
-  # preview(result)
+  preview(result)
   save_STL("sander_dustport_to_shopvac1_adapter", result)
-  export("sander_dustport_to_shopvac1_adapter.stl", "sander_dustport_to_shopvac1_adapter_1.stl")
+  # export("sander_dustport_to_shopvac1_adapter.stl", "sander_dustport_to_shopvac1_adapter_1.stl")
