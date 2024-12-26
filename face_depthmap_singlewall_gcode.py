@@ -23,7 +23,7 @@ def layer_points(z, zbase):
     prev_y = y
   return result
 def points(layer_height):
-  zbase = -70
+  zbase = -35
   z = zbase
   result = []
   while z < 70:

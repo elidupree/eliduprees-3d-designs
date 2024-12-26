@@ -509,7 +509,9 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
     return classmethod(derived)
   
   def make_BSplineCurve (original):
-    def derived(cls, poles, u = BSplineDimension(), *, weights = None):
+    def derived(cls, poles, u = None, *, weights = None, **kwargs):
+      if u is None:
+        u = BSplineDimension(**kwargs)
       num_u = len (poles)
       
       if weights is None:
