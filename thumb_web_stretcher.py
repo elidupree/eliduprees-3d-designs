@@ -62,5 +62,5 @@ def thumb_web_stretcher():
                    ]])
 
     save_STL("thumb_web_stretcher", shell)
-    export("thumb_web_stretcher.stl", "thumb_web_stretcher_3.stl")
+    # export("thumb_web_stretcher.stl", "thumb_web_stretcher_3.stl")
     preview(shell)

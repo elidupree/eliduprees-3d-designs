@@ -1209,6 +1209,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
       builder = BRepPrimAPI.BRepPrimAPI_MakePrism (shape, offset)
     result = builder.Shape()
     if centered and not infinite:
+      assert (second_offset is None, "Error: extruding with both centered and a second offset")
       result = result@Translate (- offset*0.5)
     return result
     
