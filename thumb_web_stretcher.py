@@ -7,9 +7,9 @@ initialize_pyocct_system()
 # mc = metacarpal, assume of the thumb
 mc_thickness = 26
 mc_width_on_build_plane = 25
-pinchers_pinch_flesh_to_thickness = 12
-pinchers_pinch_flesh_fallaway_slope = 0.3
-pincher_stretch_flesh_to_distance = 29
+pinchers_pinch_flesh_to_thickness = 6
+pinchers_pinch_flesh_fallaway_slope = 0.7
+pincher_stretch_flesh_to_distance = 36
 dont_pinch_2d_web_thinner_than = 22
 @run_if_changed
 def index_pinch_angle():
@@ -27,7 +27,7 @@ def cross_section_poles(z):
     plane = Plane(Origin+Up*z, Up)
     p1 = ((Origin + Left*(pincher_stretch_flesh_to_distance - (pincher_radius*2)))
           .projected(onto=plane, by=(Right*1)@Rotate(Front, index_pinch_angle)))
-    p2 = Origin.projected(onto=plane, by=(Right*1)@Rotate(Front, thumb_pinch_angle))
+    p2 = (Origin+Right*5).projected(onto=plane, by=(Right*1)@Rotate(Front, thumb_pinch_angle))
     end_of_thumb = ((Origin+Right*mc_width_on_build_plane)
                     .projected(onto=plane, by=(Right*1)@Rotate(Front, thumb_support_angle)))
     flesh_thickness = pinchers_pinch_flesh_to_thickness + pinchers_pinch_flesh_fallaway_slope*z
@@ -62,5 +62,5 @@ def thumb_web_stretcher():
                    ]])
 
     save_STL("thumb_web_stretcher", shell)
-    export("thumb_web_stretcher.stl", "thumb_web_stretcher_2.stl")
+    export("thumb_web_stretcher.stl", "thumb_web_stretcher_3.stl")
     preview(shell)
