@@ -485,7 +485,16 @@ def _checksum_of_global (g, name, stack = []):
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
     for name2 in _globals_loaded_by_code (code):
-      g2 = vars(sys.modules[value.__module__])
+      try:
+        module = sys.modules[value.__module__]
+      except AttributeError:
+        # I ran into "module 'numpy' has no attribute '__module__'
+        # just assume it works fine in this case
+        continue
+      # also, only want to check things inside my own project
+      if not module.__file__.startswith(os.path.dirname(__file__)):
+        continue
+      g2 = vars(module)
       hasher.update (_checksum_of_global (g2, name2, stack + [key]).encode ("utf-8"))
     result = hasher.hexdigest()
         

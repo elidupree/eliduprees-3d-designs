@@ -41,13 +41,13 @@ def top_plate():
     spring_space = Compound(
         Vertex(Origin).extrude(Up*wall_thickness, Up*(wall_thickness+slot_thickness)).extrude(Left*(spring_top_diameter+2*slot_leeway), centered=True),
 
-        Vertex(Origin + Left*(spring_top_diameter/2+slot_leeway)).extrude(Up*wall_thickness, Up*lots).extrude(Right*(spring_wire_thickness+slot_leeway*2)),
+        Vertex(Origin + Left*(spring_top_diameter/2+slot_leeway)).extrude(Up*(wall_thickness+slot_thickness), Down*lots).extrude(Right*(spring_wire_thickness+slot_leeway*2)),
     ).extrude(Back*spring_top_diameter/2, Front*lots)
 
     result = chunk.cut ([foot_space, spring_space])
 
     save_STL("3d_printer_foot_top_plate", result)
-    export("3d_printer_foot_top_plate.stl", "3d_printer_foot_top_plate_3.stl")
+    # export("3d_printer_foot_top_plate.stl", "3d_printer_foot_top_plate_4.stl")
     preview(result)
 
 @run_if_changed
