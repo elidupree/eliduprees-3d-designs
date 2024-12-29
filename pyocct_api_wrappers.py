@@ -121,9 +121,13 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   ################################################################
   
   def pairs(points, loop=False):
+    points = iter(points)
+    first = prev = next(points)
+    for point in points:
+      yield (prev, point)
+      prev = point
     if loop:
-      points = points + points[:1]
-    return [(a,b) for a,b in zip(points[:-1], points[1:])]
+      yield (prev, first)
     
   def all_equal(iterable):
     i = iter(iterable)
