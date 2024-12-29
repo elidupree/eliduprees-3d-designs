@@ -43,8 +43,8 @@ class SingleWallLayers:
             result += (undesired_thinness - diff[2])**2
       
       for layer1 in range(0,self.num_layers):
-        for column1,column2 in pairs(range(), loop = periodic):
-          if periodic and column2 == 0:
+        for column1,column2 in pairs(range(), loop = self.periodic):
+          if self.periodic and column2 == 0:
             layer2 = layer1 + 1
           else:
             layer2 = layer1
