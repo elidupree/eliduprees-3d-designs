@@ -2764,6 +2764,7 @@ dependencies = [
  "truck-polymesh",
  "truck-rendimpl",
  "truck-shapeops",
+ "truck-stepio",
  "winit",
 ]
 

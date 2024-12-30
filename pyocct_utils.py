@@ -11,10 +11,10 @@ def wallify(rows, thickness, *, loop):
     )
     other_rows = [
         [
-            p + (surface.normal(closest=p)*1).projected_perpendicular (Up).normalized()*thickness
-            for v,p in enumerate(row)
+            surface.position(parameter=(u,v)) + (surface.normal(parameter=(u,v))*1).projected_perpendicular (Up).normalized()*thickness
+            for u in surface.UKnots()
         ]
-        for u,row in enumerate(rows)
+        for v in surface.VKnots()
     ]
 
     other_surface = BSplineSurface(

@@ -223,7 +223,7 @@ def _setup_wrappers():
     globals()[name] = value
   def override_attribute(c, name, value):
     attribute_overrides [(unwrap(c), name)] = value
-  pyocct_api_wrappers.setup(wrap, unwrap, export, override_attribute, SerializeAsVars)
+  pyocct_api_wrappers.setup(Wrapper, wrap, unwrap, export, override_attribute, SerializeAsVars)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
     globals() [export] = locals() [export]

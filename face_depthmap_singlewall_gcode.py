@@ -4,6 +4,7 @@ from pyocct_system import *
 initialize_pyocct_system()
 from face_depthmap_loader import depthmap_sample, depthmap_samples_smoothed
 from single_wall_layer_optimizer import SingleWallLayers
+from pyocct_utils import wallify
 
 @run_if_changed
 def smoothed_face_surface():
@@ -63,20 +64,36 @@ def resampled_cut_surface():
     result = []
     for curve in best_angle_col_curves:
       points = curve.intersections(plane).points
-      if len(points) == 0:
-        e = curve.StartPoint()
-        if e[2] > z:
-          e = curve.EndPoint()
-        result.append(e.projected(onto = plane))
-      else:
+      if len(points) == 1:
         result.append(points[0])
+      else:
+        result.append(None)
     return result
 
-  return BSplineSurface(
-    [
-      row(z) for z in range(-100, 40, 1)
-    ]
-  )
+  rows = [
+    row(z) for z in range(-100, 40, 1)
+  ]
+
+  for scan in [list(reversed(range(0, len(rows[0])//2))),list(range(len(rows[0])//2, len(rows[0])))]:
+    for colscan in [reversed(range(0, len(best_angle_col_curves)//2)),range(len(best_angle_col_curves)//2, len(best_angle_col_curves))]:
+      prev_diffs = [None]*len(scan)
+      for col in colscan:
+        diffs = []
+        for ((i0, i1), prev_diff) in zip(pairs(scan), prev_diffs):
+          p0 = rows[i0][col]
+          if rows[i1][col] is None:
+            rows[i1][col] = p0 + Between(diff, prev_diff, 0.8)
+          diff = rows[i1][col]-p0
+          diffs.append(diff)
+        prev_diffs = diffs
+  result = BSplineSurface(rows)
+  # preview(result)
+  save_STEP("resampled_cut_surface", Face(result))
+  thickened_1 = Compound(wallify(rows[i:i+11], 1.3, loop=False) for i in range(0, len(rows), 10))
+  preview(thickened_1, Face(result).wires())
+  save_STL("face_depthmap_thick", thickened_1, linear_deflection=0.1)
+  export("face_depthmap_thick.stl", "face_depthmap_thick_1.stl")
+  return result
 
 @run_if_changed
 def optimized_single_wall():

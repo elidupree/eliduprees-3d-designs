@@ -15,7 +15,7 @@ import os.path
 import functools
 
 
-def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
+def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   def simple_override (c, name, value):
     override_attribute(c, name, lambda original: value)
   #import pkgutil
@@ -109,6 +109,8 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   @export
   def recursive_flatten (arguments):
     assert(type(arguments) is not str)
+    if isinstance(arguments, Wrapper):
+      return [arguments]
     try:
       return [value for argument in arguments for value in recursive_flatten (argument)]
     except AttributeError:
@@ -730,6 +732,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
   simple_override(Shape, "intersection", lambda self, *args, **kwargs: Intersection(self, *args, **kwargs))
   simple_override(Shape, "offset", lambda self, *args, **kwargs: Offset (self, *args, **kwargs))
   simple_override(Shape, "offset2D", lambda self, *args, **kwargs: Offset2D (self, *args, **kwargs))
+  simple_override(Shape, "offset2d", lambda self, *args, **kwargs: Offset2D (self, *args, **kwargs))
   simple_override(Shape, "revolve", lambda self, *args, **kwargs: Revolve (self, *args, **kwargs))
   
   
@@ -1012,12 +1015,17 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
     builder.Perform (offset)
     result = builder.Shape()
     if fill:
-      # TODO: support open wires, including with or without open = True
-      # (right now, Face alone works for open wires, but doing it with open = True is more complicated)
-      if offset > 0:
-        return Face (result, holes = [spine.Complemented()])
+      if spine.closed():
+        if offset > 0:
+          return Face (result, holes = [spine.Complemented()])
+        else:
+          return Face (spine.Complemented(), holes = [result])
       else:
-        return Face (spine.Complemented(), holes = [result])
+        if open:
+          raise RuntimeError("TODO: support open wires with open = True")
+        else:
+          return Face(result)
+
     return result
     
     
@@ -1213,7 +1221,7 @@ def setup(wrap, unwrap, do_export, override_attribute, SerializeAsVars):
       builder = BRepPrimAPI.BRepPrimAPI_MakePrism (shape, offset)
     result = builder.Shape()
     if centered and not infinite:
-      assert (second_offset is None, "Error: extruding with both centered and a second offset")
+      assert second_offset is None, "Error: extruding with both centered and a second offset"
       result = result@Translate (- offset*0.5)
     return result
     
