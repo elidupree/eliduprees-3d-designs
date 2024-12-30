@@ -1,25 +1,25 @@
 mod app;
 
 use std::sync::Arc;
-use app::App;
+use app::*;
 use truck_platform::*;
-use truck_platform::wgpu::Surface;
+// use truck_platform::wgpu::Surface;
 use truck_rendimpl::*;
 use winit::window::Window;
-use crate::wgpu::Color;
+// use crate::wgpu::Color;
 use truck_modeling::*;
 use truck_meshalgo::prelude::*;
+use truck_platform::wgpu::Color;
 
 struct MyApp {
-    scene: Scene,
-    window: Arc<Window>,
-    surface: Surface,
+    scene: WindowScene,
 }
 
+#[async_trait(?Send)]
 impl App for MyApp {
-    fn init(window: Arc<Window>, surface: Surface, device_handler: DeviceHandler) -> Self {
+    async fn init(window: Arc<Window>) -> Self {
 
-        let size = window.inner_size();
+        // let size = window.inner_size();
 
         let mut camera: Camera = Camera::default();
         // specify position and posture
@@ -41,26 +41,25 @@ impl App for MyApp {
         // It is safe to place the camera in the same position as the flash.
         light.position = camera.position();
 
-        let render_texture = RenderTextureConfig {
-            canvas_size: size.into(),
-            format: surface
-                .get_preferred_format(&device_handler.adapter())
-                .expect("Failed to get preferred texture."),
-        };
-        let config = render_texture.compatible_surface_config();
-        surface.configure(device_handler.device(), &config);
-        let mut scene = Scene::new(
-            device_handler,
-            &SceneDescriptor {
+        // let render_texture = RenderTextureConfig {
+        //     canvas_size: size.into(),
+        //     format: surface
+        //         .get_preferred_format(&device_handler.adapter())
+        //         .expect("Failed to get preferred texture."),
+        // };
+        // let config = render_texture.compatible_surface_config();
+        // surface.configure(device_handler.device(), &config);
+        let mut scene = WindowScene::from_window(
+            window,
+            &WindowSceneDescriptor {
                 studio: StudioConfig {
                     background: Color::BLACK,
                     camera,
                     lights: vec![light],
                 },
-                render_texture,
                 ..Default::default()
             },
-        );
+        ).await;
 
         // let polygon: PolygonMesh =
         //     truck_polymesh::obj::read(include_bytes!("teapot.obj").as_ref()).unwrap();
@@ -76,7 +75,7 @@ impl App for MyApp {
         let v = builder::vertex(Point3::origin());
         let e = builder::tsweep(&v, Vector3::unit_x());
         let f = builder::tsweep(&e, Vector3::unit_y());
-        let cube = builder::tsweep(&f, Vector3::unit_z());
+        let _cube = builder::tsweep(&f, Vector3::unit_z());
 
         let v = builder::vertex(Point3::new(0.5, 0.25, -0.5));
         let w = builder::rsweep(&v, Point3::new(0.5, 0.5, 0.0), Vector3::unit_z(), Rad(7.0));
@@ -94,17 +93,18 @@ impl App for MyApp {
         //     }
         //     edge.set_curve(curve);
         // });
-        for face in cylinder.triangulation(0.01).unwrap().face_iter() {
-            let q: PolygonInstance = scene.instance_creator().create_instance(&
-                                                                 face.get_surface(), &Default::default());
-            scene.add_object(&q);
+        for face in cylinder.triangulation(0.01).face_iter() {
+            if let Some(mesh) = face.surface() {
+                let q: PolygonInstance = scene.instance_creator().create_instance(&mesh, &Default::default());
+                scene.add_object(&q);
+            }
         }
 
-        MyApp { scene, window, surface }
+        MyApp { scene }
     }
 
     fn render(&mut self) {
-        self.render_frame();
+        self.scene.render_frame();
     }
 }
 
@@ -126,39 +126,39 @@ fn main() {
 
 
 impl MyApp {
-    /// Adjusts the size of the backend buffers (depth or sampling buffer) to the size of the window.
-    pub fn size_alignment(&mut self) {
-        let size = self.window.inner_size();
-        let canvas_size = self.scene.descriptor().render_texture.canvas_size;
-        if canvas_size != (size.width, size.height) {
-            let mut desc = self.scene.descriptor_mut();
-            desc.render_texture.canvas_size = size.into();
-            let config = desc.render_texture.compatible_surface_config();
-            drop(desc);
-            self.surface.configure(self.scene.device(), &config);
-        }
-    }
-    /// Render scene to initializing window.
-    pub fn render_frame(&mut self) {
-        self.size_alignment();
-        let surface_texture = match self.surface.get_current_texture() {
-            Ok(got) => got,
-            Err(_) => {
-                let config = self
-                    .scene
-                    .descriptor()
-                    .render_texture
-                    .compatible_surface_config();
-                self.surface.configure(self.scene.device(), &config);
-                self.surface
-                    .get_current_texture()
-                    .expect("Failed to acquire next surface texture!")
-            }
-        };
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        self.scene.render(&view);
-        surface_texture.present();
-    }
+    // /// Adjusts the size of the backend buffers (depth or sampling buffer) to the size of the window.
+    // pub fn size_alignment(&mut self) {
+    //     let size = self.window.inner_size();
+    //     let canvas_size = self.scene.descriptor().render_texture.canvas_size;
+    //     if canvas_size != (size.width, size.height) {
+    //         let mut desc = self.scene.descriptor_mut();
+    //         desc.render_texture.canvas_size = size.into();
+    //         let config = desc.render_texture.compatible_surface_config();
+    //         drop(desc);
+    //         self.surface.configure(self.scene.device(), &config);
+    //     }
+    // }
+    // /// Render scene to initializing window.
+    // pub fn render_frame(&mut self) {
+    //     self.size_alignment();
+    //     let surface_texture = match self.surface.get_current_texture() {
+    //         Ok(got) => got,
+    //         Err(_) => {
+    //             let config = self
+    //                 .scene
+    //                 .descriptor()
+    //                 .render_texture
+    //                 .compatible_surface_config();
+    //             self.surface.configure(self.scene.device(), &config);
+    //             self.surface
+    //                 .get_current_texture()
+    //                 .expect("Failed to acquire next surface texture!")
+    //         }
+    //     };
+    //     let view = surface_texture
+    //         .texture
+    //         .create_view(&wgpu::TextureViewDescriptor::default());
+    //     self.scene.render(&view);
+    //     surface_texture.present();
+    // }
 }
