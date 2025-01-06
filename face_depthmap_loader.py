@@ -36,7 +36,7 @@ def x_to_px(x):
 def px_to_x(px):
     return (-depthmap_size/2) + (px * depthmap_size/depthmap_res)
 
-def depthmap_sample(x, z):
+def depthmap_sample_interpolated(x, z):
     return depthmap_sample_pixel_interpolated(x_to_px(x), z_to_py(z))
 
 def depthmap_pixel_to_point(px, py):
@@ -44,38 +44,42 @@ def depthmap_pixel_to_point(px, py):
     if y is None: return None
     return Point(px_to_x(px), y, py_to_z(py))
 
-depthmap_points = [
-    [
-        (depthmap_pixel_to_point(px, py))
-        for py in range(depthmap_res)
+def depthmap_points():
+    return [
+        [
+            (depthmap_pixel_to_point(px, py))
+            for py in range(depthmap_res)
+        ]
+        for px in range(depthmap_res)
     ]
-    for px in range(depthmap_res)
-]
 
-def depthmap_sample_smoothed(px, py, pradius):
-    cr = math.ceil(pradius)
+def depthmap_sample_pixel_smoothed(px, py, pradius):
     sr = pradius**2
-    total = Vector()
+    total = 0
     total_used_weight = 0
     total_weight = 0
-    for x in range(px-cr+1, px+cr):
-        for y in range(py-cr+1, py+cr):
-            weight = 1 - (x**2+y**2)/sr
+    for px2 in range(math.floor(px-pradius+1), math.ceil(px+pradius)):
+        for py2 in range(math.floor(py-pradius+1), math.ceil(py+pradius)):
+            weight = 1 - ((px-px2)**2+(py-py2)**2)/sr
+            if weight <= 0: continue
             total_weight += weight
             try:
-                p = depthmap_points[x][y]
+                y = depthmap_sample_pixel(px2, py2)
             except IndexError:
                 continue
-            if p is None:
+            if y is None:
                 continue
-            total = total + (p - Origin)*weight
+            total = total + y*weight
             total_used_weight += weight
 
     if total_used_weight/total_weight <= 0.75:
         return None
-    return Origin + (total / total_used_weight)
+    return total / total_used_weight
 
-def depthmap_samples_smoothed(max_radius):
+def depthmap_sample_smoothed(x, z, radius):
+    return depthmap_sample_pixel_smoothed(x_to_px(x), z_to_py(z), radius * depthmap_res/depthmap_size)
+
+def depthmap_points_smoothed(max_radius):
     pradius = math.floor(max_radius * depthmap_res/depthmap_size)
     return [
         [
@@ -85,4 +89,4 @@ def depthmap_samples_smoothed(max_radius):
         for px in range(0,depthmap_res,pradius)
     ]
 
-depthmap_sample(0,0)
+depthmap_sample_interpolated(0,0)

@@ -111,7 +111,7 @@ def layer_points(z, zbase):
     frac = (good - cutoff)/(good - bad)
     result.append(Point(Between(xg, xb, frac),cutoff,z - zbase))
   for x in range(-100,101):
-    y = depthmap_sample(x, z)
+    y = depthmap_sample_interpolated(x, z)
     if y is not None:
       if y <= cutoff:
         if prev_y is not None and prev_y > cutoff:

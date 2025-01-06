@@ -530,11 +530,10 @@ def vacuum_forming_mold():
     preview(glasses_outer_curve, clipped_glasses_curve, result)
     return result
 
-
-face_interface_mold, lens_interface_mold, shield_cutout = None,None,None
+face_interface_mold, lens_interface_mold, shield_cutout, frame_to_window_curve = None,None,None,None
 @run_if_changed
 def multiple_vacuum_forming_molds():
-    global face_interface_mold, lens_interface_mold, shield_cutout
+    global face_interface_mold, lens_interface_mold, shield_cutout, frame_to_window_curve
 
     lens_mold_up = -right_lens_aggregate_outwards_normal
     face_mold_up = Direction(0.7, 1, 0)
@@ -596,6 +595,9 @@ def multiple_vacuum_forming_molds():
     previous = None
     unrolled_rows = []
     rolled_rows = []
+
+    # hack - export approximately what we use below, for new version in glasses_airspace_2.py
+    frame_to_window_curve = glasses_outer_curve @ Translate(- lens_mold_up*(frame_thickness + trough_depth))
     for angle, anglewards, sheet, is_wraparound in sheets(face_center, face_mold_up):
         f = face_curve_outer.intersections (sheet).point()
         g = face_curve_inner.intersections (sheet).point()

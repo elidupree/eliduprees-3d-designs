@@ -568,7 +568,25 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
     
   def curve_parameter_function (function):
     @functools.wraps(function)
-    def wrapped(curve, parameter = None, *, distance = None, from_parameter = 0, closest = None, **kwargs):
+    def wrapped(curve, parameter = None, *, distance = None, from_parameter = 0, closest = None, on = None, x = None, y = None, z = None, min_by = None, **kwargs):
+      if x is not None:
+        on = Plane(Origin+Right*x, Right)
+      if y is not None:
+        on = Plane(Origin+Back*y, Back)
+      if z is not None:
+        on = Plane(Origin+Up*z, Up)
+
+      if on is not None:
+        points = curve.intersections(on).points
+        if len(points) < 1:
+          raise RuntimeError(f"specified 'on', x, y, or z, but there were no such points")
+        if min_by is not None:
+          closest = min(points, key = min_by)
+        else:
+          if len(points) > 1:
+            raise RuntimeError(f"specified 'on', x, y, or z, but there were {len(points)} choices; if that's expected, try adding min_by")
+          closest = points[0]
+
       if closest is not None:
         parameter = GeomAPI.GeomAPI_ProjectPointOnCurve (closest, curve).LowerDistanceParameter()
         if False: #exceptions not handled yet
@@ -579,7 +597,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
       if distance is not None:
         adapter = GeomAdaptor.GeomAdaptor_Curve (curve)
         parameter = GCPnts.GCPnts_AbscissaPoint (adapter, distance, from_parameter).Parameter()
-      
+
       return function(curve, parameter, **kwargs)
     return wrapped
     

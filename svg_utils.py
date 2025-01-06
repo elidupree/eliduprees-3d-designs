@@ -1,6 +1,7 @@
 import math
 import re
 from collections import deque
+import xml.etree.ElementTree as ElementTree
 
 from pyocct_system import *
 
@@ -100,5 +101,9 @@ def Inkscape_BSplineCurve(text):
         control_points.pop()
     return BSplineCurve(control_points, BSplineDimension(periodic = periodic))
 
+def load_Inkscape_BSplineCurve(filename, id):
+    tree = ElementTree.parse(filename)
+    elem = tree.getroot().find(f".//*[@id='{id}']")
+    return Inkscape_BSplineCurve(elem.attrib["{http://www.inkscape.org/namespaces/inkscape}original-d"])
 
 
