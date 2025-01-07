@@ -59,6 +59,15 @@ def nose_break_point():
     return best
 
 
+eyeball_radius = 12
+eyeball_center = depthmap_sample_point(-33.5, -2) + Back*eyeball_radius
+
+
+@run_if_changed
+def frame_eye_lasers():
+    return Compound([Edge(eyeball_center, Between(eyeball_center, frame_to_window_curve.position(distance=d), 1.2)) for d in subdivisions(0, frame_to_window_curve.length(), max_length = 10)[:-1]])
+
+
 @run_if_changed
 def window_pairs():
     main_curve = load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
@@ -83,7 +92,8 @@ def window_pairs():
             return face
         else:
             ishness = smootherstep(max(cheek_badness, brow_badness))
-            return face + approx_face_surface.normal(closest=face)*ishness*5
+            normal = Between(Front, approx_face_surface.normal(closest=face), smootherstep(p[0], -24, -40)*0.5)
+            return face + normal*ishness*6
 
     all_points = [faceish_point(p) for p in nose_flat_curve_points + main_curve_points]
 
@@ -102,6 +112,8 @@ def window_pairs():
         f = d.position
         w = all_points[-1]
         f_tangent = d.tangent
+        if f_tangent[0] < Direction(f, w)[0]:
+            return 0
         triangle_normal = Direction(Left.cross(f - w))
         # move_f_normal = Direction(f_tangent.cross(f - w))
         below_triangle_normal = Direction(Right.cross(f_tangent))
@@ -118,25 +130,28 @@ def window_pairs():
     # preview(Compound([Edge(*p) for p in all_pairs]),
     #         best_triangle_bottom.position,
     #         frame_top,
-    #         Compound([Edge(d.position, d.position + Front*alignedness(d)*20) for d in ds]))
+    #         Compound([Edge(d.position, d.position + Front*(1+alignedness(d)*20)) for d in ds]))
     # print(frame_top)
-    triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom.position).cross(all_points[-1] - best_triangle_bottom.position))
+    # triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom.position).cross(all_points[-1] - best_triangle_bottom.position))
     # print(triangle_hecker)
     last_normal_index = None
+    # for i, (w, f) in reversed(list(enumerate(all_pairs))):
+    #     hecked = frame_to_window_curve.position(on=Plane(w, triangle_hecker), min_by=lambda p: p.distance(w))
+    #     if hecked[0] > f[0]:
+    #         all_pairs[i] = (w, hecked)
+    #     else:
+    #         last_normal_index = i
+    #         break
+    a = frame_to_window_curve.distance(closest = best_triangle_bottom.position)
+    # b = frame_to_window_curve.distance(closest = all_pairs[last_normal_index][1])
+    d = a - 0.001
     for i, (w, f) in reversed(list(enumerate(all_pairs))):
-        hecked = frame_to_window_curve.position(on=Plane(w, triangle_hecker), min_by=lambda p: p.distance(w))
-        if hecked[0] > f[0]:
+        hecked = frame_to_window_curve.position(distance=d)
+        if hecked[0] < f[0]:
             all_pairs[i] = (w, hecked)
         else:
-            last_normal_index = i
             break
-    # a = frame_to_window_curve.distance(closest = best_triangle_bottom.position)
-    # b = frame_to_window_curve.distance(closest = all_pairs[last_normal_index][1])
-    #
-    # for i,d in enumerate(subdivisions(a, b, amount=len(all_pairs) - last_normal_index)[:-1]):
-    #     j = len(all_pairs) - i - 1
-    #     f = frame_to_window_curve.position(distance=d)
-    #     all_pairs[j] = (all_pairs[j][0], f)
+        d -= 0.2
 
     a = frame_to_window_curve.distance(closest = best_triangle_bottom.position)
     b = frame_to_window_curve.distance(closest = nose_break_point)
@@ -150,18 +165,42 @@ def window_pairs():
         f = frame_to_window_curve.position(distance=d)
         all_pairs[i] = (all_pairs[i][0], f)
 
-    awkward_corner = frame_to_window_curve.position(closest = Point(-100, 0, 100))
-    awkward_corner_visitor = min(range(len(all_pairs)), key = lambda i: all_pairs[i][1].distance(awkward_corner))
+    # awkward_corner = frame_to_window_curve.position(closest = Point(-100, 0, 100))
+    # awkward_corner_visitor = min(range(len(all_pairs)), key = lambda i: all_pairs[i][1].distance(awkward_corner))
 
-    spread = 6
-    l = awkward_corner_visitor - spread
-    m = awkward_corner_visitor + spread
-    a = frame_to_window_curve.distance(closest = all_pairs[l][1])
-    b = frame_to_window_curve.distance(closest = all_pairs[m][1])
-    for i,d in zip(range(l+1, m),
-                   subdivisions(a, frame_to_window_curve.length(), amount=(awkward_corner_visitor-l) + 1)[1:-1] + subdivisions(0, b, amount=(m-awkward_corner_visitor) + 1)[0:-1]):
-        f = frame_to_window_curve.position(distance=d)
-        all_pairs[i] = (all_pairs[i][0], f)
+    # spread = 6
+    # l = awkward_corner_visitor - spread
+    # m = awkward_corner_visitor + spread
+    # a = frame_to_window_curve.distance(closest = all_pairs[l][1])
+    # b = frame_to_window_curve.distance(closest = all_pairs[m][1])
+    # for i,d in zip(range(l+1, m),
+    #                subdivisions(a, frame_to_window_curve.length(), amount=(awkward_corner_visitor-l) + 1)[1:-1] + subdivisions(0, b, amount=(m-awkward_corner_visitor) + 1)[0:-1]):
+    #     f = frame_to_window_curve.position(distance=d)
+    #     all_pairs[i] = (all_pairs[i][0], f)
+
+    distances = [frame_to_window_curve.distance(closest = f) for w,f in all_pairs]
+    il = len(distances)
+    dl = frame_to_window_curve.length()
+    learning_rate = 0.1
+    for r in range(100):
+        gradient = [0]*il
+        for (i,d),(j,e) in pairs(enumerate(distances), loop=True):
+            diff = (((e - d) + 1.5*dl) % dl) - 0.5*dl
+            def pull(val):
+                gradient[i] += val
+                gradient[j] -= val
+            toomuch = diff - 1
+            if toomuch > 0:
+                pull(toomuch)
+            toolittle = diff - 0.3
+            if toolittle < 0:
+                print(r, i, toolittle)
+                pull(toolittle)
+        for i,g in enumerate(gradient):
+            distances[i] = (distances[i] + g*learning_rate + dl) % dl
+
+    for i, d in enumerate(distances):
+        all_pairs[i] = (all_pairs[i][0], frame_to_window_curve.position(distance=d))
 
     # for d in subdivisions(a, c, max_length=1):
     #     f = frame_to_window_curve.position(distance=d)
@@ -191,14 +230,14 @@ def window_shaped_3d_printable():
         # return a2 + out*1.6
     new_pairs = []
     for i, ((w1,f1),(w2,f2),(w3,f3)) in enumerate(zip(window_pairs, window_pairs[1:]+window_pairs[:1], window_pairs[2:]+window_pairs[:2])):
-        print(f"{i}/{len(window_pairs)}, {w2}")
+        # print(f"{i}/{len(window_pairs)}, {w2}")
         new_pairs.append((opoint(w1, w2, w3, f2), opoint(f3,f2,f1, w2)))
 
     result = Loft([Wire([w1, w2, f2, f1],loop=True) for (w1,f1),(w2,f2) in zip(window_pairs[1:]+window_pairs[:2], new_pairs+new_pairs[:1])], solid=True, ruled=True)
 
     save_STL("window_shaped_3d_printable", result)
     # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_1.stl")
-    preview(result, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0))
+    preview(result, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers)
 
 
 
