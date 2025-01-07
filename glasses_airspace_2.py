@@ -61,7 +61,7 @@ def nose_break_point():
 
 @run_if_changed
 def window_pairs():
-    main_curve = load_Inkscape_BSplineCurve("private/glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
+    main_curve = load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
 
     frame_tangent = frame_to_window_curve.derivatives(closest=nose_break_point).tangent
     nose_flat_normal = Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
@@ -69,7 +69,7 @@ def window_pairs():
     a = nose_flat_curve.distance(x = 0)
     b = nose_flat_curve.distance(z = -15, min_by = lambda p: p[0])
     nose_flat_curve_correction = nose_break_point[2] - nose_flat_curve.position(distance=a)[2]
-    print(nose_flat_curve_correction)
+    # print(nose_flat_curve_correction)
     nose_flat_curve_points = [nose_flat_curve.position(distance=d) + Up*nose_flat_curve_correction for d in subdivisions(a,b, max_length=1)]
 
     main_curve_points = [main_curve.position(distance=d) for d in subdivisions(main_curve.length(), 0, max_length=1)]
@@ -121,10 +121,9 @@ def window_pairs():
     #         Compound([Edge(d.position, d.position + Front*alignedness(d)*20) for d in ds]))
     # print(frame_top)
     triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom.position).cross(all_points[-1] - best_triangle_bottom.position))
-    print(triangle_hecker)
+    # print(triangle_hecker)
     last_normal_index = None
     for i, (w, f) in reversed(list(enumerate(all_pairs))):
-        print (w)
         hecked = frame_to_window_curve.position(on=Plane(w, triangle_hecker), min_by=lambda p: p.distance(w))
         if hecked[0] > f[0]:
             all_pairs[i] = (w, hecked)
