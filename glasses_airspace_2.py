@@ -18,6 +18,15 @@ Overall design:
     * There's a single dictated line that's straight horizontal where the nose-break happens; call it the "nose-break line"
     * Down from there, you sweep over a very small amount of glasses frame while sweeping all the way to the beside-nose-point. Any path along the nose will do as long as it dodges the nosepiece. Going pretty tightly around it feels fine.
     * Frame-endpoints don't technically need to be closest-points-on-frame to the corresponding other endpoints of the window, but doing otherwise just uses more material, which maybe worsens optics; one could later check if adjusting this optimizes any angles...
+
+Notes after prototype #2:
+* It's cozy!
+* Probably make the unrolled-window's obligatory cut be at the glasses earpieces, for assembly reasons; make appropriate holes for the spring hinges/etc (...or maybe we could even "dodge" the hinges by moving inside instead of following the current frame-curve everywhere? exact meeting with the frame isn't so important now that we want to leave a gap there on purpose)
+* 3D printed 5mm-ish thick strut along the whole top and sides for rigidity (use tiny nozzle for weight reasons)
+* that and 3D printed parts at the beside-nose-points can have spurs for mounting rubber
+* we can actually bring the window closer to the face near the mouth; it only gets disturbed by smiles starting near the corners of the mouth, not anywhere medial of that
+* on the other hand, the outer cheeks want slightly more leeway (2mm?)
+* the rubber parts want to be near-zero force all the time and don't need rigorous joints
 """
 
 import math
@@ -74,10 +83,12 @@ def window_pairs():
 
     frame_tangent = frame_to_window_curve.derivatives(closest=nose_break_point).tangent
     nose_flat_normal = Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
+
+    approx_face_surface = BSplineSurface([[depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
     nose_flat_curve = approx_face_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
     a = nose_flat_curve.distance(x = 0)
-    b = nose_flat_curve.distance(z = -15, min_by = lambda p: p[0])
-    nose_flat_curve_correction = nose_break_point[2] - nose_flat_curve.position(distance=a)[2]
+    b = nose_flat_curve.distance(z = -12, min_by = lambda p: p[0])
+    nose_flat_curve_correction = 0 #nose_break_point[2] - nose_flat_curve.position(distance=a)[2] - 1
     # print(nose_flat_curve_correction)
     nose_flat_curve_points = [nose_flat_curve.position(distance=d) + Up*nose_flat_curve_correction for d in subdivisions(a,b, max_length=1)]
 
@@ -91,11 +102,15 @@ def window_pairs():
         if cheek_badness <= 0 and brow_badness <= 0:
             return face
         else:
-            ishness = smootherstep(max(cheek_badness, brow_badness))
+            ishness = max(smootherstep(cheek_badness), smootherstep(brow_badness)*3)
             normal = Between(Front, approx_face_surface.normal(closest=face), smootherstep(p[0], -24, -40)*0.5)
-            return face + normal*ishness*6
+            return face + normal*ishness*5
 
-    all_points = [faceish_point(p) for p in nose_flat_curve_points + main_curve_points]
+    nose_flat_faceish_points = [faceish_point(p) for p in nose_flat_curve_points]
+    main_curve_faceish_points = [faceish_point(p) for p in main_curve_points]
+    fill_in_curve = Interpolate([nose_flat_curve_points[-1], main_curve_points[0]], tangents = [(nose_flat_faceish_points[-1] - nose_flat_faceish_points[-2]).normalized(),(main_curve_faceish_points[1] - main_curve_faceish_points[0]).normalized()])
+    fill_in_points = [faceish_point(fill_in_curve.position(distance = d)) for d in subdivisions(0, fill_in_curve.length(), max_length = 1)[1:-1]]
+    all_points = nose_flat_faceish_points + fill_in_points + main_curve_faceish_points
 
     all_pairs = [(p, frame_to_window_curve.position(closest=p)) for p in all_points]
     first_normal_index = 0
@@ -114,6 +129,7 @@ def window_pairs():
         f_tangent = d.tangent
         if f_tangent[0] < Direction(f, w)[0]:
             return 0
+        # return 9-abs(f[2] - -4)
         triangle_normal = Direction(Left.cross(f - w))
         # move_f_normal = Direction(f_tangent.cross(f - w))
         below_triangle_normal = Direction(Right.cross(f_tangent))
@@ -132,17 +148,19 @@ def window_pairs():
     #         frame_top,
     #         Compound([Edge(d.position, d.position + Front*(1+alignedness(d)*20)) for d in ds]))
     # print(frame_top)
-    # triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom.position).cross(all_points[-1] - best_triangle_bottom.position))
+    best_triangle_bottom = best_triangle_bottom.position
+    triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom).cross(all_points[-1] - best_triangle_bottom))
     # print(triangle_hecker)
     last_normal_index = None
-    # for i, (w, f) in reversed(list(enumerate(all_pairs))):
-    #     hecked = frame_to_window_curve.position(on=Plane(w, triangle_hecker), min_by=lambda p: p.distance(w))
-    #     if hecked[0] > f[0]:
-    #         all_pairs[i] = (w, hecked)
-    #     else:
-    #         last_normal_index = i
-    #         break
-    a = frame_to_window_curve.distance(closest = best_triangle_bottom.position)
+    for i, (w, f) in reversed(list(enumerate(all_pairs))):
+        hecked = frame_to_window_curve.position(on=Plane(w, triangle_hecker), min_by=lambda p: p.distance(w))
+        if hecked[0] > f[0]:
+            all_pairs[i] = (w, hecked)
+        else:
+            last_normal_index = i
+            break
+
+    a = frame_to_window_curve.distance(closest = best_triangle_bottom)
     # b = frame_to_window_curve.distance(closest = all_pairs[last_normal_index][1])
     d = a - 0.001
     for i, (w, f) in reversed(list(enumerate(all_pairs))):
@@ -153,7 +171,7 @@ def window_pairs():
             break
         d -= 0.2
 
-    a = frame_to_window_curve.distance(closest = best_triangle_bottom.position)
+    a = frame_to_window_curve.distance(closest = best_triangle_bottom)
     b = frame_to_window_curve.distance(closest = nose_break_point)
     for d in subdivisions(a+0.001, b, max_length = 1)[:-1]:
         f = frame_to_window_curve.position(distance=d)
@@ -213,6 +231,10 @@ def window_pairs():
     return all_pairs
 
 @run_if_changed
+def window_eye_lasers():
+    return Compound([Edge(eyeball_center+Front*4, Between(eyeball_center+Front*4, w, 1.2)) for w,f in window_pairs[::5]])
+
+@run_if_changed
 def window_shaped_3d_printable():
     # also copied from old version
     # measurements I made:
@@ -232,12 +254,16 @@ def window_shaped_3d_printable():
     for i, ((w1,f1),(w2,f2),(w3,f3)) in enumerate(zip(window_pairs, window_pairs[1:]+window_pairs[:1], window_pairs[2:]+window_pairs[:2])):
         # print(f"{i}/{len(window_pairs)}, {w2}")
         new_pairs.append((opoint(w1, w2, w3, f2), opoint(f3,f2,f1, w2)))
-
-    result = Loft([Wire([w1, w2, f2, f1],loop=True) for (w1,f1),(w2,f2) in zip(window_pairs[1:]+window_pairs[:2], new_pairs+new_pairs[:1])], solid=True, ruled=True)
-
+    quads = [[w1, w2, f2, f1] for (w1,f1),(w2,f2) in zip(window_pairs[1:]+window_pairs[:2], new_pairs+new_pairs[:1])]
+    # faces = [zip(a,b) for a,b in pairs(quads)]
+    wires = [Wire(q, loop=True) for q in quads]
+    result = Loft(wires, solid=True, ruled=True)
+    # preview(result)
+    mirror = result @ Mirror(Right)
+    # result = Compound(result, mirror)
     save_STL("window_shaped_3d_printable", result)
-    # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_1.stl")
-    preview(result, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers)
+    # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_2.stl")
+    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers)
 
 
 
