@@ -704,6 +704,65 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
   simple_override (Curve, "curvature", curve_parameter_function (lambda curve, parameter: GeomLProp.GeomLProp_CLProps(curve, parameter, 2, default_tolerance).Curvature()))
   override_attribute (Curve, "value", lambda original: curve_parameter_function (lambda curve, parameter: original (parameter)))
   simple_override (Curve, "position", lambda self, *args, **kwargs: self.value(*args, **kwargs))
+
+  
+  # def subdivisions (start, end, *, amount = None, max_length = None, require_parity = None):
+  def curve_subdivisions(curve, start_distance = None, end_distance = None, *, wrap = None, output = "positions", **kwargs):
+    start_args = {}
+    end_args = {}
+    subdivisions_args = {}
+    for k,v in kwargs.items():
+      if k.startswith("start_"):
+        start_args[k[6:]] = v
+      elif k.startswith("end_"):
+        end_args[k[6:]] = v
+      else:
+        subdivisions_args[k] = v
+    
+    used_defaults = 0
+    if start_distance is None:
+      if len(start_args) == 0:
+        start_distance = 0
+        used_defaults += 1
+      else:
+        start_distance = curve.distance(**start_args)
+    
+    if end_distance is None:
+      if len(end_args) == 0:
+        end_distance = curve.length()
+        used_defaults += 1
+      else:
+        end_distance = curve.distance(**end_args)
+        
+    if curve.IsPeriodic() and wrap is None and used_defaults != 2:
+        raise RuntimeError(f"called curve_subdivisions on a periodic curve without specifying wrapping behavior")
+
+    if wrap is None:
+      distances = subdivisions(start_distance, end_distance, **subdivisions_args)
+    else:
+      length = curve.length()
+      match wrap:
+        case "closest":
+          if abs(end - start) > length/2:
+            end += length
+        case True:
+          end += length
+        case int(n):
+          end += length*n
+        case False:
+          pass
+        case _:
+          raise RuntimeError(f"unknown wrapping behavior `{wrap}`")
+      distances = [d % length for d in subdivisions(start_distance, end_distance, **subdivisions_args)]
+
+    match output:
+      case "positions":
+        return [curve.position(distance = d) for d in distances]
+      case "derivatives":
+        return [curve.derivatives(distance = d) for d in distances]
+      case _:
+        raise RuntimeError(f"unknown output type `{output}`")
+  simple_override (Curve, "subdivisions", curve_subdivisions)
   
   for transformable in [Vector, Point, Curve, Surface]:
     simple_override(transformable, "__matmul__", lambda self, other: self.Transformed(other))

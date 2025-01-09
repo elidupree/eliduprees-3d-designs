@@ -38,12 +38,25 @@ from svg_utils import load_Inkscape_BSplineCurve
 initialize_pyocct_system()
 
 def depthmap_sample_y(x, z):
+    """Pick a standardized interpretation of the depth map.
+    
+    It might theoretically be beneficial to use the recorded asymmetries of my face,
+    rather than erasing them, but intuitively I would rather have the device be symmetric,
+    and also it's possible that the recorded asymmetries are error (which could be canceled out)
+    rather than a true signal. So just average the two sides.
+    
+    "average of depthmap" isn't necessarily the optimal way to enforce symmetries
+    (it has directional biases) but I don't care enough to perfect it.
+    """
     return Between(depthmap_sample_smoothed(x, z, 2), depthmap_sample_smoothed(-x, z, 2))
 def depthmap_sample_point(x, z):
     return Point(x, depthmap_sample_y(x, z), z)
 
 @run_if_changed
 def approx_face_surface():
+    """A version of the face that's an actual BSplineSurface, so we can do surface operations with it.
+    
+    We currently use this to make an planar-curve and to calculate normals. Those aren't perfectly accurate to the depthmap, so you have to correct for them."""
     return BSplineSurface([[depthmap_sample_point(x,z) for z in range(-42, 31, 2)] for x in range(-64,65,2)])
 
 @run_if_changed
@@ -54,6 +67,10 @@ def frame_to_window_curve():
 
 @run_if_changed
 def nose_break_point():
+    """The highest point on the nose wear a straight line between the frame-to-window curve
+    would collide with the nose.
+    
+    Computed to precisely agree with the depth map by binary search."""
     a,b = 0, -20
     best = None
     while a - b > 0.01:
@@ -68,51 +85,69 @@ def nose_break_point():
     return best
 
 
+# Pick a theoretical approximate source of vision, for analyzing vision angles.
 eyeball_radius = 12
 eyeball_center = depthmap_sample_point(-33.5, -2) + Back*eyeball_radius
 
 
 @run_if_changed
 def frame_eye_lasers():
+    """Illustrate theoretical vision angles."""
     return Compound([Edge(eyeball_center, Between(eyeball_center, frame_to_window_curve.position(distance=d), 1.2)) for d in subdivisions(0, frame_to_window_curve.length(), max_length = 10)[:-1]])
 
 
 @run_if_changed
 def window_pairs():
-    main_curve = load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
+    """Big function that describes the window as a list of pairs, where each pair is
+      (point on the window-to-face-or-seal curve, point on frame-to-window curve)."""
+    
+    # Start by laying out the window-to-face-or-seal curve.
 
+    # First, there's the nose. We arbitrarily aim to make this planar.
+    # Since the plane should agree with the frame-to-frame lines, find the tangent.
     frame_tangent = frame_to_window_curve.derivatives(closest=nose_break_point).tangent
     nose_flat_normal = Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
 
+    # ...actually use a more precise approximation of the surface right around the nose.
     approx_face_surface = BSplineSurface([[depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
     nose_flat_curve = approx_face_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
-    a = nose_flat_curve.distance(x = 0)
-    b = nose_flat_curve.distance(z = -12, min_by = lambda p: p[0])
-    nose_flat_curve_correction = 0 #nose_break_point[2] - nose_flat_curve.position(distance=a)[2] - 1
-    # print(nose_flat_curve_correction)
-    nose_flat_curve_points = [nose_flat_curve.position(distance=d) + Up*nose_flat_curve_correction for d in subdivisions(a,b, max_length=1)]
+    nose_flat_curve_points = nose_flat_curve.subdivisions(nose_flat_curve, start_x = 0, end_z = -12, end_min_by = lambda p: p[0], max_length=1)
 
-    main_curve_points = [main_curve.position(distance=d) for d in subdivisions(main_curve.length(), 0, max_length=1)]
+    # Then, we do the "main curve." I've laid this out as a front-view in Inkscape:
+    main_curve = load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
+    main_curve_points = main_curve.subdivisions(max_length=1)
 
+    # Given the essentially "front view" points above, we now want to put points in 3D space.
+    # Naively, we project these points directly onto the depthmap.
+    # But in certain places, we want to avoid face contact,
+    # e.g. so the thing doesn't get disturbed when I smile.
     beside_nose_point = Point(-20, 0, -25)
     def faceish_point(p):
         face = depthmap_sample_point(p[0], p[2])
+        # TODO: clean up this code somewhat.
         cheek_badness = (face - beside_nose_point).dot(Direction(-0.15,0,-1)) / 16
         brow_badness = 0 if p[2] < 0 else (60-abs(p[0]))/10
         if cheek_badness <= 0 and brow_badness <= 0:
             return face
         else:
             ishness = max(smootherstep(cheek_badness), smootherstep(brow_badness)*3)
+            # Near the nose, we don't actually want to move in the normal direction - just straight to the front.
+            # Same at the outside of the cheeks, which don't need to be quite as wide.
             normal = Between(Front, approx_face_surface.normal(closest=face), smootherstep(p[0], -24, -40)*0.5)
             return face + normal*ishness*5
 
     nose_flat_faceish_points = [faceish_point(p) for p in nose_flat_curve_points]
     main_curve_faceish_points = [faceish_point(p) for p in main_curve_points]
+
+    # Between the nose part and main part, add a bit of a curve for smoothness.
     fill_in_curve = Interpolate([nose_flat_curve_points[-1], main_curve_points[0]], tangents = [(nose_flat_faceish_points[-1] - nose_flat_faceish_points[-2]).normalized(),(main_curve_faceish_points[1] - main_curve_faceish_points[0]).normalized()])
-    fill_in_points = [faceish_point(fill_in_curve.position(distance = d)) for d in subdivisions(0, fill_in_curve.length(), max_length = 1)[1:-1]]
+    fill_in_points = [faceish_point(p) for p in fill_in_curve.subdivisions(max_length = 1)[1:-1]]
     all_points = nose_flat_faceish_points + fill_in_points + main_curve_faceish_points
 
+    # Naively, map each window-to-face-or-seal point to the closest frame-to-window curve point...
     all_pairs = [(p, frame_to_window_curve.position(closest=p)) for p in all_points]
+
+    # ...but the rest of this function will be about the caveats to that.
     first_normal_index = 0
     for i, (p, f) in enumerate(all_pairs):
         if f[2] < nose_break_point[2] - 5:
@@ -120,10 +155,8 @@ def window_pairs():
             break
 
     frame_top = max([p[1] for p in all_pairs], key=lambda f: abs(frame_to_window_curve.derivatives(closest=f).tangent[0]) if f[2] > 0 else 0)
-    a = frame_to_window_curve.distance(closest = nose_break_point)
-    b = frame_to_window_curve.distance(closest = frame_top)
 
-    def alignedness(d):
+    def forehead_triangle_alignedness_if_its_bottom_is_at(d):
         f = d.position
         w = all_points[-1]
         f_tangent = d.tangent
@@ -138,9 +171,8 @@ def window_pairs():
         return abs(below_triangle_normal.dot(triangle_normal))
             # max(abs(move_f_normal.dot(triangle_normal))
 
-
-    ds = [frame_to_window_curve.derivatives(distance=d) for d in subdivisions(a, b, max_length = 0.2)]
-    best_triangle_bottom = max(ds, key=alignedness)
+    ds = frame_to_window_curve.subdivisions(output = "derivatives", start_closest = nose_break_point, end_closest = frame_top, max_length = 0.2)
+    best_triangle_bottom = max(ds, key=forehead_triangle_alignedness_if_its_bottom_is_at)
     # print(best_triangle_bottom.position)
     # print(alignedness(best_triangle_bottom))
     # preview(Compound([Edge(*p) for p in all_pairs]),
@@ -177,10 +209,7 @@ def window_pairs():
         f = frame_to_window_curve.position(distance=d)
         all_pairs.append((f.projected(onto=Plane(Origin, Right)), f))
 
-    a = frame_to_window_curve.distance(closest = nose_break_point)
-    b = frame_to_window_curve.distance(closest = all_pairs[first_normal_index][1])
-    for i,d in enumerate(subdivisions(a, b, amount=first_normal_index+1)[:-1]):
-        f = frame_to_window_curve.position(distance=d)
+    for i,f in enumerate(frame_to_window_curve.subdivisions(start_closest = nose_break_point, end_closest = all_pairs[first_normal_index][1], amount=first_normal_index+1)[:-1]):
         all_pairs[i] = (all_pairs[i][0], f)
 
     # awkward_corner = frame_to_window_curve.position(closest = Point(-100, 0, 100))
@@ -196,7 +225,8 @@ def window_pairs():
     #     f = frame_to_window_curve.position(distance=d)
     #     all_pairs[i] = (all_pairs[i][0], f)
 
-    distances = [frame_to_window_curve.distance(closest = f) for w,f in all_pairs]
+    # The window surface will be wrong/nonsmooth if certain parts of the frame-to-window curve get too densely or too sparsely packed with corresponding points. Gradient-descend that away:
+    distances = [frame_to_window_curve.distance(closest = f) for _w,f in all_pairs]
     il = len(distances)
     dl = frame_to_window_curve.length()
     learning_rate = 0.1
