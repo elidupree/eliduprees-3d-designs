@@ -123,20 +123,21 @@ def window_pairs():
     # Naively, we project these points directly onto the depthmap.
     # But in certain places, we want to avoid face contact,
     # e.g. so the thing doesn't get disturbed when I smile.
-    beside_nose_point = Point(-20, 0, -25)
+    # beside_nose_point = Point(-20, 0, -25)
     def faceish_point(p):
         face = depthmap_sample_point(p[0], p[2])
         # TODO: clean up this code somewhat.
-        cheek_badness = (face - beside_nose_point).dot(Direction(-0.15,0,-1)) / 16
-        brow_badness = 0 if p[2] < 0 else (60-abs(p[0]))/10
-        if cheek_badness <= 0 and brow_badness <= 0:
+        mouth_smile_badness = smootherstep(p[2], -25, -55)*2
+        cheek_smile_badness = min(smootherstep(p[2], -7, -32), smootherstep(p[0], -19, -33)) * 7
+        brow_badness = 0 if p[2] < 0 else smootherstep((60-abs(p[0]))/25)*15
+        badness = max(mouth_smile_badness, cheek_smile_badness, brow_badness)
+        if badness <= 0:
             return face
         else:
-            ishness = max(smootherstep(cheek_badness), smootherstep(brow_badness)*3)
             # Near the nose, we don't actually want to move in the normal direction - just straight to the front.
             # Same at the outside of the cheeks, which don't need to be quite as wide.
-            normal = Between(Front, approx_face_surface.normal(closest=face), smootherstep(p[0], -24, -40)*0.5)
-            return face + normal*ishness*5
+            normal = Between(Front*1, (approx_face_surface.normal(closest=face)*1).projected_perpendicular(Up), smootherstep(p[0], -24, -40)*0.5)
+            return face + normal*badness
 
     nose_flat_faceish_points = [faceish_point(p) for p in nose_flat_curve_points]
     main_curve_faceish_points = [faceish_point(p) for p in main_curve_points]
