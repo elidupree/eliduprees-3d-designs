@@ -715,7 +715,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
       if k.startswith("start_"):
         start_args[k[6:]] = v
       elif k.startswith("end_"):
-        end_args[k[6:]] = v
+        end_args[k[4:]] = v
       else:
         subdivisions_args[k] = v
     
@@ -741,27 +741,25 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
       distances = subdivisions(start_distance, end_distance, **subdivisions_args)
     else:
       length = curve.length()
-      match wrap:
-        case "closest":
-          if abs(end - start) > length/2:
-            end += length
-        case True:
-          end += length
-        case int(n):
-          end += length*n
-        case False:
-          pass
-        case _:
-          raise RuntimeError(f"unknown wrapping behavior `{wrap}`")
+      if wrap == "closest":
+        if abs(end_distance - start_distance) > length/2:
+          end_distance += length
+      elif wrap is True:
+        end_distance += length
+      elif isinstance(wrap, int):
+        end_distance += length*wrap
+      elif wrap is False:
+        pass
+      else:
+        raise RuntimeError(f"unknown wrapping behavior `{wrap}`")
       distances = [d % length for d in subdivisions(start_distance, end_distance, **subdivisions_args)]
 
-    match output:
-      case "positions":
-        return [curve.position(distance = d) for d in distances]
-      case "derivatives":
-        return [curve.derivatives(distance = d) for d in distances]
-      case _:
-        raise RuntimeError(f"unknown output type `{output}`")
+    if output == "positions":
+      return [curve.position(distance = d) for d in distances]
+    elif output == "derivatives":
+      return [curve.derivatives(distance = d) for d in distances]
+    else:
+      raise RuntimeError(f"unknown output type `{output}`")
   simple_override (Curve, "subdivisions", curve_subdivisions)
   
   for transformable in [Vector, Point, Curve, Surface]:

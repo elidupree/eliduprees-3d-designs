@@ -96,6 +96,8 @@ def frame_eye_lasers():
     return Compound([Edge(eyeball_center, Between(eyeball_center, frame_to_window_curve.position(distance=d), 1.2)) for d in subdivisions(0, frame_to_window_curve.length(), max_length = 10)[:-1]])
 
 
+# earpiece_top_front_
+
 @run_if_changed
 def window_pairs():
     """Big function that describes the window as a list of pairs, where each pair is
@@ -109,13 +111,13 @@ def window_pairs():
     nose_flat_normal = Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
 
     # ...actually use a more precise approximation of the surface right around the nose.
-    approx_face_surface = BSplineSurface([[depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
-    nose_flat_curve = approx_face_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
-    nose_flat_curve_points = nose_flat_curve.subdivisions(nose_flat_curve, start_x = 0, end_z = -12, end_min_by = lambda p: p[0], max_length=1)
+    approx_nose_surface = BSplineSurface([[depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
+    nose_flat_curve = approx_nose_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
+    nose_flat_curve_points = nose_flat_curve.subdivisions(start_x = 0, end_z = -12, end_min_by = lambda p: p[0], max_length=1)
 
     # Then, we do the "main curve." I've laid this out as a front-view in Inkscape:
     main_curve = load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", "window_to_seal") @ Mirror(Right) @ Rotate(Left, Degrees(90))
-    main_curve_points = main_curve.subdivisions(max_length=1)
+    main_curve_points = main_curve.subdivisions(max_length=1)[::-1]
 
     # Given the essentially "front view" points above, we now want to put points in 3D space.
     # Naively, we project these points directly onto the depthmap.
@@ -146,6 +148,7 @@ def window_pairs():
 
     # Naively, map each window-to-face-or-seal point to the closest frame-to-window curve point...
     all_pairs = [(p, frame_to_window_curve.position(closest=p)) for p in all_points]
+    # preview(Compound([Edge(*p) for p in all_pairs]), fill_in_curve, approx_face_surface)
 
     # ...but the rest of this function will be about the caveats to that.
     first_normal_index = 0
@@ -171,7 +174,7 @@ def window_pairs():
         return abs(below_triangle_normal.dot(triangle_normal))
             # max(abs(move_f_normal.dot(triangle_normal))
 
-    ds = frame_to_window_curve.subdivisions(output = "derivatives", start_closest = nose_break_point, end_closest = frame_top, max_length = 0.2)
+    ds = frame_to_window_curve.subdivisions(output = "derivatives", start_closest = nose_break_point, end_closest = frame_top, wrap = "closest", max_length = 0.2)
     best_triangle_bottom = max(ds, key=forehead_triangle_alignedness_if_its_bottom_is_at)
     # print(best_triangle_bottom.position)
     # print(alignedness(best_triangle_bottom))
@@ -179,7 +182,7 @@ def window_pairs():
     #         best_triangle_bottom.position,
     #         frame_top,
     #         Compound([Edge(d.position, d.position + Front*(1+alignedness(d)*20)) for d in ds]))
-    # print(frame_top)
+    print(f"Frame top: {frame_top}")
     best_triangle_bottom = best_triangle_bottom.position
     triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom).cross(all_points[-1] - best_triangle_bottom))
     # print(triangle_hecker)
@@ -207,9 +210,9 @@ def window_pairs():
     b = frame_to_window_curve.distance(closest = nose_break_point)
     for d in subdivisions(a+0.001, b, max_length = 1)[:-1]:
         f = frame_to_window_curve.position(distance=d)
-        all_pairs.append((f.projected(onto=Plane(Origin, Right)), f))
+        # all_pairs.append((f.projected(onto=Plane(Origin, Right)), f))
 
-    for i,f in enumerate(frame_to_window_curve.subdivisions(start_closest = nose_break_point, end_closest = all_pairs[first_normal_index][1], amount=first_normal_index+1)[:-1]):
+    for i,f in enumerate(frame_to_window_curve.subdivisions(start_closest = nose_break_point, end_closest = all_pairs[first_normal_index][1], wrap="closest", amount=first_normal_index+1)[:-1]):
         all_pairs[i] = (all_pairs[i][0], f)
 
     # awkward_corner = frame_to_window_curve.position(closest = Point(-100, 0, 100))
@@ -256,7 +259,7 @@ def window_pairs():
 
     # combined_curve = BSplineCurve(all_points)
     # combined_curve = BSplineSurface(all_pairs, v=BSplineDimension(degree=1))
-    # preview(Compound([Edge(*p) for p in all_pairs]), frame_to_window_curve.position(distance=0))
+    # preview(Compound([Edge(*p) for p in all_pairs]), frame_to_window_curve.position(distance=0),approx_face_surface)
     # preview(combined_curve, all_pairs[last_normal_index], all_pairs[first_normal_index])
     return all_pairs
 
