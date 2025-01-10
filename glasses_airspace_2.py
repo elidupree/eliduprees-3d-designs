@@ -59,10 +59,38 @@ def approx_face_surface():
     We currently use this to make an planar-curve and to calculate normals. Those aren't perfectly accurate to the depthmap, so you have to correct for them."""
     return BSplineSurface([[depthmap_sample_point(x,z) for z in range(-42, 31, 2)] for x in range(-64,65,2)])
 
+
+earpiece_top_front_outer = Point(65.0, -0.9, 4.8)
+earpiece_height = 3.30
+top_of_frame_z = earpiece_top_front_outer[2] + 11
+
+print (f"forehead y: {depthmap_sample_y(-28, 14)}")
+
+
+@run_if_changed
+def approx_earpieces():
+    e = Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(12.5, 68, 0)).extrude(Left*0.9)
+    return Compound(e, e @ Mirror(Right))
+
+
 @run_if_changed
 def frame_to_window_curve():
   # For now, shamelessly render a computed output from the previous legacy code:
-  return read_brep ("glasses_frame_to_window_curve.brep").curve()[0]
+  loaded = read_brep ("glasses_frame_to_window_curve.brep").curve()[0]
+  s = loaded.subdivisions(max_length=1)
+  frame_top = max(s, key=lambda f: f[2])
+  # frame_bottom = min(s, key=lambda f: f[2])
+  result = loaded @ Rotate(Axis(frame_top, Left), Degrees(2.3)) @ Translate(Up*(top_of_frame_z - frame_top[2]))
+  closest_face_encounter = max((f[1] - depthmap_sample_y(f[0], f[2])) for f in result.subdivisions(max_length=1))
+  print(f"closest_face_encounter: {closest_face_encounter}")
+  face_leeway = 2
+  frame_thickness = 2
+  extra_leeway = 2
+  result = result @ Translate(Back*(-(face_leeway + frame_thickness + extra_leeway) - closest_face_encounter))
+  frame_near_earpiece_point = result.position(closest=earpiece_top_front_outer)
+  print(f"earpiece y wrongness: {earpiece_top_front_outer[1] - (frame_near_earpiece_point[1] + extra_leeway + frame_thickness/2)}")
+  # preview(approx_face_surface, approx_earpieces, result)
+  return result
 
 
 @run_if_changed
@@ -95,8 +123,6 @@ def frame_eye_lasers():
     """Illustrate theoretical vision angles."""
     return Compound([Edge(eyeball_center, Between(eyeball_center, frame_to_window_curve.position(distance=d), 1.2)) for d in subdivisions(0, frame_to_window_curve.length(), max_length = 10)[:-1]])
 
-
-# earpiece_top_front_
 
 @run_if_changed
 def window_pairs():
@@ -246,7 +272,7 @@ def window_pairs():
                 pull(toomuch)
             toolittle = diff - 0.3
             if toolittle < 0:
-                print(r, i, toolittle)
+                # print(r, i, toolittle)
                 pull(toolittle)
         for i,g in enumerate(gradient):
             distances[i] = (distances[i] + g*learning_rate + dl) % dl
@@ -292,12 +318,13 @@ def window_shaped_3d_printable():
     # faces = [zip(a,b) for a,b in pairs(quads)]
     wires = [Wire(q, loop=True) for q in quads]
     result = Loft(wires, solid=True, ruled=True)
+    result = result.cut(Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Left*500, centered=True).extrude(Back*100))
     # preview(result)
     mirror = result @ Mirror(Right)
     # result = Compound(result, mirror)
     save_STL("window_shaped_3d_printable", result)
-    # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_2.stl")
-    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers)
+    # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_3.stl")
+    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces)
 
 
 
