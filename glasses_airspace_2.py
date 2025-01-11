@@ -34,7 +34,7 @@ import math
 from pyocct_system import *
 from face_depthmap_loader import depthmap_sample_smoothed
 from svg_utils import load_Inkscape_BSplineCurve
-from unroll import UnrolledSurface
+from unroll import UnrolledSurface, unroll_quad_strip
 
 initialize_pyocct_system()
 
@@ -58,7 +58,7 @@ def curve_from_layout_file(id):
     return load_Inkscape_BSplineCurve("glasses_airspace_layout.svg", id) @ Mirror(Right) @ Rotate(Left, Degrees(90))
 
 @run_if_changed
-def main_curve():
+def window_to_seal_or_face_main_curve():
     return curve_from_layout_file("window_to_seal")
 
 @run_if_changed
@@ -151,7 +151,7 @@ def window_pairs():
     nose_flat_curve_points = nose_flat_curve.subdivisions(start_x = 0, end_z = -12, end_min_by = lambda p: p[0], max_length=1)
 
     # Then, we do the "main curve."
-    main_curve_points = main_curve.subdivisions(max_length=1)[::-1]
+    main_curve_points = window_to_seal_or_face_main_curve.subdivisions(max_length=1)[::-1]
 
     # Given the essentially "front view" points above, we now want to put points in 3D space.
     # Naively, we project these points directly onto the depthmap.
@@ -335,9 +335,31 @@ def window_shaped_3d_printable():
     preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces)
 
 
+seal_wraparound_width = 5
+
 @run_if_changed
 def seal_pairs():
     face_curve = curve_from_layout_file("shield_to_face")
+    overlap_point = face_curve.intersections(window_to_seal_or_face_main_curve).point()
+    max_w_parameter = window_to_seal_or_face_main_curve.parameter(closest=overlap_point)
+    pairs = []
+    for w,_ in window_pairs:
+        if window_to_seal_or_face_main_curve.parameter(closest=w) >= max_w_parameter:
+            break
+        f = face_curve.position(closest=w)
+        dir = Direction(f, w)
+        pairs.append([w + dir*seal_wraparound_width, f])
+    return pairs[::-1][:-1] + pairs
+    
+@run_if_changed
+def unrolled_seal():
+    result = unroll_quad_strip(seal_pairs).unrolled_wire()
+    save_inkscape_svg("unrolled_seal", result)
+    #export("unrolled_seal.svg", "unrolled_seal_1.svg")
+    return result
+
+
+
 
 
 print(nose_break_point)

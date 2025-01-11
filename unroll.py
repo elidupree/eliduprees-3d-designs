@@ -89,6 +89,9 @@ class UnrolledSurface:
   def unrolled_wire(self):
     return Wire(self.unrolled_points(), loop=True)
 
+  def unrolled_face(self):
+    return Face(self.unrolled_wire())
+
   def extend_edge_to_triangle(self, edge, ao):
     a = edge.relative_point(ao)
     new_edges = [
@@ -120,4 +123,11 @@ class UnrolledSurface:
     ]
     self.edges[i:i+1] = new_edges
     return new_edges
-      
+
+
+def unroll_quad_strip(sections):
+  unrolled = UnrolledSurface(*sections[0])
+  latest_edge = unrolled.edges[0]
+  for section in sections:
+    latest_edge = unrolled.extend_edge_to_quad(latest_edge, *section)[1]
+  return unrolled
