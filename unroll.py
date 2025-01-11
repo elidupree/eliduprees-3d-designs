@@ -31,42 +31,93 @@ def unrolled_next_triangle_point(prev_a, prev_b, unrolled_prev_a, unrolled_prev_
   return result
 
 
-def unroll(sections):
-  """Takes a list of pairs of points in 3D space, describing a ruled surface
-  (each pair being a 1D cross-section of the 2D surface),
-  and returns a list of pairs of points in the XY plane,
-  describing the 1D cross-sections of a flat surface that can be rolled
-  into the 3D surface."""
+# o = original, u = unrolled
+class UnrolledPoint:
+  def __init__(self, o, u):
+    self.o = o
+    self.u = u
 
-  unrolled_sections = []
-  previous = None
-  for a3,b3 in pairs:
-    if previous is None:
-      unrolled_sections.append([Point(0,0), Point(0,(b3 - a3).length())])
-    else:
-      pa3, pb3 = previous
-      pa2, pb2 = unrolled_sections[-1]
+class TriangleCandidate:
+  def __init__(self, edge, new_point, was_ccw):
+    self.edge = edge
+    self.new_point = new_point
+    self.was_ccw = was_ccw
 
-      a2 = unrolled_next_triangle_point(pa3, pb3, pa2, pb2, a3)
-      b2 = unrolled_next_triangle_point(pa3, pb3, pa2, pb2, b3)
+class UnrolledEdge:
+  def __init__(self, a, b):
+    self.a = a
+    self.b = b
+    assert_same_length(a.o, b.o, a.u, b.u)
+    self.along_edge_o = Direction(self.a.o, self.b.o)
+    self.along_edge_u = Direction(self.a.u, self.b.u)
+    # by convention, the interior of a curve is on the ccw side, so outside is always cw
+    self.outwards_from_edge_u = self.along_edge_u @ Rotate(Up, Turns(-1/4))
+  
+  def relative_point(self, new_point, ccw) -> UnrolledPoint:
+    # calculate relative position of the new point in
+    # two dimensions _relative_ to the current section,
+    # these dimensions being crosswise (c) and lengthwise (l).
+    # Crosswise movement is simple and reflects the 3D movement, signedly;
+    # but for the l dimension, _any_ non-crosswise movement in 3D
+    # becomes positive lengthwise movement in 2D.
 
-      # ...however, if the four points weren't coplanar, these may be the wrong distance from each other. We can guarantee correct unrolling by dividing into two triangles...
-      a2_triangulated = unrolled_next_triangle_point(pa3, b3, pa2, b2, a3)
-      b2_triangulated = unrolled_next_triangle_point(a3, pb3, a2, pb2, b3)
+    # use a as a reference point; this would yield
+    # the same result if we picked b,
+    # since they differ only in the along_edge direction, which cancels
+    d = new_point - self.a.o
+    alongness = d.dot(self.along_edge_o)
+    perpness = d.projected_perpendicular(self.along_edge_o).length()
+    if not ccw:
+      perpness = -perpness
+    return (self.a.u
+              + self.along_edge_u * alongness
+              + self.outwards_from_edge_u * perpness)
 
-      # only the pairs (a2, b2_triangulated) and (b2, a2_triangulated) are guaranteed to be valid,
-      # but for non-coplanar points, they may differ. Warn if they differ by too much:
-      if (a2_triangulated - a2).length() > 0.01*(a2 - pa2).length():
-        print("Warning: arbitrariness in unrolling-choice")
+
+class UnrolledSurface:
+  def __init__(self, ao, bo):
+    a = UnrolledPoint(ao, Origin)
+    b = UnrolledPoint(bo, Point(0,(bo-ao).length()))
+    self.edges = [
+      UnrolledEdge(a, b),
+      UnrolledEdge(b, a),
+    ]
+
+  def unrolled_points(self):
+    return [e.a for e in self.edges]
+
+  def unrolled_wire(self):
+    return Wire(self.unrolled_points(), loop=True)
+
+  def extend_edge_to_triangle(self, edge, ao):
+    a = edge.relative_point(ao)
+    new_edges = [
+      UnrolledEdge(edge.a, a),
+      UnrolledEdge(a, edge.b)
+    ]
+    self.edges[i:i+1] = new_edges
+    return new_edges
+
+  def extend_edge_to_quad(self, edge, ao, bo):
+    i = self.edges.index(edge)
+
+    # If the four points weren't coplanar, these may be the wrong distance from each other. We can guarantee correct unrolling by dividing into two triangles...
+    a = edge.relative_point(ao)
+    b = edge.relative_point(bo)
+
+    a_triangulated = UnrolledEdge(edge.a, b).relative_point(ao)
+    b_triangulated = UnrolledEdge(a, edge.b).relative_point(bo)
+
+    # only the pairs (a, b_triangulated) and (b, a_triangulated) are guaranteed to be valid,
+    # but for non-coplanar points, they may differ. Warn if they differ by too much:
+    if (a_triangulated.u - a.u).length() > 0.01*(a.u - edge.a.u).length():
+      print("Warning: arbitrariness in unrolling-choice")
+
+    new_edges = [
+      UnrolledEdge(edge.a, a_triangulated),
+      UnrolledEdge(a_triangulated, b),
+      UnrolledEdge(b, edge.b)
+    ]
+    self.edges[i:i+1] = new_edges
+    return new_edges
       
-      # and error if I made a mistake:
-      assert_same_length(pa3, a3, pa2, a2)
-      assert_same_length(pa3, a3, pa2, a2_triangulated)
-      assert_same_length(pb3, b3, pb2, b2)
-      assert_same_length(pb3, b3, pb2, b2_triangulated)
-      assert_same_length(a3, b3, a2_triangulated, b2)
-      assert_same_length(a3, b3, a2, b2_triangulated)
-      
-      unrolled_sections.append([a2_triangulated, b2])
-
-    previous = (a3,b3)
