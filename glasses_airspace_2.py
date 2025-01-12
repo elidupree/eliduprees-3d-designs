@@ -340,22 +340,28 @@ seal_wraparound_width = 5
 @run_if_changed
 def seal_pairs():
     face_curve = curve_from_layout_file("shield_to_face")
-    overlap_point = face_curve.intersections(window_to_seal_or_face_main_curve).point()
+    # overlap_point = face_curve.intersections(window_to_seal_or_face_main_curve).point()
+    overlap_point = Point(-19, 0, -24)
+    face_curve_points_on_face = [depthmap_sample_point(p[0],p[2]) for p in face_curve.subdivisions(max_length=1)]
+    face_curve_on_face = BSplineCurve(face_curve_points_on_face + [p @ Mirror(Right) for p in face_curve_points_on_face[1:-1][::-1]], BSplineDimension(periodic=True))
     max_w_parameter = window_to_seal_or_face_main_curve.parameter(closest=overlap_point)
     pairs = []
-    for w,_ in window_pairs:
+    for w,_ in window_pairs[::-2]:
         if window_to_seal_or_face_main_curve.parameter(closest=w) >= max_w_parameter:
             break
-        f = face_curve.position(closest=w)
+        f = face_curve_on_face.position(closest=w)
         dir = Direction(f, w)
         pairs.append([w + dir*seal_wraparound_width, f])
+    # preview(Compound([Edge(*p) for p in pairs]), face_curve_on_face, approx_face_surface@ Translate(Back*1))
     return pairs[::-1][:-1] + pairs
     
 @run_if_changed
 def unrolled_seal():
+    # preview(Compound([Edge(*p) for p in seal_pairs]), approx_face_surface@ Translate(Back*1))
     result = unroll_quad_strip(seal_pairs).unrolled_wire()
     save_inkscape_svg("unrolled_seal", result)
-    #export("unrolled_seal.svg", "unrolled_seal_1.svg")
+    # export("unrolled_seal.svg", "unrolled_seal_1.svg")
+    preview(result)
     return result
 
 
@@ -364,4 +370,4 @@ def unrolled_seal():
 
 print(nose_break_point)
 preview(nose_break_point, Edge(nose_break_point, nose_break_point@Mirror(Right)), frame_to_window_curve, frame_to_window_curve@Mirror(Right), BSplineCurve([depthmap_sample_point(0,z) for z in range(-30, 30, 2)]),
-        approx_face_surface, window_end_curve)
+        approx_face_surface)

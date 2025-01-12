@@ -45,6 +45,9 @@ class TriangleCandidate:
 
 class UnrolledEdge:
   def __init__(self, a, b):
+    assert isinstance(a, UnrolledPoint)
+    assert isinstance(b, UnrolledPoint)
+    assert (a.o - b.o).length() > 0.000001
     self.a = a
     self.b = b
     assert_same_length(a.o, b.o, a.u, b.u)
@@ -53,7 +56,7 @@ class UnrolledEdge:
     # by convention, the interior of a curve is on the ccw side, so outside is always cw
     self.outwards_from_edge_u = self.along_edge_u @ Rotate(Up, Turns(-1/4))
   
-  def relative_point(self, new_point, ccw) -> UnrolledPoint:
+  def relative_point(self, new_point) -> UnrolledPoint:
     # calculate relative position of the new point in
     # two dimensions _relative_ to the current section,
     # these dimensions being crosswise (c) and lengthwise (l).
@@ -67,9 +70,7 @@ class UnrolledEdge:
     d = new_point - self.a.o
     alongness = d.dot(self.along_edge_o)
     perpness = d.projected_perpendicular(self.along_edge_o).length()
-    if not ccw:
-      perpness = -perpness
-    return (self.a.u
+    return UnrolledPoint(new_point, self.a.u
               + self.along_edge_u * alongness
               + self.outwards_from_edge_u * perpness)
 
@@ -84,7 +85,7 @@ class UnrolledSurface:
     ]
 
   def unrolled_points(self):
-    return [e.a for e in self.edges]
+    return [e.a.u for e in self.edges]
 
   def unrolled_wire(self):
     return Wire(self.unrolled_points(), loop=True)
@@ -93,6 +94,7 @@ class UnrolledSurface:
     return Face(self.unrolled_wire())
 
   def extend_edge_to_triangle(self, edge, ao):
+    i = self.edges.index(edge)
     a = edge.relative_point(ao)
     new_edges = [
       UnrolledEdge(edge.a, a),
@@ -114,7 +116,7 @@ class UnrolledSurface:
     # only the pairs (a, b_triangulated) and (b, a_triangulated) are guaranteed to be valid,
     # but for non-coplanar points, they may differ. Warn if they differ by too much:
     if (a_triangulated.u - a.u).length() > 0.01*(a.u - edge.a.u).length():
-      print("Warning: arbitrariness in unrolling-choice")
+      print(f"Warning: {(a_triangulated.u - a.u).length()} arbitrariness in unrolling-choice")
 
     new_edges = [
       UnrolledEdge(edge.a, a_triangulated),
@@ -128,6 +130,6 @@ class UnrolledSurface:
 def unroll_quad_strip(sections):
   unrolled = UnrolledSurface(*sections[0])
   latest_edge = unrolled.edges[0]
-  for section in sections:
+  for section in sections[1:]:
     latest_edge = unrolled.extend_edge_to_quad(latest_edge, *section)[1]
   return unrolled
