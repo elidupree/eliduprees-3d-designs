@@ -32,13 +32,17 @@ Notes after prototype #2:
 import math
 
 from pyocct_system import *
-from face_depthmap_loader import depthmap_sample_smoothed
+# from face_depthmap_loader import front_depthmap_sample_smoothed
+from depthmap import Depthmap
 from svg_utils import load_Inkscape_BSplineCurve
 from unroll import UnrolledSurface, unroll_quad_strip
 
 initialize_pyocct_system()
 
-def depthmap_sample_y(x, z):
+front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
+left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
+right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150)
+def front_depthmap_sample_y(x, z, radius = 2):
     """Pick a standardized interpretation of the depth map.
     
     It might theoretically be beneficial to use the recorded asymmetries of my face,
@@ -49,9 +53,26 @@ def depthmap_sample_y(x, z):
     "average of depthmap" isn't necessarily the optimal way to enforce symmetries
     (it has directional biases) but I don't care enough to perfect it.
     """
-    return Between(depthmap_sample_smoothed(x, z, 2), depthmap_sample_smoothed(-x, z, 2))
-def depthmap_sample_point(x, z):
-    return Point(x, depthmap_sample_y(x, z), z)
+    l = front_depthmap.depth_smoothed(-x, -z, radius)
+    r = front_depthmap.depth_smoothed(x, -z, radius)
+    if l is None:
+        return r
+    if r is None:
+        return l
+    return Between(l, r)
+def front_depthmap_sample_point(x, z, radius = 2):
+    return Point(x, front_depthmap_sample_y(x, z, radius), z)
+
+def side_depthmap_sample_x(y, z, radius = 2):
+    l = left_depthmap.depth_smoothed(-y, -z, radius)
+    r = right_depthmap.depth_smoothed(y, -z, radius)
+    if l is None or l > 5:
+        return -r
+    if r is None or r < -5:
+        return l
+    return Between(l, -r)
+def side_depthmap_sample_point(y, z, radius = 2):
+    return Point(side_depthmap_sample_x(y, z, radius), y, z)
 
 def curve_from_layout_file(id):
     # I've laid out some curves as front-views in Inkscape:
@@ -66,14 +87,13 @@ def approx_face_surface():
     """A version of the face that's an actual BSplineSurface, so we can do surface operations with it.
     
     We currently use this to make an planar-curve and to calculate normals. Those aren't perfectly accurate to the depthmap, so you have to correct for them."""
-    return BSplineSurface([[depthmap_sample_point(x,z) for z in range(-42, 31, 2)] for x in range(-64,65,2)])
+    return BSplineSurface([[front_depthmap_sample_point(x,z) for z in range(-42, 31, 2)] for x in range(-64,65,2)])
 
-
-earpiece_top_front_outer = Point(65.0, -0.9, 4.8)
+earpiece_top_front_outer = Point(65.0, -1.2, 4.8)
 earpiece_height = 3.30
 top_of_frame_z = earpiece_top_front_outer[2] + 12
 
-print (f"forehead y: {depthmap_sample_y(-28, 14)}")
+print (f"forehead y: {front_depthmap_sample_y(-28, 14)}")
 
 
 @run_if_changed
@@ -90,7 +110,7 @@ def frame_to_window_curve():
   frame_top = max(s, key=lambda f: f[2])
   # frame_bottom = min(s, key=lambda f: f[2])
   result = loaded @ Rotate(Axis(frame_top, Left), Degrees(2.3)) @ Translate(Up*(top_of_frame_z - frame_top[2]))
-  closest_face_encounter = max((f[1] - depthmap_sample_y(f[0], f[2])) for f in result.subdivisions(max_length=1))
+  closest_face_encounter = max((f[1] - front_depthmap_sample_y(f[0], f[2])) for f in result.subdivisions(max_length=1))
   print(f"closest_face_encounter: {closest_face_encounter}")
   face_leeway = 2
   frame_thickness = 2
@@ -113,7 +133,7 @@ def nose_break_point():
     while a - b > 0.01:
         z = Between(a, b)
         p = frame_to_window_curve.position(z = z, min_by=lambda p: -p[0])
-        if depthmap_sample_y(0, z) < p[1]:
+        if front_depthmap_sample_y(0, z) < p[1]:
             b = z
             best = p
         else:
@@ -124,13 +144,25 @@ def nose_break_point():
 
 # Pick a theoretical approximate source of vision, for analyzing vision angles.
 eyeball_radius = 12
-eyeball_center = depthmap_sample_point(-33.5, -2) + Back*eyeball_radius
+eyeball_center = front_depthmap_sample_point(-33.5, -2) + Back*eyeball_radius
 
 
 @run_if_changed
 def frame_eye_lasers():
     """Illustrate theoretical vision angles."""
     return Compound([Edge(eyeball_center, Between(eyeball_center, frame_to_window_curve.position(distance=d), 1.2)) for d in subdivisions(0, frame_to_window_curve.length(), max_length = 10)[:-1]])
+
+
+temple_pad_bottom_z = earpiece_top_front_outer[2] - 18
+temple_pad_top_z = earpiece_top_front_outer[2]
+temple_pad_front_y = earpiece_top_front_outer[1] + 41
+temple_pad_back_y = earpiece_top_front_outer[1] + 60
+
+@run_if_changed
+def temple_pad():
+    temple_pad_contact_surface = BSplineSurface([[side_depthmap_sample_point(y, z) for y in subdivisions(temple_pad_front_y, temple_pad_back_y, max_length=1)] for z in subdivisions(temple_pad_bottom_z, temple_pad_top_z, max_length=1)])
+    # preview(temple_pad_contact_surface)
+    return Face(temple_pad_contact_surface).extrude(Left*5)
 
 
 @run_if_changed
@@ -146,7 +178,7 @@ def window_pairs():
     nose_flat_normal = Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
 
     # ...actually use a more precise approximation of the surface right around the nose.
-    approx_nose_surface = BSplineSurface([[depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
+    approx_nose_surface = BSplineSurface([[front_depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-20, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
     nose_flat_curve = approx_nose_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
     nose_flat_curve_points = nose_flat_curve.subdivisions(start_x = 0, end_z = -12, end_min_by = lambda p: p[0], max_length=1)
 
@@ -159,7 +191,7 @@ def window_pairs():
     # e.g. so the thing doesn't get disturbed when I smile.
     # beside_nose_point = Point(-20, 0, -25)
     def faceish_point(p):
-        face = depthmap_sample_point(p[0], p[2])
+        face = front_depthmap_sample_point(p[0], p[2])
         # TODO: clean up this code somewhat.
         mouth_smile_badness = smootherstep(p[2], -25, -55)*2
         cheek_smile_badness = min(smootherstep(p[2], -7, -32), smootherstep(p[0], -19, -33)) * 7
@@ -332,7 +364,7 @@ def window_shaped_3d_printable():
     # result = Compound(result, mirror)
     save_STL("window_shaped_3d_printable", result)
     # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_3.stl")
-    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces)
+    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces, temple_pad)
 
 
 seal_wraparound_width = 5
@@ -342,7 +374,7 @@ def seal_pairs():
     face_curve = curve_from_layout_file("shield_to_face")
     # overlap_point = face_curve.intersections(window_to_seal_or_face_main_curve).point()
     overlap_point = Point(-19, 0, -24)
-    face_curve_points_on_face = [depthmap_sample_point(p[0],p[2]) for p in face_curve.subdivisions(max_length=1)]
+    face_curve_points_on_face = [front_depthmap_sample_point(p[0],p[2]) for p in face_curve.subdivisions(max_length=1)]
     face_curve_on_face = BSplineCurve(face_curve_points_on_face + [p @ Mirror(Right) for p in face_curve_points_on_face[1:-1][::-1]], BSplineDimension(periodic=True))
     max_w_parameter = window_to_seal_or_face_main_curve.parameter(closest=overlap_point)
     pairs = []
@@ -369,5 +401,5 @@ def unrolled_seal():
 
 
 print(nose_break_point)
-preview(nose_break_point, Edge(nose_break_point, nose_break_point@Mirror(Right)), frame_to_window_curve, frame_to_window_curve@Mirror(Right), BSplineCurve([depthmap_sample_point(0,z) for z in range(-30, 30, 2)]),
+preview(nose_break_point, Edge(nose_break_point, nose_break_point@Mirror(Right)), frame_to_window_curve, frame_to_window_curve@Mirror(Right), BSplineCurve([front_depthmap_sample_point(0,z) for z in range(-30, 30, 2)]),
         approx_face_surface)
