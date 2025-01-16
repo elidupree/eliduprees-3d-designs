@@ -114,7 +114,7 @@ def frame_to_window_curve():
   print(f"closest_face_encounter: {closest_face_encounter}")
   face_leeway = 2
   frame_thickness = 2
-  extra_leeway = 2
+  extra_leeway = 1
   result = result @ Translate(Back*(-(face_leeway + frame_thickness + extra_leeway) - closest_face_encounter))
   frame_near_earpiece_point = result.position(closest=earpiece_top_front_outer)
   print(f"earpiece y wrongness: {earpiece_top_front_outer[1] - (frame_near_earpiece_point[1] + extra_leeway + frame_thickness/2)}")
@@ -140,6 +140,33 @@ def nose_break_point():
             a = z
 
     return best
+
+
+@run_if_changed
+def best_triangle_bottom():
+    """In order for the nose-area-to-forehead section of the window to be smooth, a point near the forehead needs to be roughly aligned with them. It turns out that this constrains the forehead-y of the window to be much fronter than anything else wants it to be. So, when picking the point where the horizontal-generalized-cylinder transitions to the forehead part, we pick the point which minimizes the frontness-of-forehead given the constraints of smoothness."""
+
+    candidates = []
+    distance = frame_to_window_curve.distance(closest = nose_break_point)
+    while True:
+        d = frame_to_window_curve.derivatives (distance = distance)
+        # We also want to stop before we get to a point where the cylinder alone would have too high a curvature. There's a better way to do this, but just stopping once it's too horizontal has the same result.
+        if abs(d.tangent[2]) < 0.4:
+            break
+        candidates.append(d)
+        distance -= 0.2
+
+    forehead_z = window_to_seal_or_face_main_curve.position(parameter = 0)[2]
+    forehead_plane = Plane(Point(0,0,forehead_z), Up)
+
+    def quality(d):
+        # For any particular possibility of where we stop, the angle of the cylinder – which must be extended into a planar triangle – is based on the tangent to the frame. Since we are assuming that any such plane will contain Left, we also know that any arbitrary point on the intersection with the forehead plane will have the same y-coordinate, so just pick the one that is simplest to calculate.
+        return d.position.projected(onto=forehead_plane, by=d.tangent)[1]
+
+    best = max(candidates, key=quality)
+    return best.position
+    
+
 
 
 # Pick a theoretical approximate source of vision, for analyzing vision angles.
@@ -241,16 +268,16 @@ def window_pairs():
         return abs(below_triangle_normal.dot(triangle_normal))
             # max(abs(move_f_normal.dot(triangle_normal))
 
-    ds = frame_to_window_curve.subdivisions(output = "derivatives", start_closest = nose_break_point, end_closest = frame_top, wrap = "closest", max_length = 0.2)
-    best_triangle_bottom = max(ds, key=forehead_triangle_alignedness_if_its_bottom_is_at)
-    # print(best_triangle_bottom.position)
-    # print(alignedness(best_triangle_bottom))
-    # preview(Compound([Edge(*p) for p in all_pairs]),
-    #         best_triangle_bottom.position,
-    #         frame_top,
-    #         Compound([Edge(d.position, d.position + Front*(1+alignedness(d)*20)) for d in ds]))
-    print(f"Frame top: {frame_top}")
-    best_triangle_bottom = best_triangle_bottom.position
+    # ds = frame_to_window_curve.subdivisions(output = "derivatives", start_closest = nose_break_point, end_closest = frame_top, wrap = "closest", max_length = 0.2)
+    # best_triangle_bottom = max(ds, key=forehead_triangle_alignedness_if_its_bottom_is_at)
+    # # print(best_triangle_bottom.position)
+    # # print(alignedness(best_triangle_bottom))
+    # # preview(Compound([Edge(*p) for p in all_pairs]),
+    # #         best_triangle_bottom.position,
+    # #         frame_top,
+    # #         Compound([Edge(d.position, d.position + Front*(1+alignedness(d)*20)) for d in ds]))
+    # print(f"Frame top: {frame_top}")
+    # best_triangle_bottom = best_triangle_bottom.position
     triangle_hecker = Direction(Left.cross(all_points[-1] - best_triangle_bottom).cross(all_points[-1] - best_triangle_bottom))
     # print(triangle_hecker)
     last_normal_index = None
