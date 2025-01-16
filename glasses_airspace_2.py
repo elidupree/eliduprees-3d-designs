@@ -36,13 +36,15 @@ from pyocct_system import *
 from depthmap import Depthmap
 from svg_utils import load_Inkscape_BSplineCurve
 from unroll import UnrolledSurface, unroll_quad_strip
+from scipy.optimize import minimize
+import numpy as np
 
 initialize_pyocct_system()
 
 front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
 left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
 right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150)
-def front_depthmap_sample_y(x, z, radius = 2):
+def front_depthmap_sample_y(x, z=None, radius = 2):
     """Pick a standardized interpretation of the depth map.
     
     It might theoretically be beneficial to use the recorded asymmetries of my face,
@@ -53,6 +55,7 @@ def front_depthmap_sample_y(x, z, radius = 2):
     "average of depthmap" isn't necessarily the optimal way to enforce symmetries
     (it has directional biases) but I don't care enough to perfect it.
     """
+    if z is None: x,z = x[0],x[2]
     l = front_depthmap.depth_smoothed(-x, -z, radius)
     r = front_depthmap.depth_smoothed(x, -z, radius)
     if l is None:
@@ -60,10 +63,12 @@ def front_depthmap_sample_y(x, z, radius = 2):
     if r is None:
         return l
     return Between(l, r)
-def front_depthmap_sample_point(x, z, radius = 2):
+def front_depthmap_sample_point(x, z=None, radius = 2):
+    if z is None: x,z = x[0],x[2]
     return Point(x, front_depthmap_sample_y(x, z, radius), z)
 
-def side_depthmap_sample_x(y, z, radius = 2):
+def side_depthmap_sample_x(y, z=None, radius = 2):
+    if z is None: y,z = y[1],x[2]
     l = left_depthmap.depth_smoothed(-y, -z, radius)
     r = right_depthmap.depth_smoothed(y, -z, radius)
     if l is None or l > 5:
@@ -71,7 +76,8 @@ def side_depthmap_sample_x(y, z, radius = 2):
     if r is None or r < -5:
         return l
     return Between(l, -r)
-def side_depthmap_sample_point(y, z, radius = 2):
+def side_depthmap_sample_point(y, z=None, radius = 2):
+    if z is None: y,z = y[1],x[2]
     return Point(side_depthmap_sample_x(y, z, radius), y, z)
 
 def curve_from_layout_file(id):
@@ -142,10 +148,19 @@ def nose_break_point():
     return best
 
 
+forehead_z = window_to_seal_or_face_main_curve.position(parameter = 0)[2]
 @run_if_changed
-def best_triangle_bottom():
-    """In order for the nose-area-to-forehead section of the window to be smooth, a point near the forehead needs to be roughly aligned with them. It turns out that this constrains the forehead-y of the window to be much fronter than anything else wants it to be. So, when picking the point where the horizontal-generalized-cylinder transitions to the forehead part, we pick the point which minimizes the frontness-of-forehead given the constraints of smoothness."""
+def forehead_plane():
+    return Plane(Point(0,0,forehead_z), Up)
+def forehead_window_y_given_triangle_bottom(d):
+    # For any particular possibility of where we stop, the angle of the cylinder – which must be extended into a planar triangle – is based on the tangent to the frame. Since we are assuming that any such plane will contain Left, we also know that any arbitrary point on the intersection with the forehead plane will have the same y-coordinate, so just pick the one that is simplest to calculate.
+    return d.position.projected(onto=forehead_plane, by=d.tangent)[1]
 
+
+forehead_window_y = None
+@run_if_changed
+def triangle_bottom():
+    """In order for the nose-area-to-forehead section of the window to be smooth, a point near the forehead needs to be roughly aligned with them. It turns out that this constrains the forehead-y of the window to be much fronter than anything else wants it to be. So, when picking the point where the horizontal-generalized-cylinder transitions to the forehead part, we pick the point which minimizes the frontness-of-forehead given the constraints of smoothness."""
     candidates = []
     distance = frame_to_window_curve.distance(closest = nose_break_point)
     while True:
@@ -153,19 +168,19 @@ def best_triangle_bottom():
         # We also want to stop before we get to a point where the cylinder alone would have too high a curvature. There's a better way to do this, but just stopping once it's too horizontal has the same result.
         if abs(d.tangent[2]) < 0.4:
             break
-        candidates.append(d)
+        # You also can't use a candidate if the triangle would overlap the lens
+        if d.position.projected(onto=forehead_plane, by=d.tangent)[0] < 0:
+            candidates.append(d)
         distance -= 0.2
 
-    forehead_z = window_to_seal_or_face_main_curve.position(parameter = 0)[2]
-    forehead_plane = Plane(Point(0,0,forehead_z), Up)
 
-    def quality(d):
-        # For any particular possibility of where we stop, the angle of the cylinder – which must be extended into a planar triangle – is based on the tangent to the frame. Since we are assuming that any such plane will contain Left, we also know that any arbitrary point on the intersection with the forehead plane will have the same y-coordinate, so just pick the one that is simplest to calculate.
-        return d.position.projected(onto=forehead_plane, by=d.tangent)[1]
-
-    best = max(candidates, key=quality)
+    best = max(candidates, key=forehead_window_y_given_triangle_bottom)
+    global forehead_window_y
+    forehead_window_y = forehead_window_y_given_triangle_bottom(best)
     return best.position
     
+#hack, TODO remove:
+best_triangle_bottom = triangle_bottom
 
 
 
@@ -193,10 +208,91 @@ def temple_pad():
 
 
 @run_if_changed
+def top_window_sections():
+    # start at the triangle, proceed to the temple block
+    sections = []
+
+    class Section:
+        def __init__(self, face_to_seal, seal_to_frame, normal_factor):
+            self.face_to_seal = face_to_seal
+            self.seal_to_frame = seal_to_frame
+            self.normal_factor = normal_factor
+
+    d = 0
+    while True:
+        ref = window_to_seal_or_face_main_curve.position(distance=d)
+        face_to_seal = front_depthmap_sample_point(ref)
+        if face_to_seal[2] <= temple_pad_top_z:
+            break
+        normal = approx_face_surface.normal(closest=face_to_seal)
+        normal_factor = abs(1 / normal[1])
+        # calipers test seemed to say the leeway should be at least 2.6; play it safe and say 5.
+        seal_to_frame = face_to_seal @ Translate(Front*normal_factor*5)
+        sections.append(Section(face_to_seal, seal_to_frame, normal_factor))
+        d += 1
+
+    min_ny = 0.5
+    ny0 = (sections[0].seal_to_frame[1] - forehead_window_y) / sections[0].normal_factor
+    ny1 = min_ny
+    fd0 = frame_to_window_curve.distance(closest=triangle_bottom)
+    fd1 = frame_to_window_curve.distance(z=earpiece_top_front_outer[2], min_by="x")
+    fwl = frame_to_window_curve.length()
+    if fd1 > fd0:
+        fd0 += fwl
+    num_variable_rows = len(sections)-2
+    def variables_to_all(nys_and_frame_distances):
+        return (
+            np.concatenate(([ny0], nys_and_frame_distances[:num_variable_rows], [ny1])),
+            np.concatenate(([fd0], nys_and_frame_distances[num_variable_rows:], [fd1])),
+        )
+    def loss(nys_and_frame_distances):
+        nys, fds = variables_to_all(nys_and_frame_distances)
+        result = 0
+
+        for ny in nys:
+            too_close = ny - 0.5
+            if too_close < 0:
+                result += too_close**2
+
+        for fda,fdb in pairs(fds):
+            dfd = fdb - fda
+            too_far = dfd - 1
+            if too_far > 0:
+                result += too_far**2
+            too_close = dfd - 0.3
+            if too_close < 0:
+                result += too_close**2
+
+        ws = [s.seal_to_frame + Front*ny*s.normal_factor for s,ny in zip(sections, nys)]
+        dws = [b - a for a,b in pairs(ws)]
+        for dwa, dwb in pairs(dws):
+            curvature = (dwa.normalized().cross(dwb.normalized()).length()) / (dwa + dwb).length()
+            result += curvature**2 * 0.001
+        return result
+
+    def result_sections(optimize_result):
+        nys, fds = variables_to_all(optimize_result)
+        return Compound([Wire(s.face_to_seal + Up*1, s.seal_to_frame+Up*1, s.seal_to_frame, s.seal_to_frame + Front * s.normal_factor * ny, frame_to_window_curve.position(distance=fd%fwl)) for s,ny,fd in zip(sections, nys, fds)])
+    def callback(intermediate_result):
+        print(loss(intermediate_result))
+        # preview(result_sections(intermediate_result))
+
+    guess = subdivisions(ny0, ny1, amount=len(sections))[1:-1] + subdivisions(fd0, fd1, amount=len(sections))[1:-1]
+    print(guess)
+    # results = minimize(loss, guess, callback=callback).x
+    result = result_sections(guess)
+    preview(result, approx_face_surface, temple_pad, approx_earpieces)
+    return result
+
+
+
+
+
+@run_if_changed
 def window_pairs():
     """Big function that describes the window as a list of pairs, where each pair is
       (point on the window-to-face-or-seal curve, point on frame-to-window curve)."""
-    
+
     # Start by laying out the window-to-face-or-seal curve.
 
     # First, there's the nose. We arbitrarily aim to make this planar.
@@ -391,7 +487,7 @@ def window_shaped_3d_printable():
     # result = Compound(result, mirror)
     save_STL("window_shaped_3d_printable", result)
     # export("window_shaped_3d_printable.stl", "window_shaped_3d_printable_3.stl")
-    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces, temple_pad)
+    preview(result, mirror, Compound([Edge(*p) for p in window_pairs]), frame_to_window_curve.position(distance=0), approx_face_surface, frame_eye_lasers, window_eye_lasers, approx_earpieces, temple_pad, top_window_sections)
 
 
 seal_wraparound_width = 5

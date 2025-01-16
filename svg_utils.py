@@ -102,6 +102,7 @@ def Inkscape_BSplineCurve(text):
     return BSplineCurve(control_points, BSplineDimension(periodic = periodic))
 
 def load_Inkscape_BSplineCurve(filename, id):
+    register_file_read(filename)
     tree = ElementTree.parse(filename)
     elem = tree.getroot().find(f".//*[@id='{id}']")
     return Inkscape_BSplineCurve(elem.attrib["{http://www.inkscape.org/namespaces/inkscape}original-d"])

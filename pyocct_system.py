@@ -28,6 +28,11 @@ class SerializeAsVars:
 ###################   Wrapper system   ###################
 ##########################################################
 
+def register_file_read(file_path):
+  global _current_ric_function_observations
+  if _current_ric_function_observations is not None:
+    _current_ric_function_observations["files_loaded"][file_path] = sha256_of_file(file_path)
+
 def _setup_wrappers():
   def watch_time(name, func):
     start = datetime.datetime.now()
@@ -223,7 +228,7 @@ def _setup_wrappers():
     globals()[name] = value
   def override_attribute(c, name, value):
     attribute_overrides [(unwrap(c), name)] = value
-  pyocct_api_wrappers.setup(Wrapper, wrap, unwrap, export, override_attribute, SerializeAsVars)
+  pyocct_api_wrappers.setup(Wrapper, wrap, unwrap, export, override_attribute, SerializeAsVars, register_file_read)
   
   for export in re.findall(r"[\w_]+", "wrap, unwrap"):
     globals() [export] = locals() [export]
@@ -398,6 +403,8 @@ _global_location_by_deserialized_object_id = {}
 _cache_system_source = inspect.getsource (sys.modules [__name__]) + inspect.getsource (sys.modules ["pyocct_api_wrappers"])
 _cache_system_source_hash = hashlib.sha256(_cache_system_source.encode ("utf-8")).hexdigest()
 
+_current_ric_function_observations = None
+
 def _initialize_cache_system (cache_directory, export_directory):
   global _cache_directory, _export_directory
 
@@ -513,8 +520,19 @@ def _cache_path_base (g, name):
 def _cache_info_path (g, name):
   return _cache_path_base (g, name) + ".cache_info"
 
-  
-  
+
+def sha256_of_file(file_path):
+  # borrowed from stack overflow answer https://stackoverflow.com/a/44873382;
+  # should be hashlib.file_digest(), but for now I'm stuck on old python for annoying reasons
+  hasher = hashlib.sha256()
+  buffer = bytearray(128*1024)
+  mv = memoryview(buffer)
+  with open(file_path, 'rb', buffering=0) as f:
+    while bytes_read := f.readinto(mv):
+      hasher.update(mv[:bytes_read])
+  return hasher.hexdigest()
+
+
 def _stored_cache_info_if_valid (g, name, source_hash):
   info_path = _cache_info_path (g, name)
   try:
@@ -530,15 +548,15 @@ def _stored_cache_info_if_valid (g, name, source_hash):
             return None
         except _ChecksumOfGlobalError:
           return None
+      for file_path, hash in stored["files_loaded"].items():
+        if sha256_of_file(file_path) != hash:
+          return None
         
   except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
     return None
     
   return stored
 
-
-
-_generating_function_context = None
 
 def _load_cache (g, name):
   path = _cache_path_base (g, name)
@@ -556,7 +574,8 @@ def run_if_changed (function):
   key = _global_key(g, function_name)
   print (f"### doing {function_name}() ###")
   
-  global _last_finished_ric_function
+  global _current_ric_function_observations, _last_finished_ric_function
+  assert (_current_ric_function_observations is None), "started a run_if_changed function inside another...?"
   seconds = (datetime.datetime.now() - _last_finished_ric_function["time"]).total_seconds()
   if seconds > 0.1:
     print(f"""(It's been {seconds} seconds since {_last_finished_ric_function["name"]}, maybe there's some expensive stuff not wrapped in a @run_if_changed function?)""")
@@ -580,15 +599,12 @@ def run_if_changed (function):
   else:
     start_time = datetime.datetime.now()
     print(f"needs update, rerunning… ({start_time})")
-    global _generating_function_context
-    if _generating_function_context is not None:
-      raise RuntimeError ("cache functions cannot call other ones")
     cache_info = {
       "source_hash": source_hash,
       "cache_system_source_hash": _cache_system_source_hash,
       "accessed_globals": {name: _checksum_of_global(g, name) for name in _globals_loaded_by_code(code)},
+      "files_loaded": {},
     }
-    _generating_function_context = cache_info
     info_path = _cache_info_path (g, function_name)
 
     for name in stored_globals:
@@ -603,14 +619,17 @@ def run_if_changed (function):
       os.remove (info_path)
     except FileNotFoundError:
       pass
-      
+
+    if _current_ric_function_observations is not None:
+      raise RuntimeError ("cache functions cannot call other ones")
+    _current_ric_function_observations = cache_info
     ##do the main action!
     result = function()
+    _current_ric_function_observations = None
 
     _serialize(_cache_path_base(g, function_name), result)
     for name in stored_globals:
       _serialize(_cache_path_base(g, name), g[name])
-    _generating_function_context = None
     _cache_info_by_global_key [function_name] = cache_info
     _atomic_write_json (info_path, cache_info)
     
@@ -623,6 +642,7 @@ def run_if_changed (function):
   for name in stored_globals:
     g[name] = _load_cache (g, name)
   _last_finished_ric_function = {"name": function_name + "()", "time": datetime.datetime.now()}
+  _current_ric_function_observations = None
   return result
 
 class _SaveByName:

@@ -4,6 +4,7 @@ from pyocct_system import *
 
 class Depthmap:
     def __init__(self, file_path, *, pixels_per_unit, px_at_zero, py_at_zero, min_depth, max_depth):
+        register_file_read(file_path)
         self.file=OpenEXR.File(file_path)
         self.pixels = self.file.channels()["RGB"].pixels
         self.px_at_zero = px_at_zero

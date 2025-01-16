@@ -15,7 +15,7 @@ import os.path
 import functools
 
 
-def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars):
+def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars, register_file_read):
   def simple_override (c, name, value):
     override_attribute(c, name, lambda original: value)
   #import pkgutil
@@ -568,7 +568,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
     
   def curve_parameter_function (function):
     @functools.wraps(function)
-    def wrapped(curve, parameter = None, *, distance = None, from_parameter = 0, closest = None, on = None, x = None, y = None, z = None, min_by = None, **kwargs):
+    def wrapped(curve, parameter = None, *, distance = None, from_parameter = 0, closest = None, on = None, x = None, y = None, z = None, min_by = None, max_by = None, **kwargs):
       if x is not None:
         on = Plane(Origin+Right*x, Right)
       if y is not None:
@@ -580,7 +580,18 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
         points = curve.intersections(on).points
         if len(points) < 1:
           raise RuntimeError(f"specified 'on', x, y, or z, but there were no such points")
+        if max_by is not None:
+          if max_by == "x": min_by = "-x"
+          elif max_by == "y": min_by = "-y"
+          elif max_by == "z": min_by = "-z"
+          else: min_by = lambda p: -max_by(p)
         if min_by is not None:
+          if min_by == "x": min_by = lambda p: p[0]
+          elif min_by == "y": min_by = lambda p: p[1]
+          elif min_by == "z": min_by = lambda p: p[2]
+          elif min_by == "-x": min_by = lambda p: -p[0]
+          elif min_by == "-y": min_by = lambda p: -p[1]
+          elif min_by == "-z": min_by = lambda p: -p[2]
           closest = min(points, key = min_by)
         else:
           if len(points) > 1:
@@ -896,6 +907,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
   def is_shape(obj):
     return isinstance(obj, Shape)
   def read_brep (path):
+    register_file_read(path)
     return Exchange.ExchangeBasic.read_brep (path)
   def shape_type(original, shape):
     #print("shapetype", shape),
@@ -1324,6 +1336,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars)
     writer.Write(path)
       
   def LoadSTL (path):
+    register_file_read(path)
     #note: it appears that StlAPI.Read is simply nonfunctional
     '''shape = Shape()
     StlAPI.StlAPI.Read_ (shape, os.path.abspath (path))
