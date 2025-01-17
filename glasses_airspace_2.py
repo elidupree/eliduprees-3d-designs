@@ -41,9 +41,9 @@ import numpy as np
 
 initialize_pyocct_system()
 
-front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
-left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150)
-right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150)
+front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 149)
+left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 5)
+right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150, invalid_depths = lambda d: d > 5)
 def front_depthmap_sample_y(x, z=None, radius = 2):
     """Pick a standardized interpretation of the depth map.
     
@@ -65,20 +65,24 @@ def front_depthmap_sample_y(x, z=None, radius = 2):
     return Between(l, r)
 def front_depthmap_sample_point(x, z=None, radius = 2):
     if z is None: x,z = x[0],x[2]
-    return Point(x, front_depthmap_sample_y(x, z, radius), z)
+    y = front_depthmap_sample_y(x, z, radius)
+    if y is None: return None
+    return Point(x, y, z)
 
 def side_depthmap_sample_x(y, z=None, radius = 2):
-    if z is None: y,z = y[1],x[2]
+    if z is None: y,z = y[1],y[2]
     l = left_depthmap.depth_smoothed(-y, -z, radius)
     r = right_depthmap.depth_smoothed(y, -z, radius)
-    if l is None or l > 5:
-        return -r
-    if r is None or r < -5:
+    if r is None:
         return l
+    if l is None:
+        return -r
     return Between(l, -r)
 def side_depthmap_sample_point(y, z=None, radius = 2):
-    if z is None: y,z = y[1],x[2]
-    return Point(side_depthmap_sample_x(y, z, radius), y, z)
+    if z is None: y,z = y[1],y[2]
+    x = side_depthmap_sample_x(y, z, radius)
+    if x is None: return None
+    return Point(x, y, z)
 
 def curve_from_layout_file(id):
     # I've laid out some curves as front-views in Inkscape:
@@ -213,10 +217,10 @@ def top_window_sections():
     sections = []
 
     class Section:
-        def __init__(self, face_to_seal, seal_to_frame, normal_factor):
+        def __init__(self, face_to_seal, seal_to_frame, chosen_normal):
             self.face_to_seal = face_to_seal
             self.seal_to_frame = seal_to_frame
-            self.normal_factor = normal_factor
+            self.chosen_normal = chosen_normal
 
     d = 0
     while True:
@@ -225,15 +229,19 @@ def top_window_sections():
         if face_to_seal[2] <= temple_pad_top_z:
             break
         normal = approx_face_surface.normal(closest=face_to_seal)
-        normal_factor = abs(1 / normal[1])
-        # calipers test seemed to say the leeway should be at least 2.6; play it safe and say 5.
-        seal_to_frame = face_to_seal @ Translate(Front*normal_factor*5)
-        sections.append(Section(face_to_seal, seal_to_frame, normal_factor))
+        flat_normal = (normal*1).projected_perpendicular(Up).normalized()
+        # normal_factor = abs(1 / flat_normal[1])
+        # calipers test seemed to say the leeway should be at least 2.6; play it safe and say 3.
+        seal_to_frame = face_to_seal @ Translate(flat_normal*3)
+        sections.append(Section(face_to_seal, seal_to_frame, flat_normal))
         d += 1
 
-    min_ny = 0.5
-    ny0 = (sections[0].seal_to_frame[1] - forehead_window_y) / sections[0].normal_factor
+    min_ny = 3
+    ny0 = sections[0].chosen_normal.dot(Point(0,forehead_window_y,forehead_z) - sections[0].seal_to_frame)
+    print("ny0:", ny0)
+    # assert (ny0 > min_ny)
     ny1 = min_ny
+    # ny1 = ny0
     fd0 = frame_to_window_curve.distance(closest=triangle_bottom)
     fd1 = frame_to_window_curve.distance(z=earpiece_top_front_outer[2], min_by="x")
     fwl = frame_to_window_curve.length()
@@ -263,7 +271,7 @@ def top_window_sections():
             if too_close < 0:
                 result += too_close**2
 
-        ws = [s.seal_to_frame + Front*ny*s.normal_factor for s,ny in zip(sections, nys)]
+        ws = [s.seal_to_frame + s.chosen_normal*ny for s,ny in zip(sections, nys)]
         dws = [b - a for a,b in pairs(ws)]
         for dwa, dwb in pairs(dws):
             curvature = (dwa.normalized().cross(dwb.normalized()).length()) / (dwa + dwb).length()
@@ -272,18 +280,164 @@ def top_window_sections():
 
     def result_sections(optimize_result):
         nys, fds = variables_to_all(optimize_result)
-        return Compound([Wire(s.face_to_seal + Up*1, s.seal_to_frame+Up*1, s.seal_to_frame, s.seal_to_frame + Front * s.normal_factor * ny, frame_to_window_curve.position(distance=fd%fwl)) for s,ny,fd in zip(sections, nys, fds)])
+        return Compound([Wire(s.face_to_seal + Up*1, s.seal_to_frame+Up*1, s.seal_to_frame, s.seal_to_frame + s.chosen_normal * ny, frame_to_window_curve.position(distance=fd%fwl)) for s,ny,fd in zip(sections, nys, fds)])
     def callback(intermediate_result):
         print(loss(intermediate_result))
         # preview(result_sections(intermediate_result))
 
-    guess = subdivisions(ny0, ny1, amount=len(sections))[1:-1] + subdivisions(fd0, fd1, amount=len(sections))[1:-1]
+    dny = ny1 - ny0
+    guess = [(ny0 + dny*f**2) for f in subdivisions(0, 1, amount=len(sections))[1:-1]] + subdivisions(fd0, fd1, amount=len(sections))[1:-1]
     print(guess)
     # results = minimize(loss, guess, callback=callback).x
     result = result_sections(guess)
     preview(result, approx_face_surface, temple_pad, approx_earpieces)
     return result
 
+
+def resample_curve_front(curve, **kwargs):
+    return BSplineCurve([front_depthmap_sample_point(p) for p in curve.subdivisions(max_length=0.2, **kwargs)])
+
+def resample_curve_side(curve, **kwargs):
+    return BSplineCurve([side_depthmap_sample_point(p) for p in curve.subdivisions(max_length=0.2, **kwargs)])
+
+def resample_point_frac(p, sideness):
+    if sideness == 0:
+        return front_depthmap_sample_point(p)
+    if sideness == 1:
+        return side_depthmap_sample_point(p)
+    return Between(front_depthmap_sample_point(p), side_depthmap_sample_point(p), sideness)
+
+def resample_point_best(p):
+    return resample_point_frac(p, smootherstep(p[1], 15, 30))
+
+def resample_curve_best(curve):
+    return BSplineCurve([resample_point_best(p) for p in curve.subdivisions(max_length=0.2)])
+
+def smooth_joiner_curve(a, b):
+    da = a.derivatives(parameter=a.LastParameter())
+    db = b.derivatives(parameter=b.FirstParameter())
+    return Interpolate([da.position, db.position], tangents = [da.tangent*1, db.tangent*1])
+
+def face_joiner_curve(a, b, sa, sb):
+    not_on_face = smooth_joiner_curve(a,b)
+    def fix(curve):
+        l = curve.length()
+        points = []
+        for d in subdivisions(0, l, max_length=0.2):
+            p = curve.position(distance=d)
+            sideness = Between(sa, sb, smootherstep(d/l, 0.3, 0.7))
+            points.append(resample_point_frac(p, sideness))
+        return BSplineCurve(points)
+    return fix(fix(not_on_face))
+
+def merge_curves(curves):
+    d = [c.subdivisions(max_length=0.2) for c in curves]
+    return BSplineCurve([p for c in [d[0]]+[ps[1:] for ps in d[1:]] for p in c])
+
+
+# @run_if_changed
+# def approx_face_surface_better():
+#     """A version of the face that's an actual BSplineSurface, so we can do surface operations with it.
+#
+#     We currently use this to make an planar-curve and to calculate normals. Those aren't perfectly accurate to the depthmap, so you have to correct for them."""
+#     rows = []
+#     for z in range(-40, 40):
+#         def sample(x):
+#             p = front_depthmap_sample_point(x,z)
+#             if p is None: return None
+#             return resample_point_best(p)
+#         for x in range(-80, 0):
+#             if sample(x) is not None:
+#                 first_x = x
+#                 break
+#         row = [sample(x) for x in subdivisions(first_x, 0, amount=80)]
+#         if any(p is None for p in row):
+#             print(z)
+#         else:
+#             rows.append(row)
+#     print([r for r in rows if any(p is None for p in r)])
+#     return BSplineSurface(rows)
+
+
+@run_if_changed
+def face_to_seal_curve():
+    # forehead = resample_curve_front(Segment(Point(0, 0, forehead_z), Point(-40, 0, forehead_z)))
+    forehead = resample_curve_front(window_to_seal_or_face_main_curve, start_distance = 0, end_x = -40, end_max_by = "z")
+    temple = resample_curve_side(Segment(Point(0, 54, 5), Point(0, 54, -22)))
+    # cheek = resample_curve_front(Segment(Point(-60, 0, -52), Point(0, 0, -52)))
+    # cheek = resample_curve_front(window_to_seal_or_face_main_curve, start_x = -60, start_min_by = "z", end_x = -27, end_min_by = "z")
+    cheek = resample_curve_front(window_to_seal_or_face_main_curve, start_x = -60, start_min_by = "z", end_z = -20, end_max_by = "x")
+    # cheek = resample_curve_front(window_to_seal_or_face_main_curve, start_x = -60, start_min_by = "z", end_distance = window_to_seal_or_face_main_curve.length())
+    return merge_curves([
+        forehead,
+        face_joiner_curve(forehead, temple, 0, 1),
+        temple,
+        face_joiner_curve(temple, cheek, 1, 0),
+        cheek,
+    ])
+
+
+@run_if_changed
+def nose_flat_normal():
+    # the nose. We arbitrarily aim to make this planar.
+    # Since the plane should agree with the frame-to-frame lines, find the tangent.
+    frame_tangent = frame_to_window_curve.derivatives(closest=nose_break_point).tangent
+    return Direction((frame_tangent*1).projected_perpendicular(Left) @ Rotate(Left, degrees=90))
+@run_if_changed
+def approx_nose_surface():
+    # ...actually use a more precise approximation of the surface right around the nose.
+    return BSplineSurface([[front_depthmap_sample_point(x,z) for z in subdivisions(nose_break_point[2]-12, nose_break_point[2]+1,max_length=0.2)] for x in subdivisions(-10,10,max_length=0.2)])
+@run_if_changed
+def nose_flat_curve():
+    return approx_nose_surface.intersections(Plane(nose_break_point, nose_flat_normal)).curve()
+
+frame_to_seal_curve, pframe_to_window_curve, pframe = None, None, None
+@run_if_changed
+def frame_to_seal_curves():
+    global frame_to_seal_curve, pframe_to_window_curve, pframe
+    frame_to_seal_points = []
+    pframe_to_window_points = []
+    pframe_sections = []
+    print (triangle_bottom, nose_break_point)
+    ds = face_to_seal_curve.subdivisions(output="derivatives", max_length=1)
+    fs = frame_to_window_curve.subdivisions(start_closest = triangle_bottom, end_z = nose_break_point[2], end_max_by="x", amount=len(ds), wrap=-1)
+    illust = []
+    for d,f in zip(ds, fs):
+        p = d.position
+        # ignore the foibles of the face:
+        cheek_level = smootherstep(p[2], 0, -1)
+        normal = Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
+        cheek_smile_badness = cheek_level*min(smootherstep(p[0], -19, -40), smootherstep(p[0], -70, -50)) * 4
+        leeway = 3 + cheek_smile_badness
+        frame_to_seal = p + normal * leeway
+        frame_to_seal_points.append(frame_to_seal)
+
+        leeway = 8
+        force_nose_plane = cheek_level*smootherstep(p[0], -35, -20)
+        nose_plane_leeway = p.projected(onto = Plane(nose_break_point, nose_flat_normal), by = normal).distance(p)
+        leeway = Between(leeway, nose_plane_leeway, force_nose_plane)
+        pframe_to_window = p + normal * leeway
+        pframe_to_window_points.append(pframe_to_window)
+        inwards = Direction(d.tangent.cross(-normal))
+        gframewards = Direction(pframe_to_window, f)
+        gframewards_polite = (gframewards*1).projected_perpendicular(d.tangent).normalized()
+        pframe_sections.append(Wire([
+            frame_to_seal,
+            frame_to_seal + inwards * 4,
+            pframe_to_window + inwards * 4,
+            pframe_to_window
+        ]
+            ,loop=True
+        ))
+        illust.append(Edge(pframe_to_window, f))
+    frame_to_seal_curve = BSplineCurve(frame_to_seal_points)
+    pframe_to_window_curve = BSplineCurve(pframe_to_window_points)
+    pframe = Loft(pframe_sections)
+    preview(Compound(illust))
+
+
+
+preview(face_to_seal_curve, approx_face_surface, frame_to_seal_curve, pframe_to_window_curve, nose_flat_curve, smooth_joiner_curve(pframe_to_window_curve, nose_flat_curve), frame_to_window_curve, pframe, BSplineCurve([p.projected(Plane(Origin, Right)) for p in frame_to_window_curve.poles()]))
 
 
 
@@ -317,7 +471,7 @@ def window_pairs():
         face = front_depthmap_sample_point(p[0], p[2])
         # TODO: clean up this code somewhat.
         mouth_smile_badness = smootherstep(p[2], -25, -55)*2
-        cheek_smile_badness = min(smootherstep(p[2], -7, -32), smootherstep(p[0], -19, -33)) * 7
+        cheek_smile_badness = min(smootherstep(p[2], -7, -32), smootherstep(p[0], -19, -40)) * 7
         brow_badness = 0 if p[2] < 0 else smootherstep((60-abs(p[0]))/25)*15
         badness = max(mouth_smile_badness, cheek_smile_badness, brow_badness)
         if badness <= 0:

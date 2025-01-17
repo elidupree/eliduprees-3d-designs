@@ -141,7 +141,10 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   
   def subdivisions (start, end, *, amount = None, max_length = None, require_parity = None):
     delta = end - start
-    
+
+    if amount is None and max_length is None:
+      raise RuntimeError (f"subdivisions() must specify either amount or max_length")
+
     if max_length is not None:
       distance = delta.magnitude() if isinstance (delta, Vector) else abs (delta)
       required = math.ceil (distance/max_length) + 1

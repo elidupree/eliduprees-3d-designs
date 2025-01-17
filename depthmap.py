@@ -3,7 +3,7 @@ import OpenEXR
 from pyocct_system import *
 
 class Depthmap:
-    def __init__(self, file_path, *, pixels_per_unit, px_at_zero, py_at_zero, min_depth, max_depth):
+    def __init__(self, file_path, *, pixels_per_unit, px_at_zero, py_at_zero, min_depth, max_depth, invalid_depths = None):
         register_file_read(file_path)
         self.file=OpenEXR.File(file_path)
         self.pixels = self.file.channels()["RGB"].pixels
@@ -12,12 +12,14 @@ class Depthmap:
         self.pixels_per_unit = pixels_per_unit
         self.min_depth = min_depth
         self.depth_range = max_depth - min_depth
+        self.invalid_depths = invalid_depths
 
     def pixel_depth(self, px, py):
         result = self.pixels[py,px][0]
-        if result == 1.0:
+        result = self.min_depth + result * self.depth_range
+        if self.invalid_depths is not None and self.invalid_depths(result):
             return None
-        return self.min_depth + result * self.depth_range
+        return result
 
     def pixel_depth_smoothed(self, px, py, pradius):
         sr = pradius**2
