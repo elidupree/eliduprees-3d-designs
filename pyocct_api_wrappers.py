@@ -80,6 +80,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       array = getattr (globals() [module], f"{module}_{prefix}Array{dimensions}Of{item}")
       globals() [f"{prefix}Array{dimensions}Of{item}"] = array
       override_attribute(array, "__new__", makers [dimensions])
+      if dimensions==1: simple_override(array, "__len__", lambda self: self.Length())
     #except AttributeError:
     #  pass
   

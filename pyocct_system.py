@@ -483,7 +483,7 @@ def _checksum_of_global (g, name, stack = []):
     result = _checksum_of_global (g2, name2, stack + [key])
   elif code is None:
     result = repr(value)
-    if " object at 0x" in result:
+    if " at 0x" in result:
       raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
   else:
     #print(key, code)
@@ -491,6 +491,7 @@ def _checksum_of_global (g, name, stack = []):
     hasher = hashlib.sha256()
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
+    # print(code2)
     for name2 in _globals_loaded_by_code (code):
       try:
         module = sys.modules[value.__module__]
@@ -502,7 +503,8 @@ def _checksum_of_global (g, name, stack = []):
       if not module.__file__.startswith(os.path.dirname(__file__)):
         continue
       g2 = vars(module)
-      hasher.update (_checksum_of_global (g2, name2, stack + [key]).encode ("utf-8"))
+      checksum_2 = _checksum_of_global (g2, name2, stack + [key])
+      hasher.update (checksum_2.encode ("utf-8"))
     result = hasher.hexdigest()
         
   #print(f"Info: decided that output hash of {key} is {result}")
@@ -533,27 +535,30 @@ def sha256_of_file(file_path):
   return hasher.hexdigest()
 
 
-def _stored_cache_info_if_valid (g, name, source_hash):
-  info_path = _cache_info_path (g, name)
+class CacheInvalid(Exception):
+  pass
+
+def _stored_cache_info(g, name, source_hash):
+  info_path = _cache_info_path(g, name)
   try:
     with open(info_path) as file:
       stored = json.load(file)
       if stored["source_hash"] != source_hash:
-        return None
+        raise CacheInvalid("source_hash differs")
       if stored["cache_system_source_hash"] != _cache_system_source_hash:
-        return None
+        raise CacheInvalid("cache_system_source_hash differs")
       for name2, value in stored["accessed_globals"].items():
         try: 
-          if _checksum_of_global (g, name2) != value:
-            return None
-        except _ChecksumOfGlobalError:
-          return None
+          if _checksum_of_global(g, name2) != value:
+            raise CacheInvalid(f"global `{g['__name__']}.{name2}` differs")
+        except _ChecksumOfGlobalError as e:
+          raise CacheInvalid(f"Failed to checksum global `{g['__name__']}.{name2}`: {e}")
       for file_path, hash in stored["files_loaded"].items():
         if sha256_of_file(file_path) != hash:
-          return None
+          raise CacheInvalid(f"file `{file_path}` checksum differs")
         
-  except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError):
-    return None
+  except (FileNotFoundError, json.decoder.JSONDecodeError, KeyError) as e:
+    raise CacheInvalid(repr(e))
     
   return stored
 
@@ -589,16 +594,15 @@ def run_if_changed (function):
   #hasher.update (code.encode ("utf-8")) #note: not included because it includes line numbers
   hasher.update (code2.encode ("utf-8"))
   source_hash = hasher.hexdigest()
-
-  saved_cache_info = _stored_cache_info_if_valid (g, function_name, source_hash)
   stored_globals = _globals_stored_by_code(code)
-  
-  if saved_cache_info is not None:
+
+  try:
+    saved_cache_info = _stored_cache_info (g, function_name, source_hash)
     print(f"cached version seems valid, loading it")
     _cache_info_by_global_key [key] = saved_cache_info
-  else:
+  except CacheInvalid as e:
     start_time = datetime.datetime.now()
-    print(f"needs update, rerunning… ({start_time})")
+    print(f"needs update because [{e}], rerunning… ({start_time})")
     cache_info = {
       "source_hash": source_hash,
       "cache_system_source_hash": _cache_system_source_hash,

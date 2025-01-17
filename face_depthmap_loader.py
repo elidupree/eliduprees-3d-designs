@@ -1,6 +1,6 @@
 import math
 from pyocct_system import *
-from depthmap import Depthmap
+from depthmap import Depthmap, normal_of_depthmap_sampler
 
 front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 149)
 left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 5)
@@ -11,7 +11,7 @@ def front_depthmap_sample_y(x, z=None, radius = 2):
     """Pick a standardized interpretation of the depth map.
 
     It might theoretically be beneficial to use the recorded asymmetries of my face,
-    rather than erasing them, but intuitively I would rather have the device be symmetric,
+    rather than erasing them, but intuitively I would rather have my devices be symmetric,
     and also it's possible that the recorded asymmetries are error (which could be canceled out)
     rather than a true signal. So just average the two sides.
 
@@ -35,6 +35,12 @@ def front_depthmap_sample_point(x, z=None, radius = 2):
     return Point(x, y, z)
 
 
+def front_depthmap_normal(x, z=None, radius = 2):
+    if z is None: x,z = x[0],x[2]
+    n = normal_of_depthmap_sampler(lambda z2,x2: front_depthmap_sample_y(x2, z2, radius), z, x)
+    return Direction(n[1], n[2], n[0])
+
+
 def side_depthmap_sample_x(y, z=None, radius = 2):
     if z is None: y,z = y[1],y[2]
     l = left_depthmap.depth_smoothed(-y, -z, radius)
@@ -51,3 +57,25 @@ def side_depthmap_sample_point(y, z=None, radius = 2):
     x = side_depthmap_sample_x(y, z, radius)
     if x is None: return None
     return Point(x, y, z)
+
+
+def side_depthmap_normal(y, z=None, radius = 2):
+    if z is None: x,z = y[1],y[2]
+    n = normal_of_depthmap_sampler(lambda y2,z2: front_depthmap_sample_y(y2, z2, radius), y, z)
+    return Direction(n[2], n[0], n[1])
+
+
+def resample_curve_front(curve, **kwargs):
+    return BSplineCurve([front_depthmap_sample_point(p) for p in curve.subdivisions(**kwargs)])
+
+
+def resample_curve_side(curve, **kwargs):
+    return BSplineCurve([side_depthmap_sample_point(p) for p in curve.subdivisions(**kwargs)])
+
+
+def resample_point_frac(p, sideness):
+    if sideness == 0:
+        return front_depthmap_sample_point(p)
+    if sideness == 1:
+        return side_depthmap_sample_point(p)
+    return Between(front_depthmap_sample_point(p), side_depthmap_sample_point(p), sideness)
