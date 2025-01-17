@@ -1,92 +1,53 @@
 import math
-from PIL import Image
 from pyocct_system import *
+from depthmap import Depthmap
 
-depthmap_res = 750
-depthmap_size = 250
-depthmap_image = Image.open("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.png")
+front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 149)
+left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 5)
+right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150, invalid_depths = lambda d: d > 5)
 
-def depthmap_sample_pixel(px, py):
-    result = depthmap_image.getpixel((px, py))[0]
-    if result == 255:
-        return None
-    return (result / 255) * 250 - 100
 
-def depthmap_sample_pixel_interpolated(px, py):
-    px0 = math.floor(px)
-    py0 = math.floor(py)
-    xfrac = px - px0
-    yfrac = py - py0
-    sample_points = [(xs, ys)
-                     for xs in [(px0, 1-xfrac), (px0+1, xfrac)]
-                     for ys in [(py0, 1-yfrac), (py0+1, yfrac)]]
-    samples = [depthmap_sample_pixel(pxn,pyn) for ((pxn,_),(pyn,_)) in sample_points]
-    if any(s is None for s in samples): return None
-    return sum(
-        s * xweight * yweight for s, ((xn,xweight),(yn,yweight)) in zip(samples,sample_points)
-    )
+def front_depthmap_sample_y(x, z=None, radius = 2):
+    """Pick a standardized interpretation of the depth map.
 
-def z_to_py(z):
-    return (depthmap_size/2 - z) * depthmap_res/depthmap_size
-def py_to_z(py):
-    return (depthmap_size/2) - (py * depthmap_size/depthmap_res)
+    It might theoretically be beneficial to use the recorded asymmetries of my face,
+    rather than erasing them, but intuitively I would rather have the device be symmetric,
+    and also it's possible that the recorded asymmetries are error (which could be canceled out)
+    rather than a true signal. So just average the two sides.
 
-def x_to_px(x):
-    return (depthmap_size/2 + x) * depthmap_res/depthmap_size
-def px_to_x(px):
-    return (-depthmap_size/2) + (px * depthmap_size/depthmap_res)
+    "average of depthmap" isn't necessarily the optimal way to enforce symmetries
+    (it has directional biases) but I don't care enough to perfect it.
+    """
+    if z is None: x,z = x[0],x[2]
+    l = front_depthmap.depth_smoothed(-x, -z, radius)
+    r = front_depthmap.depth_smoothed(x, -z, radius)
+    if l is None:
+        return r
+    if r is None:
+        return l
+    return Between(l, r)
 
-def depthmap_sample_interpolated(x, z):
-    return depthmap_sample_pixel_interpolated(x_to_px(x), z_to_py(z))
 
-def depthmap_pixel_to_point(px, py):
-    y = depthmap_sample_pixel(px, py)
+def front_depthmap_sample_point(x, z=None, radius = 2):
+    if z is None: x,z = x[0],x[2]
+    y = front_depthmap_sample_y(x, z, radius)
     if y is None: return None
-    return Point(px_to_x(px), y, py_to_z(py))
+    return Point(x, y, z)
 
-def depthmap_points():
-    return [
-        [
-            (depthmap_pixel_to_point(px, py))
-            for py in range(depthmap_res)
-        ]
-        for px in range(depthmap_res)
-    ]
 
-def depthmap_sample_pixel_smoothed(px, py, pradius):
-    sr = pradius**2
-    total = 0
-    total_used_weight = 0
-    total_weight = 0
-    for px2 in range(math.floor(px-pradius+1), math.ceil(px+pradius)):
-        for py2 in range(math.floor(py-pradius+1), math.ceil(py+pradius)):
-            weight = 1 - ((px-px2)**2+(py-py2)**2)/sr
-            if weight <= 0: continue
-            total_weight += weight
-            try:
-                y = depthmap_sample_pixel(px2, py2)
-            except IndexError:
-                continue
-            if y is None:
-                continue
-            total = total + y*weight
-            total_used_weight += weight
+def side_depthmap_sample_x(y, z=None, radius = 2):
+    if z is None: y,z = y[1],y[2]
+    l = left_depthmap.depth_smoothed(-y, -z, radius)
+    r = right_depthmap.depth_smoothed(y, -z, radius)
+    if r is None:
+        return l
+    if l is None:
+        return -r
+    return Between(l, -r)
 
-    if total_used_weight/total_weight <= 0.75:
-        return None
-    return total / total_used_weight
 
-def depthmap_sample_smoothed(x, z, radius):
-    return depthmap_sample_pixel_smoothed(x_to_px(x), z_to_py(z), radius * depthmap_res/depthmap_size)
-
-def depthmap_points_smoothed(max_radius):
-    pradius = math.floor(max_radius * depthmap_res/depthmap_size)
-    return [
-        [
-            (depthmap_sample_smoothed(px, py, pradius))
-            for py in range(0,depthmap_res,pradius)
-        ]
-        for px in range(0,depthmap_res,pradius)
-    ]
-
-depthmap_sample_interpolated(0,0)
+def side_depthmap_sample_point(y, z=None, radius = 2):
+    if z is None: y,z = y[1],y[2]
+    x = side_depthmap_sample_x(y, z, radius)
+    if x is None: return None
+    return Point(x, y, z)
