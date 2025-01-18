@@ -104,6 +104,64 @@ def gframe_assumed_plane():
 
 @run_if_changed
 def gframe_to_window_curve():
-    return BSplineCurve([p.projected(gframe_assumed_plane) for p in gframe_to_window_legacy_curve.poles()])
+    return BSplineCurve([p.projected(gframe_assumed_plane) for p in gframe_to_window_legacy_curve.poles()], BSplineDimension(periodic=True))
 
-preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve)
+
+hard_force_gframe_plane_x = -20
+frame_to_seal_curve, pframe_to_window_curve = None, None
+@run_if_changed
+def pframe_to_window_curve():
+    global frame_to_seal_curve, pframe_to_window_curve
+    frame_to_seal_points = []
+    pframe_to_window_points = []
+    for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1):
+        p = d.position
+        # ignore the foibles of the face:
+        cheek_level = smootherstep(p[2], 0, -1)
+        normal = Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
+        cheek_smile_badness = cheek_level*min(smootherstep(p[0], -19, -40), smootherstep(p[0], -70, -50)) * 4
+        leeway = 3 + cheek_smile_badness
+        frame_to_seal = p + normal * leeway
+        frame_to_seal_points.append(frame_to_seal)
+
+        convexity_bulge = smootherstep(abs(p[2] + 5), 40, 0) * 4
+        leeway = 8 + convexity_bulge
+        force_gframe_plane = cheek_level*smootherstep(p[0], -35, hard_force_gframe_plane_x)
+        gframe_plane_leeway = p.projected(onto = gframe_assumed_plane, by = normal).distance(p)
+        leeway = Between(leeway, gframe_plane_leeway, force_gframe_plane)
+        pframe_to_window = p + normal * leeway
+        pframe_to_window_points.append(pframe_to_window)
+    frame_to_seal_curve = BSplineCurve(frame_to_seal_points)
+    pframe_to_window_curve = BSplineCurve(pframe_to_window_points)
+
+
+def corresponding_curve_dpairs(ds1, ds2, target_length = 1):
+    """Get a smooth rollable surface that joints the two curves, as a list of CurveDerivatives-pairs where the tangents are near-coplanar.
+
+    Assumes that the first-and-last elements of ds1 and ds2 are already coplanar."""
+    def twistedness(d1, d2):
+        return abs(d1.tangent.cross(d2.tangent).dot(d2.position - d1.position))
+    result = [[ds1[0], ds2[0]]]
+    i1,i2 = 1,1
+    while i1+1 < len(ds1) and i2+1 < len(ds2):
+        while ds1[i1].position.distance(result[-1][0].position) < target_length and ds1[i1].position.distance(result[-1][0].position) < target_length:
+            if twistedness(ds1[i1], ds2[i2+1]) < twistedness(ds1[i1+1], ds2[i2]):
+                i2 += 1
+            else:
+                i1 += 1
+            if not (i1+1 < len(ds1) and i2+1 < len(ds2)): break
+        if ds1[i1] is result[-1][0]:
+            i1 += 1
+        if ds2[i2] is result[-1][1]:
+            i2 += 2
+        result.append([ds1[i1], ds2[i2]])
+    # result.append([ds1[-1], ds2[-1]])
+    return result
+
+
+def dpairs_to_surface(dpairs):
+    # print(dpairs)
+    return BSplineSurface([[d.position for d in dpair] for dpair in dpairs], u = BSplineDimension(degree=1), v = BSplineDimension(degree=1))
+
+
+preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve, dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.05, wrap=-1))))
