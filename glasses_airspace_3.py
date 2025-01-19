@@ -99,40 +99,202 @@ def gframe_assumed_plane():
 
     return Plane(
         Point(0, gframe_top[1], gframe_top[2]),
-        Direction(0, gframe_up[2], -gframe_up[1])
+        Direction(0, -gframe_up[2], gframe_up[1])
     )
 
 @run_if_changed
 def gframe_to_window_curve():
-    return BSplineCurve([p.projected(gframe_assumed_plane) for p in gframe_to_window_legacy_curve.poles()], BSplineDimension(periodic=True))
+    return BSplineCurve([p.projected(gframe_assumed_plane) for p in reversed(list(gframe_to_window_legacy_curve.poles()))], BSplineDimension(periodic=True))
+
+
+class WindowTangentLine:
+    def __init__(self, gframe_d, pframe_d):
+        self.gframe_d = gframe_d
+        self.pframe_d = pframe_d
+        self.displacement = (pframe_d.position - gframe_d.position)
+        gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
+        # print(gframe_d.tangent, gframe_outwards)
+        self.normal_distance = self.displacement.dot(gframe_outwards)
+        self.tangent_distance = self.displacement.dot(gframe_d.tangent)
+        self.fallaway_distance = self.displacement.dot(-gframe_assumed_plane.normal())
+        self.fallaway_slope = self.fallaway_distance / self.normal_distance
+        self.skew_slope = self.tangent_distance / self.normal_distance
+        self.inferred_fallaway_slope_derivative =  -self.fallaway_slope*self.skew_slope
+
+    def edge(self):
+        return Edge(self.pframe_d.position, self.gframe_d.position)
+
+
+def zeroes_on_curve(curve, fn, epsilon = 0.0001):
+    """Find zeroes of fn on the curve by binary search, assuming that it'll be monotonic between knots. fn is passed a CurveDerivatives. Assumes it will not hit knots exactly"""
+    results = []
+    for a,b in pairs(curve.knots(), loop=curve.IsPeriodic()):
+        da, db = curve.derivatives(parameter=a), curve.derivatives(parameter=b)
+        fa, fb = fn(da), fn(db)
+        apos = fa > 0
+        bpos = fb > 0
+        if apos == bpos: continue
+        while da.position.distance(db.position) > epsilon:
+            c = Between(a, b)
+            dc = curve.derivatives(parameter=c)
+            fc = fn(dc)
+            if (fc > 0) == bpos:
+                b,db,fb = c,dc,fc
+            else:
+                a,da,fa = c,dc,fc
+        results.append(da)
+    return results
+
+
+def gframe_corresponding_points(d1):
+    def twistedness(d2):
+        return d1.tangent.cross(d2.tangent).dot(d2.position - d1.position)
+    results = [d2 for d2 in zeroes_on_curve(gframe_to_window_curve, twistedness) if d2.tangent.dot(d1.tangent) > 0]
+    if len(results) != 1:
+        print(f"Warning: {len(results)} corresponding points")
+    # return min(results, key=lambda d2: d2.position.distance(d1.position))
+    return results
+
+
+def possible_tangent_lines_from_pframe_d(pframe_d):
+    return [WindowTangentLine(gframe_d, pframe_d) for gframe_d in gframe_corresponding_points(pframe_d)]
+
+
+def faceish_curve(position_fn):
+    points = []
+    for p in face_to_seal_curve.poles():
+        d = face_to_seal_curve.derivatives(closest=p)
+        p = d.position
+        cheek_level = smootherstep(p[2], 0, -1)
+
+        # choose a "normal" in a manner that
+        # ignores the foibles of the face:
+        normal = Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
+
+        points.append(position_fn(d, normal))
+    return BSplineCurve(points)
+
+
+@run_if_changed
+def frame_to_seal_curve():
+    def position_fn(d, normal):
+        p = d.position
+        cheek_level = smootherstep(p[2], 0, -1)
+
+        cheek_smile_badness = cheek_level*min(smootherstep(p[0], -19, -40), smootherstep(p[0], -70, -50)) * 4
+        leeway = 3 + cheek_smile_badness
+        return p + normal * leeway
+
+    return faceish_curve(position_fn)
 
 
 hard_force_gframe_plane_x = -20
-frame_to_seal_curve, pframe_to_window_curve = None, None
+
+def pframe_to_window_curve_unsmoothed_position_fn(d, normal):
+    p = d.position
+    cheek_level = smootherstep(p[2], 0, -1)
+
+    leeway = 8
+    # convexity_bulge = smootherstep(abs(p[2] + 5), 40, 0) * 4
+    # leeway = 8 + convexity_bulge
+    force_gframe_plane = smootherstep(p[0], -35, hard_force_gframe_plane_x)
+    gframe_plane_leeway = p.projected(onto = gframe_assumed_plane, by = normal).distance(p)
+    leeway = Between(leeway, gframe_plane_leeway, force_gframe_plane)
+    return p + normal * leeway
+
+
+def gframe_angle(gframe_d):
+    gnormal = gframe_assumed_plane.normal()
+    upish = Direction(gnormal.cross(Up).cross(gnormal))
+    return math.atan2(gframe_d.tangent.dot(-upish), gframe_d.tangent.dot(Left))
+
+@run_if_changed
+def pframe_to_window_curve_unsmoothed():
+    return faceish_curve(pframe_to_window_curve_unsmoothed_position_fn)
+
+
 @run_if_changed
 def pframe_to_window_curve():
-    global frame_to_seal_curve, pframe_to_window_curve
-    frame_to_seal_points = []
-    pframe_to_window_points = []
-    for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1):
-        p = d.position
-        # ignore the foibles of the face:
-        cheek_level = smootherstep(p[2], 0, -1)
-        normal = Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
-        cheek_smile_badness = cheek_level*min(smootherstep(p[0], -19, -40), smootherstep(p[0], -70, -50)) * 4
-        leeway = 3 + cheek_smile_badness
-        frame_to_seal = p + normal * leeway
-        frame_to_seal_points.append(frame_to_seal)
+    ts = possible_tangent_lines_from_pframe_d(pframe_to_window_curve_unsmoothed.derivatives(x=-65, min_by="z"))
+    cheek_extrapolate_tangent_line = min(ts, key=lambda t: t.pframe_d.position[0])
+    ts = possible_tangent_lines_from_pframe_d(pframe_to_window_curve_unsmoothed.derivatives(parameter=0))
+    forehead_tangent_line = min(ts, key=lambda t: t.pframe_d.position[0])
 
-        convexity_bulge = smootherstep(abs(p[2] + 5), 40, 0) * 4
-        leeway = 8 + convexity_bulge
-        force_gframe_plane = cheek_level*smootherstep(p[0], -35, hard_force_gframe_plane_x)
-        gframe_plane_leeway = p.projected(onto = gframe_assumed_plane, by = normal).distance(p)
-        leeway = Between(leeway, gframe_plane_leeway, force_gframe_plane)
-        pframe_to_window = p + normal * leeway
-        pframe_to_window_points.append(pframe_to_window)
-    frame_to_seal_curve = BSplineCurve(frame_to_seal_points)
-    pframe_to_window_curve = BSplineCurve(pframe_to_window_points)
+    start_angle = gframe_angle(forehead_tangent_line.gframe_d)
+    # sx = 0
+    # sy = 0
+    # sd = 0
+    # sy = start_slope = forehead_tangent_line.fallaway_slope
+    # sd = start_slope_derivative = forehead_tangent_line.inferred_fallaway_slope_derivative
+    end_angle = gframe_angle(cheek_extrapolate_tangent_line.gframe_d)
+    # sx = 0
+    ex = end_angle - start_angle
+    ey = end_slope = cheek_extrapolate_tangent_line.fallaway_slope
+    ed = end_slope_derivative = cheek_extrapolate_tangent_line.inferred_fallaway_slope_derivative
+
+    # algebra:
+    # want simplest fallback-slope fn possible;
+    # constraints are value and derivative at start and end
+    # 4 constraints = cubic
+    # aex^3 + bex^2 = ey
+    # 3aex^2 + 2bex = ed
+    # a = (ey - bex)/(ex^3)
+    # or b = ey/ex^2 - aex
+    # and
+    # a = (ed - 2bex)/(3ex^2)
+    # or b = (ed - 3aex^2)/(2ex)
+    # b = (edex - 3ey)/(ex (-3 + 2ex))
+    # or a = (edex - 2ey)/ex^3
+
+    # aex^3 + bex^2 + sdex + sy = 0
+    # -(sd + 2bex)/(3ex^2)ex^3 + bex^2 + sdex + sy = 0
+    # b = -(3sy + 2sdex)/ex^2
+
+    a = (ed*ex - 2*ey)/(ex*ex*ex)
+    b = ey/(ex*ex) - a*ex
+    def slope_fn(x):
+        return a*x*x*x + b*x*x
+    def slope_derivative_fn(x):
+        return 3*a*x*x + 2*b*x
+
+    # print(gframe_assumed_plane.normal())
+    print(a,b)
+    print(slope_fn(ex), ey)
+    print(slope_derivative_fn(ex), ed)
+
+    sections = []
+    for gframe_d in gframe_to_window_curve.subdivisions(output="derivatives", start_parameter = forehead_tangent_line.gframe_d.parameter, end_parameter = cheek_extrapolate_tangent_line.gframe_d.parameter, max_length=0.1, wrap=1):
+        angle = gframe_angle(gframe_d)
+        x = angle - start_angle
+        # print(x)
+        slope = slope_fn(x)
+        slope_derivative = slope_derivative_fn(x)
+        skew_slope = -slope_derivative/slope
+        # s=-d/f sf=-d d=-f/s
+        # print(slope)
+        gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
+        sections.append([gframe_d.position,
+                         gframe_d.position
+                         + (gframe_outwards*1
+                         + gframe_d.tangent*skew_slope
+                         + -gframe_assumed_plane.normal()*slope).normalized()*100])
+    # preview(Compound(Edge(*e) for e in sections))
+    surface = BSplineSurface(sections, v=BSplineDimension(degree=1))
+
+    print([(t.fallaway_slope, t.inferred_fallaway_slope_derivative) for t in (forehead_tangent_line, cheek_extrapolate_tangent_line)])
+    preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve_unsmoothed, cheek_extrapolate_tangent_line.edge(), forehead_tangent_line.edge(), surface)
+
+    # noseish_parameter = gframe_to_window_curve.parameter(closest=Point(100, 0, 0))
+    def position_fn(d, normal):
+        print (d.parameter, forehead_tangent_line.pframe_d.parameter, cheek_extrapolate_tangent_line.pframe_d.parameter)
+        if d.parameter <= forehead_tangent_line.pframe_d.parameter:
+            return d.position.projected(onto=gframe_assumed_plane, by=normal)
+        elif d.parameter >= cheek_extrapolate_tangent_line.pframe_d.parameter:
+            return pframe_to_window_curve_unsmoothed_position_fn(d, normal)
+        else:
+            # print(gframe_angle(d), end_angle)
+            return RayIsh(d.position, normal).intersections(surface).point()
+    return faceish_curve(position_fn)
 
 
 def corresponding_curve_dpairs(ds1, ds2, target_length = 1):
@@ -164,4 +326,9 @@ def dpairs_to_surface(dpairs):
     return BSplineSurface([[d.position for d in dpair] for dpair in dpairs], u = BSplineDimension(degree=1), v = BSplineDimension(degree=1))
 
 
-preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve, dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.05, wrap=-1))))
+
+preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve,
+        # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
+
+        Compound([Edge(d.position, e.position) for d in pframe_to_window_curve.subdivisions(output="derivatives",max_length=5) for e in gframe_corresponding_points(d)])
+        )
