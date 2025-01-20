@@ -160,18 +160,19 @@ def possible_tangent_lines_from_pframe_d(pframe_d):
     return [WindowTangentLine(gframe_d, pframe_d) for gframe_d in gframe_corresponding_points(pframe_d)]
 
 
+def putative_normal(face_curve_d):
+    p = face_curve_d.position
+    cheek_level = smootherstep(p[2], 0, -1)
+
+    # choose a "normal" in a manner that
+    # ignores the foibles of the face:
+    return Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
+
 def faceish_curve(position_fn):
     points = []
     for p in face_to_seal_curve.poles():
         d = face_to_seal_curve.derivatives(closest=p)
-        p = d.position
-        cheek_level = smootherstep(p[2], 0, -1)
-
-        # choose a "normal" in a manner that
-        # ignores the foibles of the face:
-        normal = Direction(Point(cheek_level*smootherstep(p[0],-40,-20)*-40, 85, p[2]), p)
-
-        points.append(position_fn(d, normal))
+        points.append(position_fn(d, putative_normal(d)))
     return BSplineCurve(points)
 
 
@@ -206,7 +207,9 @@ def pframe_to_window_curve_unsmoothed_position_fn(d, normal):
 def gframe_angle(gframe_d):
     gnormal = gframe_assumed_plane.normal()
     upish = Direction(gnormal.cross(Up).cross(gnormal))
-    return math.atan2(gframe_d.tangent.dot(-upish), gframe_d.tangent.dot(Left))
+    angle = math.atan2(gframe_d.tangent.dot(Right), gframe_d.tangent.dot(-upish))
+    # print(gframe_d.tangent, angle)
+    return angle
 
 @run_if_changed
 def pframe_to_window_curve_unsmoothed():
@@ -214,7 +217,7 @@ def pframe_to_window_curve_unsmoothed():
 
 
 @run_if_changed
-def pframe_to_window_curve():
+def pframe_to_window_curve_patchwork():
     ts = possible_tangent_lines_from_pframe_d(pframe_to_window_curve_unsmoothed.derivatives(x=-65, min_by="z"))
     cheek_extrapolate_tangent_line = min(ts, key=lambda t: t.pframe_d.position[0])
     ts = possible_tangent_lines_from_pframe_d(pframe_to_window_curve_unsmoothed.derivatives(parameter=0))
@@ -258,6 +261,7 @@ def pframe_to_window_curve():
         return 3*a*x*x + 2*b*x
 
     # print(gframe_assumed_plane.normal())
+    print(start_angle, end_angle, ey, ed)
     print(a,b)
     print(slope_fn(ex), ey)
     print(slope_derivative_fn(ex), ed)
@@ -282,7 +286,7 @@ def pframe_to_window_curve():
     surface = BSplineSurface(sections, v=BSplineDimension(degree=1))
 
     print([(t.fallaway_slope, t.inferred_fallaway_slope_derivative) for t in (forehead_tangent_line, cheek_extrapolate_tangent_line)])
-    preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve_unsmoothed, cheek_extrapolate_tangent_line.edge(), forehead_tangent_line.edge(), surface)
+    # preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve_unsmoothed, cheek_extrapolate_tangent_line.edge(), forehead_tangent_line.edge(), surface)
 
     # noseish_parameter = gframe_to_window_curve.parameter(closest=Point(100, 0, 0))
     def position_fn(d, normal):
@@ -295,6 +299,88 @@ def pframe_to_window_curve():
             # print(gframe_angle(d), end_angle)
             return RayIsh(d.position, normal).intersections(surface).point()
     return faceish_curve(position_fn)
+
+
+@run_if_changed
+def manually_defined_fallback_slope_curve():
+
+    interpolated_points = [
+        (Point(-1.3165, 0), 0),
+        (Point(-0.5, 4.6), 0),
+        (Point(0.29, 1.696), -4.2),
+        # (Point(0.9, 0.15), -3),
+        (Point(1.2, 0), 0),
+    ]
+    # result = Wire(
+    #     [Interpolate([a,b],tangents=[Vector(1, da),Vector(1,db)/5]) for (a,da),(b,db) in pairs(interpolated_points)]
+    # )
+    result= Interpolate(
+        [p[0] for p in interpolated_points],
+        parameters=[p[0][0] for p in interpolated_points],
+        tangents=[Vector(1, p[1]) for p in interpolated_points]
+    )
+    # preview(result)
+    return result
+
+    # return BSplineCurve([
+    #     Point(-1.306, 0),
+    #     Point(-1.25, 0),
+    #     Point(-0.5, 7),
+    #     Point(0.3, 1.99),
+    #     Point(0.5, 1.0),
+    #     Point(0.85, 0),
+    #     Point(1.1, 0),
+    #     # Point(0.95, 0),
+    #     # Point(0.965, 0),
+    # ])
+
+@run_if_changed
+def pframe_to_window_curve():
+    sections = []
+    curve_start, curve_end = manually_defined_fallback_slope_curve.StartPoint()[0], manually_defined_fallback_slope_curve.EndPoint()[0]
+    prev_skew_slope = None
+    bads = []
+    records = []
+    for gframe_d in gframe_to_window_curve.subdivisions(output="derivatives", start_closest=Point(0,0,999), end_closest = Point(999,0,0), wrap=1, max_length=0.1):
+        angle = gframe_angle(gframe_d)
+        if curve_start < angle < curve_end:
+            slope_curve_d = manually_defined_fallback_slope_curve.derivatives(x=angle)
+            slope = slope_curve_d.position[1]
+            slope_derivative = slope_curve_d.tangent[1]/slope_curve_d.tangent[0]
+            skew_slope = -slope_derivative/slope
+            # print(skew_slope)
+            if prev_skew_slope is not None and skew_slope <= prev_skew_slope:
+                badness = prev_skew_slope- skew_slope
+                bads.append((angle, slope, badness))
+            prev_skew_slope = skew_slope
+
+            gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
+            records.append((gframe_d, skew_slope))
+            sections.append([gframe_d.position,
+                             gframe_d.position
+                             + (gframe_outwards*1
+                                + gframe_d.tangent*skew_slope
+                                + -gframe_assumed_plane.normal()*slope).normalized()*100])
+
+    remaining = gframe_to_window_curve.subdivisions(output="derivatives", start_parameter=records[-1][0].parameter, end_parameter=records[0][0].parameter, wrap=0, max_length=1)
+    for gframe_d, skew_slope in zip(remaining, subdivisions(records[-1][1], records[0][1], amount=len(remaining))):
+        gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
+        sections.append([gframe_d.position,
+                         gframe_d.position
+                         + (gframe_outwards*1
+                            + gframe_d.tangent*skew_slope)])
+
+
+    if bads:
+        print("Worst badness:", max(bads, key=lambda triple: triple[2]))
+        preview(manually_defined_fallback_slope_curve, [Edge(Point(angle, slope, 0), Point(angle, slope, 10*math.log(badness + 1))) for angle, slope, badness in bads])
+
+    window_surface = BSplineSurface(sections, v=BSplineDimension(degree=1), u=BSplineDimension(periodic=True))
+    facecurve_surface = BSplineSurface([[d.position, d.position + putative_normal(d)*100] for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1)], v=BSplineDimension(degree=1))
+
+    return facecurve_surface.intersections(window_surface).curve().reversed()
+    # preview(manually_defined_fallback_slope_curve)
+    # preview(surface)
 
 
 def corresponding_curve_dpairs(ds1, ds2, target_length = 1):
@@ -327,8 +413,48 @@ def dpairs_to_surface(dpairs):
 
 
 
+def sweep_illustration(curve):
+    edges = []
+    slope_graph_points = []
+    # for d in pframe_to_window_curve.subdivisions(output="derivatives", end_x = hard_force_gframe_plane_x-0.1, end_min_by="z", max_length=5):
+    for d in curve.subdivisions(output="derivatives", end_x = hard_force_gframe_plane_x-0.1, end_min_by="z", max_length=5):
+        t = min(possible_tangent_lines_from_pframe_d(d), key=lambda t: t.gframe_d.position[0])
+        slope_graph_points.append(Point(gframe_angle(t.gframe_d), t.fallaway_slope))
+        edges.append(t.edge())
+    # print(slope_graph_points)
+    return Compound(edges), slope_graph_points
+
+slope_graph_points_patchwork = None
+@run_if_changed
+def sweep_illustration_patchwork():
+    global slope_graph_points_patchwork
+    c,slope_graph_points_patchwork = sweep_illustration(pframe_to_window_curve_patchwork)
+    return c
+slope_graph_points_smooth = None
+@run_if_changed
+def sweep_illustration_smooth():
+    global slope_graph_points_smooth
+    c,slope_graph_points_smooth = sweep_illustration(pframe_to_window_curve)
+    return c
+
+
+# preview( BSplineCurve(slope_graph_points_patchwork), BSplineCurve(slope_graph_points_smooth), Edge(Point(-math.pi,-1,0), Point(math.pi,-1,0)), Edge(Origin, Point(0,10,0)), Compound([Edge(Point(-0.5,y*0.1,0),Point(0.5,y*0.1,0)) for y in range(30)]),
+#          # BSplineCurve([
+#          #     Point(-1.306, 0),
+#          #     Point(-0.9, 0),
+#          #     Point(0, 6),
+#          #     Point(0.3, 1.5),
+#          #     Point(0.5, 1.0),
+#          #     Point(0.9, 0),
+#          #     Point(1.1, 0),
+#          #     # Point(0.95, 0),
+#          #     # Point(0.965, 0),
+#          # ])
+#          manually_defined_fallback_slope_curve
+#          )
+
 preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
 
-        Compound([Edge(d.position, e.position) for d in pframe_to_window_curve.subdivisions(output="derivatives",max_length=5) for e in gframe_corresponding_points(d)])
+        sweep_illustration_smooth
         )

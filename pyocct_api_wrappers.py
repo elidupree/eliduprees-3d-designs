@@ -72,7 +72,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   makers = {1: make_Array1, 2: make_Array2}
   modules = {
     "TColStd": "Integer, Real, Boolean",
-    "TColgp": "Pnt ",
+    "TColgp": "Pnt, Vec",
   }
   
   def do_array (module, item, dimensions, prefix):
@@ -563,9 +563,22 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       builder = GeomAPI.GeomAPI_Interpolate (points, periodic, tolerance)
     
     if tangents is not None:
-      if len (tangents) == 2:
-        #I don't actually know what the Scale argument does, but if you don't say False, the result has unnecessary asymmetry
+      if len(tangents) == 2:
+        # I don't actually know what the Scale argument does, but if you don't say False, the result has unnecessary asymmetry
         builder.Load (*tangents, False)
+      else:
+        tangent_array = []
+        bool_array = []
+        for t in tangents:
+          if t is None:
+            bool_array.append(False)
+            tangent_array.append(Vector())
+          else:
+            bool_array.append(True)
+            tangent_array.append(t)
+        builder.Load(Array1OfVec(tangent_array), HArray1OfBoolean(bool_array), False)
+
+
     
     builder.Perform()
     return builder.Curve()
