@@ -303,11 +303,27 @@ def pframe_to_window_curve_patchwork():
 
 @run_if_changed
 def manually_defined_fallback_slope_curve():
+    def tightest(x, next):
+        np, nd = next
+        diff = np[0] - x
+        max_accel = np[1]
+        d = nd - max_accel * diff
+        y = np[1] - nd*diff + max_accel*diff*diff*0.5
+        print (np, nd, diff, max_accel, d, y)
+        return Point(x, y), d
+
+    a = (Point(0.29, 1.696), -4.2)
+    tight_segment = [a]
+    for x in subdivisions(a[0][0], 0, amount=15)[1:]:
+        tight_segment.append(tightest(x, tight_segment[-1]))
 
     interpolated_points = [
         (Point(-1.3165, 0), 0),
-        (Point(-0.5, 4.6), 0),
-        (Point(0.29, 1.696), -4.2),
+        # (Point(-1.2, 0.3), 4),
+        (Point(-0.85, 5), 0),
+        ]+tight_segment[::-1]+[
+        # (Point(0, 3.8), -4),
+        # (Point(0.29, 1.696), -4.2),
         # (Point(0.9, 0.15), -3),
         (Point(1.2, 0), 0),
     ]
@@ -317,9 +333,9 @@ def manually_defined_fallback_slope_curve():
     result= Interpolate(
         [p[0] for p in interpolated_points],
         parameters=[p[0][0] for p in interpolated_points],
-        tangents=[Vector(1, p[1]) for p in interpolated_points]
+        tangents=[None if p[1] is None else Vector(1, p[1]) for p in interpolated_points]
     )
-    # preview(result)
+    preview(result)
     return result
 
     # return BSplineCurve([
@@ -344,7 +360,7 @@ def pframe_to_window_curve():
     for gframe_d in gframe_to_window_curve.subdivisions(output="derivatives", start_closest=Point(0,0,999), end_closest = Point(999,0,0), wrap=1, max_length=0.1):
         angle = gframe_angle(gframe_d)
         if curve_start < angle < curve_end:
-            slope_curve_d = manually_defined_fallback_slope_curve.derivatives(x=angle)
+            slope_curve_d = manually_defined_fallback_slope_curve.derivatives(parameter=angle)
             slope = slope_curve_d.position[1]
             slope_derivative = slope_curve_d.tangent[1]/slope_curve_d.tangent[0]
             skew_slope = -slope_derivative/slope
