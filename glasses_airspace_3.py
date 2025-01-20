@@ -59,14 +59,14 @@ def face_to_seal_curve():
 
 earpiece_top_front_outer = Point(-65.0, -1.2, 4.8)
 earpiece_height = 3.30
-top_of_frame_z = earpiece_top_front_outer[2] + 12
+top_of_frame_z = earpiece_top_front_outer[2] + 10
 
 print (f"forehead y: {front_depthmap_sample_y(-28, 14)}")
 
 
 @run_if_changed
 def approx_earpieces_outer_face():
-    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(-12.5, 68, 0))
+    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(-10.5, 68, 0))
 @run_if_changed
 def approx_earpieces():
     e = approx_earpieces_outer_face.extrude(Right*0.9)
@@ -176,7 +176,7 @@ def faceish_curve(position_fn):
     for p in face_to_seal_curve.poles():
         d = face_to_seal_curve.derivatives(closest=p)
         points.append(position_fn(d, putative_normal(d)))
-    return BSplineCurve(points)
+    return BSplineCurve(points, BSplineDimension(multiplicities=face_to_seal_curve.multiplicities()))
 
 
 @run_if_changed
@@ -185,7 +185,9 @@ def pframe_to_seal_curve():
         p = d.position
         cheek_level = smootherstep(p[2], 0, -1)
 
-        cheek_smile_badness = cheek_level*min(smootherstep(p[0], -19, -40), smootherstep(p[0], -70, -50)) * 4
+        cheek_smile_badness = cheek_level*(
+                min(smootherstep(p[2], -30, -43), smootherstep(p[0], -70, -50)) * 4
+        )
         leeway = 3 + cheek_smile_badness
         return p + normal * leeway
 
@@ -489,19 +491,29 @@ def window_solid():
 @run_if_changed
 def pframe_extended():
     sections = []
-    thickness = 4
+    # thickness = 4
+    overlap_to_cut_later = 0.25
+    print (pframe_to_seal_curve.LastParameter(), face_to_seal_curve.LastParameter())
+    assert (pframe_to_seal_curve.LastParameter() == face_to_seal_curve.LastParameter())
+    assert (pframe_to_seal_curve.FirstParameter() == face_to_seal_curve.FirstParameter())
     for d in pframe_to_seal_curve.subdivisions(output="derivatives", max_length=1):
         a = d.position
         f = face_to_seal_curve.position(parameter=d.parameter)
+        normal = Direction(f,a)
         inwards = -facecurve_extended_surface.normal(closest = a)
-        b = a + Direction(f,a) * 20
-        a2, b2 = a+inwards*thickness, b+inwards*thickness
+        print(normal)
+        b = RayIsh(a, normal).intersections(window_extended_surface).point() + normal*overlap_to_cut_later
+        b2 = RayIsh(a+inwards*2.5, normal).intersections(window_extended_surface).point() + normal*overlap_to_cut_later
+        # b = a + normal * 20
+        a2 = a+inwards*4
         sections.append(Wire([a,a2,b2,b], loop=True))
+    # preview(sections)
     return Loft(sections, solid=True)
 
 
 @run_if_changed
 def pframe():
+    # preview(pframe_extended)
     return pframe_extended.cut(Face(window_extended_surface).extrude(Front*100))
 # preview(window_solid, pframe_extended)
 
@@ -578,16 +590,17 @@ def sweep_illustration_smooth():
 @run_if_changed
 def prototype_3d_printable():
     earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
+    # preview(pframe, window_solid, earpiece_cut)
     pframe2 = pframe.cut(earpiece_cut)
     window2 = window_solid.cut(earpiece_cut)
     # preview(pframe2, window2)
     left_half = Compound(pframe2, window2)
     result = Compound(left_half, left_half @ Mirror(Right))
     save_STL("prototype_3d_printable", result)
-    # export("prototype_3d_printable.stl", "prototype_3d_printable_1.stl")
+    # export("prototype_3d_printable.stl", "prototype_3d_printable_2.stl")
     return result
 
-preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
+preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_legacy_curve, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
 
         sweep_illustration_smooth, prototype_3d_printable
