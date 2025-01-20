@@ -57,7 +57,7 @@ def face_to_seal_curve():
     ])
 
 
-earpiece_top_front_outer = Point(65.0, -1.2, 4.8)
+earpiece_top_front_outer = Point(-65.0, -1.2, 4.8)
 earpiece_height = 3.30
 top_of_frame_z = earpiece_top_front_outer[2] + 12
 
@@ -65,8 +65,11 @@ print (f"forehead y: {front_depthmap_sample_y(-28, 14)}")
 
 
 @run_if_changed
+def approx_earpieces_outer_face():
+    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(-12.5, 68, 0))
+@run_if_changed
 def approx_earpieces():
-    e = Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(12.5, 68, 0)).extrude(Left*0.9)
+    e = approx_earpieces_outer_face.extrude(Right*0.9)
     return Compound(e, e @ Mirror(Right))
 
 
@@ -177,7 +180,7 @@ def faceish_curve(position_fn):
 
 
 @run_if_changed
-def frame_to_seal_curve():
+def pframe_to_seal_curve():
     def position_fn(d, normal):
         p = d.position
         cheek_level = smootherstep(p[2], 0, -1)
@@ -210,6 +213,37 @@ def gframe_angle(gframe_d):
     angle = math.atan2(gframe_d.tangent.dot(Right), gframe_d.tangent.dot(-upish))
     # print(gframe_d.tangent, angle)
     return angle
+
+
+@run_if_changed
+def gframe_angle_jump():
+    candidates = zeroes_on_curve(gframe_to_window_curve, lambda d: ((gframe_angle(d) + math.tau) % math.tau) - math.pi)
+    print([gframe_angle(c) for c in candidates])
+    return candidates[1].parameter + 0.001
+
+
+def gframe_angular_subdivisions(amount):
+    increment = math.tau / amount
+    plen = gframe_to_window_curve.LastParameter()
+    # print (gframe_to_window_curve.FirstParameter(), gframe_to_window_curve.LastParameter())
+    d = gframe_to_window_curve.derivatives(parameter=gframe_angle_jump)
+    result = []
+    step_size = 1
+    for i in range(amount):
+        angle = -math.pi + (i+0.5)*increment
+        while gframe_angle(d) < angle:
+            step_size = 1
+            if d.parameter < gframe_angle_jump:
+                step_size = min(step_size, (gframe_angle_jump-d.parameter)/2)
+            d = gframe_to_window_curve.derivatives(parameter=(d.parameter + step_size) % plen)
+        while step_size > 0.001:
+            step_size *= 0.5
+            d2 = gframe_to_window_curve.derivatives(parameter=(d.parameter - step_size) % plen)
+            if gframe_angle(d2) >= angle:
+                d = d2
+        result.append(d)
+    return result
+
 
 @run_if_changed
 def pframe_to_window_curve_unsmoothed():
@@ -286,7 +320,7 @@ def pframe_to_window_curve_patchwork():
     surface = BSplineSurface(sections, v=BSplineDimension(degree=1))
 
     print([(t.fallaway_slope, t.inferred_fallaway_slope_derivative) for t in (forehead_tangent_line, cheek_extrapolate_tangent_line)])
-    # preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve_unsmoothed, cheek_extrapolate_tangent_line.edge(), forehead_tangent_line.edge(), surface)
+    # preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve_unsmoothed, cheek_extrapolate_tangent_line.edge(), forehead_tangent_line.edge(), surface)
 
     # noseish_parameter = gframe_to_window_curve.parameter(closest=Point(100, 0, 0))
     def position_fn(d, normal):
@@ -350,6 +384,7 @@ def manually_defined_fallback_slope_curve():
     #     # Point(0.965, 0),
     # ])
 
+window_extended_surface, facecurve_extended_surface, window_extended_sections, facecurve_extended_sections = None, None, None, None
 @run_if_changed
 def pframe_to_window_curve():
     sections = []
@@ -357,8 +392,11 @@ def pframe_to_window_curve():
     prev_skew_slope = None
     bads = []
     records = []
-    for gframe_d in gframe_to_window_curve.subdivisions(output="derivatives", start_closest=Point(0,0,999), end_closest = Point(999,0,0), wrap=1, max_length=0.1):
+    start_flats = []
+    end_flats = []
+    for gframe_d in gframe_angular_subdivisions(360):
         angle = gframe_angle(gframe_d)
+        # print(angle)
         if curve_start < angle < curve_end:
             slope_curve_d = manually_defined_fallback_slope_curve.derivatives(parameter=angle)
             slope = slope_curve_d.position[1]
@@ -371,33 +409,101 @@ def pframe_to_window_curve():
             prev_skew_slope = skew_slope
 
             gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
-            records.append((gframe_d, skew_slope))
+            records.append((gframe_d, math.atan(skew_slope)))
             sections.append([gframe_d.position,
                              gframe_d.position
                              + (gframe_outwards*1
                                 + gframe_d.tangent*skew_slope
                                 + -gframe_assumed_plane.normal()*slope).normalized()*100])
+        else:
+            (start_flats if len(records) == 0 else end_flats).append(gframe_d)
 
-    remaining = gframe_to_window_curve.subdivisions(output="derivatives", start_parameter=records[-1][0].parameter, end_parameter=records[0][0].parameter, wrap=0, max_length=1)
-    for gframe_d, skew_slope in zip(remaining, subdivisions(records[-1][1], records[0][1], amount=len(remaining))):
+    flats = end_flats + start_flats
+    # remaining = gframe_to_window_curve.subdivisions(output="derivatives", start_parameter=records[-1][0].parameter, end_parameter=records[0][0].parameter, wrap=0, max_length=1)
+    flat_sections = []
+    for gframe_d, skew_radians in zip(flats, subdivisions(records[-1][1], records[0][1], amount=len(flats))):
+        # print(skew_radians)
         gframe_outwards = gframe_d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(-90))
-        sections.append([gframe_d.position,
+        flat_sections.append([gframe_d.position,
                          gframe_d.position
-                         + (gframe_outwards*1
-                            + gframe_d.tangent*skew_slope)])
+                         + (gframe_outwards*1 @ Rotate(gframe_assumed_plane.normal(), Radians(skew_radians))).normalized()*100])
 
+    sections = flat_sections[100:] + sections + flat_sections[:100]
 
     if bads:
         print("Worst badness:", max(bads, key=lambda triple: triple[2]))
         preview(manually_defined_fallback_slope_curve, [Edge(Point(angle, slope, 0), Point(angle, slope, 10*math.log(badness + 1))) for angle, slope, badness in bads])
 
+    global window_extended_surface, facecurve_extended_surface, window_extended_sections, facecurve_extended_sections
+    window_extended_sections = sections
     window_surface = BSplineSurface(sections, v=BSplineDimension(degree=1), u=BSplineDimension(periodic=True))
-    facecurve_surface = BSplineSurface([[d.position, d.position + putative_normal(d)*100] for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1)], v=BSplineDimension(degree=1))
-
+    facecurve_sections = facecurve_extended_sections = [[d.position, d.position + putative_normal(d)*100] for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1)]
+    facecurve_surface = BSplineSurface(facecurve_sections, v=BSplineDimension(degree=1))
+    # preview(window_surface, facecurve_surface)
+    # preview (facecurve_surface.intersections(window_surface).curves)
+    window_extended_surface = window_surface
+    facecurve_extended_surface = facecurve_surface
     return facecurve_surface.intersections(window_surface).curve().reversed()
     # preview(manually_defined_fallback_slope_curve)
     # preview(surface)
 
+
+@run_if_changed
+def approx_nose_surface():
+    # generate a pretty precise approximation of the surface right around the nose
+    return BSplineSurface([[front_depthmap_sample_point(x,z) for z in subdivisions(-27, 0, max_length=0.6)] for x in subdivisions(-15, 0, max_length=0.6)])
+
+window_sections = None
+@run_if_changed
+def window_surface():
+    sections = []
+    right_blockers = [Plane(Origin, Right), approx_nose_surface]
+    for a,b in window_extended_sections:
+        s = Segment(a, b)
+        blockages = s.intersections(facecurve_extended_surface).points
+        if b[0] > a[0]:
+            blockages.extend(p for b in right_blockers for p in s.intersections(b).points)
+        b = min(blockages, key=lambda b: a.distance(b))
+        sections.append([a,b])
+    global window_sections
+    window_sections = sections
+    window_surface = BSplineSurface(sections, v=BSplineDimension(degree=1), u=BSplineDimension(periodic=True))
+    # preview(window_surface)
+    return window_surface
+
+@run_if_changed
+def window_solid():
+    sections = [[],[],[],[]]
+    thickness = 0.3
+    for a,b in window_sections:
+        normal = window_surface.normal(closest = a)
+        a2, b2 = a+normal*thickness, b+normal*thickness
+        sections[0].append([a,a2])
+        sections[1].append([a2,b2])
+        sections[2].append([b2,b])
+        sections[3].append([b,a])
+
+    return Solid(Shell([Face(BSplineSurface(s, v=BSplineDimension(degree=1), u=BSplineDimension(periodic=True))) for s in sections]))
+
+
+@run_if_changed
+def pframe_extended():
+    sections = []
+    thickness = 4
+    for d in pframe_to_seal_curve.subdivisions(output="derivatives", max_length=1):
+        a = d.position
+        f = face_to_seal_curve.position(parameter=d.parameter)
+        inwards = -facecurve_extended_surface.normal(closest = a)
+        b = a + Direction(f,a) * 20
+        a2, b2 = a+inwards*thickness, b+inwards*thickness
+        sections.append(Wire([a,a2,b2,b], loop=True))
+    return Loft(sections, solid=True)
+
+
+@run_if_changed
+def pframe():
+    return pframe_extended.cut(Face(window_extended_surface).extrude(Front*100))
+# preview(window_solid, pframe_extended)
 
 def corresponding_curve_dpairs(ds1, ds2, target_length = 1):
     """Get a smooth rollable surface that joints the two curves, as a list of CurveDerivatives-pairs where the tangents are near-coplanar.
@@ -469,8 +575,20 @@ def sweep_illustration_smooth():
 #          manually_defined_fallback_slope_curve
 #          )
 
-preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, frame_to_seal_curve, pframe_to_window_curve,
+@run_if_changed
+def prototype_3d_printable():
+    earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
+    pframe2 = pframe.cut(earpiece_cut)
+    window2 = window_solid.cut(earpiece_cut)
+    # preview(pframe2, window2)
+    left_half = Compound(pframe2, window2)
+    result = Compound(left_half, left_half @ Mirror(Right))
+    save_STL("prototype_3d_printable", result)
+    # export("prototype_3d_printable.stl", "prototype_3d_printable_1.stl")
+    return result
+
+preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
 
-        sweep_illustration_smooth
+        sweep_illustration_smooth, prototype_3d_printable
         )
