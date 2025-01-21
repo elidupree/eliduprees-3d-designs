@@ -494,7 +494,10 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       if self.explicit_knots is None:
         return default_knots(len(self.multiplicities(num_poles)))
       return self.explicit_knots
-  
+
+  def dimension_of_BSplineCurve(curve):
+    return BSplineDimension(multiplicities=curve.multiplicities(), knots=curve.knots(), degree=curve.degree(), periodic=curve.IsPeriodic())
+
   def make_BSplineSurface (original):
     def derived(cls, poles, u = BSplineDimension(), v = BSplineDimension(), *, weights = None):
       num_u = len (poles)
@@ -552,8 +555,32 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   override_attribute(BSplineSurface, "__new__", make_BSplineSurface)
   override_attribute(BSplineCurve, "__new__", make_BSplineCurve)
   override_attribute(BezierCurve, "__new__", make_BezierCurve)
+  override_attribute(BSplineCurve, "poles", lambda original: lambda self: [a for a in original()])
   override_attribute(BSplineCurve, "knots", lambda original: lambda self: [a for a in original()])
   override_attribute(BSplineCurve, "multiplicities", lambda original: lambda self: [a for a in original()])
+  simple_override(BSplineCurve, "dimension", dimension_of_BSplineCurve)
+
+  def BSplineCurve_cartesian_product(ucurve, vcurve):
+    upoles = ucurve.poles()
+    vpoles = vcurve.poles()
+    return BSplineSurface([[up + (vp-Origin) for vp in vpoles] for up in upoles], u = ucurve.dimension(), v = vcurve.dimension())
+
+  def extrude_BSplineCurve(curve, offset, second_offset = None, *, centered = False):
+    if centered:
+      second_offset = -offset/2
+      offset = offset/2
+    if second_offset is None:
+      second_offset = offset
+      offset = Vector()
+    return BSplineCurve_cartesian_product(curve, Segment(Origin+offset, Origin+second_offset))
+
+  def map_BSplineCurve_poles(curve, mapper):
+    return BSplineCurve([mapper(p) for p in curve.poles()], curve.dimension())
+
+  simple_override(BSplineCurve, "extrude", extrude_BSplineCurve)
+  simple_override(BSplineCurve, "cartesian_product", BSplineCurve_cartesian_product)
+  simple_override(BSplineCurve, "map_poles", map_BSplineCurve_poles)
+
   
   def Interpolate (points,*, periodic = False, tolerance = default_tolerance, parameters = None, tangents = None):
     points = HArray1OfPnt (points)

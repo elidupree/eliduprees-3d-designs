@@ -596,13 +596,17 @@ def run_if_changed (function):
   source_hash = hasher.hexdigest()
   stored_globals = _globals_stored_by_code(code)
 
+  needs_update = False
   try:
     saved_cache_info = _stored_cache_info (g, function_name, source_hash)
     print(f"cached version seems valid, loading it")
     _cache_info_by_global_key [key] = saved_cache_info
   except CacheInvalid as e:
+    needs_update = True
     start_time = datetime.datetime.now()
     print(f"needs update because [{e}], rerunning… ({start_time})")
+
+  if needs_update:
     cache_info = {
       "source_hash": source_hash,
       "cache_system_source_hash": _cache_system_source_hash,
