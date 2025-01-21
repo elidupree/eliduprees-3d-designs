@@ -100,7 +100,7 @@ def gframe_assumed_plane():
     # print(Point(0, gframe_top[1], gframe_top[2]),
     #       Direction(0, -gframe_up[2], gframe_up[1]))
     return Plane(
-        Point(0, -5, 14.8),
+        Point(0, -6, 14.8),
         Direction(0, -42, -7.6)
     )
 
@@ -349,38 +349,88 @@ def manually_defined_fallback_slope_curve():
         t = tangent_line(**kwargs)
         return (Point(gframe_angle(t.gframe_d), t.fallaway_slope), t.inferred_fallaway_slope_derivative)
 
-    def tightest(x, next):
-        np, nd = next
-        diff = np[0] - x
-        max_accel = np[1]
-        d = nd - max_accel * diff
-        y = np[1] - nd*diff + max_accel*diff*diff*0.5
-        print (np, nd, diff, max_accel, d, y)
+    def max_acceleration(slope, vel):
+        return slope + (2*vel*vel)/slope
+    
+    def maxish_deceleration_over_period(dx, slope, vel):
+        valid, invalid = 0, max_acceleration(slope, vel)
+        while invalid-valid > 0.001:
+            c = Between(valid, invalid)
+            later_vel = vel + dx*c
+            later_slope = slope + vel*dx + 0.5*dx*c*c
+            if c <= max_acceleration(later_slope, later_vel):
+                valid = c
+            else:
+                invalid = c
+        return valid
+
+    def tightest(x, already_determined, tightness=1.0):
+        np, nd = already_determined
+        diff = x - np[0]
+        max_accel = max_acceleration(np[1], nd) if diff*nd > 0 else maxish_deceleration_over_period(diff, np[1], nd)
+        max_accel *= tightness
+        print(already_determined, diff, max_accel)
+        d = nd + max_accel * diff
+        y = np[1] + nd*diff + max_accel*diff*diff*0.5
+        # print (np, nd, diff, max_accel, d, y)
         return Point(x, y), d
     
     # preview(approx_face_surface, gframe_to_window_curve, [tangent_line(x=x, min_by="z").edge() for x in subdivisions(-35, -65, amount=10)])
 
     forehead = tangent_line_entry(parameter=0)
+    forehead = (Point(forehead[0][0], 0), 0)
     cheek = tangent_line_entry(x=-65, min_by="z")
-    # cheek2 = tangent_line_entry(x=-30, min_by="z")
-    end = tangent_line_entry(x=hard_force_gframe_plane_x, min_by="z")
-    print(forehead, cheek, end, tangent_line_entry(x=-40, min_by="z"))
-    tight_segment = [cheek]
-    for x in subdivisions(cheek[0][0], 0, amount=15)[1:]:
-        tight_segment.append(tightest(x, tight_segment[-1]))
+    cheek2 = tangent_line_entry(x=-40, min_by="z")
+    # end = tangent_line_entry(x=hard_force_gframe_plane_x, min_by="z")
+    end = (Point(math.pi*0.6, 0), 0)
+    # preview(tangent_line(x=hard_force_gframe_plane_x, min_by="z").edge(), approx_face_surface, gframe_to_window_curve)
 
+    m = min(max_acceleration(cheek[0][1], cheek[1]), max_acceleration(cheek2[0][1], cheek2[1]))
+    assert((cheek2[1]-cheek[1])/(cheek2[0][0] - cheek[0][0]) < m)
+
+    print(forehead, cheek, cheek2, end)
+    tight_segment1 = [cheek]
+    for x in subdivisions(cheek[0][0], 0, amount=15)[1:]:
+        if tight_segment1[-1][0][1] > 2:
+            break
+        tight_segment1.append(tightest(x, tight_segment1[-1]))
+    tight_segment2 = [cheek2]
+    while tight_segment2[-1][1] < -0.02:
+        step_size = 0.1
+        while True:
+            x = tight_segment2[-1][0][0] + step_size
+            prev_slope = tight_segment2[-1][0][1]
+            prev_d = tight_segment2[-1][1]
+            candidate = tightest(x, tight_segment2[-1])
+            if prev_slope*0.9 < candidate[0][1] and candidate[1] < prev_d*0.9:
+                step_size /= 16
+                tightness = 1-(tight_segment2[-1][0][1]/cheek2[0][1])/10
+                candidate = tightest(tight_segment2[-1][0][0] + step_size, tight_segment2[-1], tightness)
+                tight_segment2.append(candidate)
+                break
+            step_size /= 2
+            if step_size < 0.00001:
+                print(prev_slope, prev_d, candidate)
+                assert False
+    tight_segment2 = tight_segment2[:-1]
+    # for x in subdivisions(cheek2[0][0], Between(cheek2[0][0], end[0][0]), amount=30)[1:]:
+    #     tight_segment2.append(tightest(x, tight_segment2[-1]))
+    #     if :
+    #         break
+    print([p[0][0] for p in tight_segment1])
+    print([p[0][0] for p in tight_segment2])
     interpolated_points = ([
         forehead,
-        # (Point(-1.2, 0.3), 4),
-        (Point(-0.85, 5), 0),
-        ]+tight_segment[::-1]+[tangent_line_entry(x=-40, min_by="z")]+[
+        (Point(forehead[0][0]+0.3, 0.5), 10),
+        (Point(-0.85, 6), 0),
+        ]+tight_segment1[::-1]+tight_segment2+[
         # (Point(0, 3.8), -4),
         # (Point(0.29, 1.696), -4.2),
         # (Point(0.9, 0.15), -3),
         # cheek2,
         end,
     ])
-    tangent_magnitudes = [1/max(1, abs(p[1]/p[0][1])) for p in interpolated_points]
+    # tangent_magnitudes = [1/max(1, abs(p[1]/p[0][1])) for p in interpolated_points]
     # for (ai, ap), (bi, bp) in pairs(enumerate(interpolated_points)):
     #     mag = (bp[0][0] - ap[0][0]) / 2
     #     tangent_magnitudes[ai] = min(mag, tangent_magnitudes[ai])
@@ -398,12 +448,15 @@ def manually_defined_fallback_slope_curve():
     def control_point(a,b,da,db):
         result = a+Vector(1, da)*(b[0]-a[0])/3
         if result[1] < 0:
-            return a+Vector(1, da)*abs(a[1]/da)
+            return a-Vector(1, da)*a[1]/da
         return result
+    print( [
+        [a, control_point(a,b,da,db), control_point(b,a,db,da), b] for (a,da),(b,db) in pairs(interpolated_points)
+    ])
     result = [
         BezierCurve([a, control_point(a,b,da,db), control_point(b,a,db,da), b]) for (a,da),(b,db) in pairs(interpolated_points)
     ]
-    preview(result)
+    preview(Wire(result))
     return result
 
     # return BSplineCurve([
@@ -431,6 +484,7 @@ def pframe_to_window_curve():
     for gframe_d in gframe_angular_subdivisions(360):
         angle = gframe_angle(gframe_d)
         # print(angle)
+        slope_curve_d = None
         if curve_start < angle < curve_end:
             for c in manually_defined_fallback_slope_curve:
                 if c.StartPoint()[0] <= angle <= c.EndPoint()[0]:
@@ -438,7 +492,8 @@ def pframe_to_window_curve():
                     break
             slope = slope_curve_d.position[1]
             if slope < 0.001:
-                continue
+                slope_curve_d = None
+        if slope_curve_d is not None:
             slope_derivative = slope_curve_d.tangent[1]/slope_curve_d.tangent[0]
             skew_slope = -slope_derivative/slope
             skew_angle = math.atan(skew_slope) + angle
@@ -472,7 +527,7 @@ def pframe_to_window_curve():
 
     if bads:
         print("Worst badness:", max(bads, key=lambda triple: triple[2]))
-        preview(manually_defined_fallback_slope_curve, [Edge(Point(angle, slope, 0), Point(angle, slope, 10*math.log(badness + 1))) for angle, slope, badness in bads])
+        preview(Wire(manually_defined_fallback_slope_curve), [Edge(Point(angle, slope, 0), Point(angle, slope, 10*math.log(badness + 1))) for angle, slope, badness in bads])
 
     global window_extended_surface, facecurve_extended_surface, window_extended_sections, facecurve_extended_sections
     window_extended_sections = sections
@@ -480,7 +535,7 @@ def pframe_to_window_curve():
     facecurve_sections = facecurve_extended_sections = [[d.position, d.position + putative_normal(d)*100] for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1)]
     facecurve_surface = BSplineSurface(facecurve_sections, v=BSplineDimension(degree=1))
     preview(window_surface, facecurve_surface)
-    preview (facecurve_surface.intersections(window_surface).curves)
+    # preview (facecurve_surface.intersections(window_surface).curves)
     window_extended_surface = window_surface
     facecurve_extended_surface = facecurve_surface
     return facecurve_surface.intersections(window_surface).curve().reversed()
@@ -643,7 +698,7 @@ def prototype_3d_printable():
     left_half = Compound(pframe2, window2)
     result = Compound(left_half, left_half @ Mirror(Right))
     save_STL("prototype_3d_printable", result)
-    # export("prototype_3d_printable.stl", "prototype_3d_printable_2.stl")
+    # export("prototype_3d_printable.stl", "prototype_3d_printable_3.stl")
     return result
 
 # s = gframe_to_window_curve.subdivisions(max_length=1)
@@ -651,7 +706,7 @@ def prototype_3d_printable():
 # frame_bottom = min(s, key=lambda f: -f[0])
 # print(frame_bottom[0])
 
-preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_legacy_curve, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
+preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
 
         sweep_illustration_smooth, Compound(prototype_3d_printable.wires())
