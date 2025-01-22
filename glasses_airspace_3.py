@@ -91,6 +91,8 @@ def gframe_to_window_legacy_curve():
     return result
 
 
+gframe_reference_point = Point(0, -6, 14.8)
+
 @run_if_changed
 def gframe_assumed_plane():
     # ps = gframe_to_window_legacy_curve.subdivisions(max_length=1)
@@ -100,14 +102,21 @@ def gframe_assumed_plane():
     # print(Point(0, gframe_top[1], gframe_top[2]),
     #       Direction(0, -gframe_up[2], gframe_up[1]))
     return Plane(
-        Point(0, -6, 14.8),
+        gframe_reference_point,
         Direction(0, -42, -7.6)
     )
 
+
+gframe_front_curves_layout_earpiece_y = 225.56
+
 @run_if_changed
 def gframe_to_window_curve():
-    return front_curve_from_layout_file("gframe_to_window").map_poles(lambda p: (p @ Translate(Up*(225.56 + earpiece_top_front_outer[2]))).projected(onto=gframe_assumed_plane, by=Back))
+    return front_curve_from_layout_file("gframe_to_window").map_poles(lambda p: (p @ Translate(Up*(gframe_front_curves_layout_earpiece_y + earpiece_top_front_outer[2]))).projected(onto=gframe_assumed_plane, by=Back))
     # return BSplineCurve([p.projected(gframe_assumed_plane) for p in reversed(list(gframe_to_window_legacy_curve.poles()))], BSplineDimension(periodic=True))
+
+@run_if_changed
+def gframe_exclusion_curve():
+    return front_curve_from_layout_file("gframe_exclusion").map_poles(lambda p: (p @ Translate(Up*(gframe_front_curves_layout_earpiece_y + earpiece_top_front_outer[2]))).projected(onto=gframe_assumed_plane, by=Back))
 
 # preview(approx_face_surface, gframe_to_window_curve)
 class WindowTangentLine:
@@ -688,6 +697,110 @@ def sweep_illustration_smooth():
 #          manually_defined_fallback_slope_curve
 #          )
 
+
+def bsplinecurve_offset(curve, normal, offset, **kwargs):
+    pairs = []
+    bads = []
+    prev = None
+    bad_idxs = set()
+    ds = curve.subdivisions(output="derivatives", max_length=0.4, **kwargs)
+    for i,d in enumerate(ds):
+        a = d.position
+        b = a + (d.tangent @ Rotate(normal, Degrees(90)))*offset
+        # good_idx = len(pairs) - 1
+        # while good_idx > 0 and (b - pairs[good_idx][0].position).dot(pairs[good_idx][0].tangent) <= 0:
+        #     good_idx -= 1
+        # bad_idxs = range(good_idx+1, len(pairs))
+        # for bad_idx,p in zip(, curve.subdivisions(start_parameter=prev.parameter, end_parameter=d.parameter, amount =len (bads)+2)[1:-1]):
+        #     pairs[bad_idx]((bad, p))
+        # bads = []
+
+        for j,prev in enumerate(ds[i-15:i]):
+            if (b - prev.position).dot(prev.tangent) <= 0.01:
+                bad_idxs.add(i)
+                bad_idxs.add(i-15+j)
+                # continue
+
+
+        prev = d
+        pairs.append((a, b))
+
+    bad_idxs = sorted(bad_idxs, reverse=True)
+    print(bad_idxs)
+    while bad_idxs:
+        good_idx1 = bad_idxs[-1] - 1
+        assert (good_idx1 < len(pairs))
+        good_idx2 = bad_idxs[-1]
+        while bad_idxs and bad_idxs[-1] == good_idx2:
+            good_idx2 += 1
+            bad_idxs.pop()
+            # print(good_idx2, bad_idxs)
+        bad_idx_block = range(good_idx1+1, good_idx2)
+        print(bad_idxs, bad_idx_block)
+        for bad_idx,p in zip(bad_idx_block, subdivisions(pairs[good_idx1][1], pairs[good_idx2][1], amount =len (bad_idx_block)+2)[1:-1]):
+            # print(bad_idx, p)
+            pairs[bad_idx] = (pairs[bad_idx][0], p)
+
+    return pairs
+
+
+
+@run_if_changed
+def gframe_snuggler():
+    a = Wire(gframe_to_window_curve)
+    b = a.offset2D(4)
+    c = a @ Translate(Back*4)
+    exclusion = Face(Wire(gframe_exclusion_curve, loop=True)).extrude(Back*10)
+    # preview(a,b,c,exclusion, Wire(gframe_exclusion_curve).offset2D(-4, open=True))
+
+    a = Wire(gframe_exclusion_curve)
+    b = a.offset2D(-4, open=True)
+    c = a @ Translate(Back*4)
+
+    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), -4, start_x = -10, start_max_by="z", end_x = -15, end_min_by="z")
+    a = [p[0] for p in pairs]
+    b = [p[0]+Back*4 for p in pairs]
+    c = [p[1] for p in pairs]
+    def foo(p,q,r):
+        ps = gframe_to_window_curve.intersections(Plane(p, Direction((p-q).cross(r-q)))).points
+        if not ps:
+            preview(p,q,r,gframe_to_window_curve, gframe_exclusion_curve)
+        return min(ps, key=lambda t:p.distance(t))
+    d = [ foo(p,q,r) for p,q,r in zip(a, b, c)]
+    c = [window_extended_surface.intersections(Segment(p, q)).point() for p,q in zip(b, c)]
+    faces = [
+        Face(BSplineSurface([a, d], u=BSplineDimension(degree = 1))),
+        Face(BSplineSurface([d, c], u=BSplineDimension(degree = 1))),
+        Face(BSplineSurface([c, b], u=BSplineDimension(degree = 1))),
+        Face(BSplineSurface([b, a], u=BSplineDimension(degree = 1))),
+        Face(Wire([l[0] for l in [a,b,c]], loop=True)),
+        Face(Wire([l[-1] for l in [a,b,c][::-1]], loop=True)),
+    ]
+    # preview(exclusion, faces)
+    # s = Face(s).extrude(Front*10)
+    s = Solid(Shell(faces))
+    # preview(exclusion, s)
+    # s = s.cut(Face(window_extended_surface).extrude(Front*20))
+        #.cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
+    # f = Loft(b, c, ruled=True)
+    # preview(exclusion, s)
+    # f = Loft([Wire(p, gframe_exclusion_curve.position(closest=p)@Translate(Back*4)) for e in b.edges() for p in ])
+    # preview(exclusion, f)
+    return s
+
+@run_if_changed
+def gframe_housing():
+    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
+    plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
+    plate = Face(plate).extrude(Back*0.5)
+    earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
+    result = Compound(plate, gframe_snuggler, earpiece_stop)
+    save_STL("gframe_housing", result)
+    # export("gframe_housing.stl", "gframe_housing_1.stl")
+    return result
+    # preview(gframe_to_window_curve,
+
+
 @run_if_changed
 def prototype_3d_printable():
     earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
@@ -695,7 +808,7 @@ def prototype_3d_printable():
     pframe2 = pframe.cut(earpiece_cut)
     window2 = window_solid.cut(earpiece_cut)
     # preview(pframe2, window2)
-    left_half = Compound(pframe2, window2)
+    left_half = Compound(pframe2, window2, gframe_housing)
     result = Compound(left_half, left_half @ Mirror(Right))
     save_STL("prototype_3d_printable", result)
     # export("prototype_3d_printable.stl", "prototype_3d_printable_3.stl")
