@@ -41,10 +41,12 @@ def merge_curves(curves):
     d = [list(c.poles()) for c in curves]
     return BSplineCurve([p for c in [d[0]]+[ps[1:] for ps in d[1:]] for p in c])
 
+pframe_back_y = 54
+
 @run_if_changed
 def face_to_seal_curve():
     forehead = resample_curve_front(window_to_seal_or_face_source, start_distance = 0, end_x = -40, end_max_by = "z", max_length=0.2)
-    temple = resample_curve_side(Segment(Point(0, 54, 5), Point(0, 54, -22)), max_length=0.2)
+    temple = resample_curve_side(Segment(Point(0, pframe_back_y, 5), Point(0, pframe_back_y, -22)), max_length=0.2)
     cheek = resample_curve_front(window_to_seal_or_face_source, start_x = -60, start_min_by = "z", end_z = -20, end_max_by = "x", max_length=0.2)
     return merge_curves([
         forehead,
@@ -58,13 +60,14 @@ def face_to_seal_curve():
 earpiece_top_front_outer = Point(-65.0, -1.2, 4.8)
 earpiece_height = 3.30
 top_of_frame_z = earpiece_top_front_outer[2] + 10
+approx_earpieces_vec = Vector(-10.5, 68, 0)
 
 print (f"forehead y: {front_depthmap_sample_y(-28, 14)}")
 
 
 @run_if_changed
 def approx_earpieces_outer_face():
-    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(Vector(-10.5, 68, 0))
+    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(approx_earpieces_vec)
 @run_if_changed
 def approx_earpieces():
     e = approx_earpieces_outer_face.extrude(Right*0.9)
@@ -795,11 +798,14 @@ def gframe_housing():
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
     result = Compound(plate, gframe_snuggler, earpiece_stop)
-    save_STL("gframe_housing", result)
+    # save_STL("gframe_housing", result)
     # export("gframe_housing.stl", "gframe_housing_1.stl")
     return result
     # preview(gframe_to_window_curve,
 
+@run_if_changed
+def earpiece_strut():
+    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(approx_earpieces_vec * (pframe_back_y - 4 - earpiece_top_front_outer[1]) / approx_earpieces_vec.length()).extrude(Left*0.4, Left*10).cut(Face(window_extended_surface).extrude(Front*100))
 
 @run_if_changed
 def prototype_3d_printable():
@@ -808,10 +814,10 @@ def prototype_3d_printable():
     pframe2 = pframe.cut(earpiece_cut)
     window2 = window_solid.cut(earpiece_cut)
     # preview(pframe2, window2)
-    left_half = Compound(pframe2, window2, gframe_housing)
+    left_half = Compound(pframe2, window2, gframe_housing, earpiece_strut)
     result = Compound(left_half, left_half @ Mirror(Right))
     save_STL("prototype_3d_printable", result)
-    # export("prototype_3d_printable.stl", "prototype_3d_printable_3.stl")
+    # export("prototype_3d_printable.stl", "prototype_3d_printable_4.stl")
     return result
 
 # s = gframe_to_window_curve.subdivisions(max_length=1)
