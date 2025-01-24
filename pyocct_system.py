@@ -342,7 +342,11 @@ def _setup_serialization():
 
         if name == vars_placeholder:
           class_name, data = data
-          c = self.globals [class_name]
+          try:
+            c = self.globals [class_name]
+          except KeyError as e:
+            print(self.globals.keys())
+            raise e
           result = c.__new__(c)
           for k, v in self.deserialized (data).items():
             setattr (result, k, v)

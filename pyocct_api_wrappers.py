@@ -739,7 +739,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   simple_override (Surface, "position", lambda self, *args, **kwargs: self.value(*args, **kwargs))
   simple_override (Surface, "normal", surface_parameter_function(lambda surface, parameter: GeomLProp.GeomLProp_SLProps(surface, *parameter, 2, default_tolerance).Normal()))
   
-  class CurveDerivatives:
+  class CurveDerivatives(SerializeAsVars):
     def __init__(self, curve, parameter, *, derivatives = 2):
       self.parameter = parameter
       self.position = curve.value (parameter)
@@ -827,7 +827,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   def RayIsh(start, direction, length = 9000):
     return Segment(start, start + direction * length)
 
-  export_locals (" Curve, Surface, Circle, Line, Plane, BSplineCurve, BezierCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
+  export_locals ("CurveDerivatives, Curve, Surface, Circle, Line, Plane, BSplineCurve, BezierCurve, BSplineSurface, BSplineDimension, Interpolate, TrimmedCurve")
   
   ################################################################
   ####################  BRep Shape types  ########################

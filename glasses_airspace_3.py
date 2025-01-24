@@ -4,6 +4,7 @@ import math
 from pyocct_system import *
 from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, side_depthmap_sample_point, resample_curve_front, resample_curve_side, resample_point_frac
 from svg_utils import load_Inkscape_BSplineCurve
+from unroll import unroll_quad_strip
 
 initialize_pyocct_system()
 
@@ -199,14 +200,16 @@ def pframe_to_seal_curve():
         cheek_level = smootherstep(p[2], 0, -1)
 
         cheek_smile_badness = cheek_level*(
-                min(smootherstep(p[2], -30, -43), smootherstep(p[0], -70, -50)) * 4
+                smootherstep(p[0], -70, -50) * 4
+                - smootherstep(p[0], -40, -19) * 1
+                - smootherstep(p[0], -40, -39) * smootherstep(p[2], -43, -30) * 3
         )
         leeway = 3 + cheek_smile_badness
         return p + normal * leeway
 
     return faceish_curve(position_fn)
 
-
+# preview(approx_face_surface, pframe_to_seal_curve)
 hard_force_gframe_plane_x = -20
 
 def pframe_to_window_curve_unsmoothed_position_fn(d, normal):
@@ -350,7 +353,6 @@ def pframe_to_window_curve_patchwork():
             return RayIsh(d.position, normal).intersections(surface).point()
     return faceish_curve(position_fn)
 
-
 @run_if_changed
 def manually_defined_fallback_slope_curve():
     def tangent_line(**kwargs):
@@ -381,7 +383,7 @@ def manually_defined_fallback_slope_curve():
         diff = x - np[0]
         max_accel = max_acceleration(np[1], nd) if diff*nd > 0 else maxish_deceleration_over_period(diff, np[1], nd)
         max_accel *= tightness
-        print(already_determined, diff, max_accel)
+        # print(already_determined, diff, max_accel)
         d = nd + max_accel * diff
         y = np[1] + nd*diff + max_accel*diff*diff*0.5
         # print (np, nd, diff, max_accel, d, y)
@@ -400,7 +402,7 @@ def manually_defined_fallback_slope_curve():
     m = min(max_acceleration(cheek[0][1], cheek[1]), max_acceleration(cheek2[0][1], cheek2[1]))
     assert((cheek2[1]-cheek[1])/(cheek2[0][0] - cheek[0][0]) < m)
 
-    print(forehead, cheek, cheek2, end)
+    # print(forehead, cheek, cheek2, end)
     tight_segment1 = [cheek]
     for x in subdivisions(cheek[0][0], 0, amount=15)[1:]:
         if tight_segment1[-1][0][1] > 2:
@@ -429,11 +431,14 @@ def manually_defined_fallback_slope_curve():
     #     tight_segment2.append(tightest(x, tight_segment2[-1]))
     #     if :
     #         break
-    print([p[0][0] for p in tight_segment1])
-    print([p[0][0] for p in tight_segment2])
+    # print([p[0][0] for p in tight_segment1])
+    # print([p[0][0] for p in tight_segment2])
+    p2 = (Point(forehead[0][0]+0.08, 0.5), 10)
+    # print(p2)
     interpolated_points = ([
         forehead,
-        (Point(forehead[0][0]+0.3, 0.5), 10),
+        p2,
+        # tightest(p2[0][0]+0.03, p2, 0.8),
         (Point(-0.85, 6), 0),
         ]+tight_segment1[::-1]+tight_segment2+[
         # (Point(0, 3.8), -4),
@@ -462,13 +467,13 @@ def manually_defined_fallback_slope_curve():
         if result[1] < 0:
             return a-Vector(1, da)*a[1]/da
         return result
-    print( [
-        [a, control_point(a,b,da,db), control_point(b,a,db,da), b] for (a,da),(b,db) in pairs(interpolated_points)
-    ])
+    # print( [
+    #     [a, control_point(a,b,da,db), control_point(b,a,db,da), b] for (a,da),(b,db) in pairs(interpolated_points)
+    # ])
     result = [
         BezierCurve([a, control_point(a,b,da,db), control_point(b,a,db,da), b]) for (a,da),(b,db) in pairs(interpolated_points)
     ]
-    preview(Wire(result))
+    # preview(Wire(result))
     return result
 
     # return BSplineCurve([
@@ -546,7 +551,7 @@ def pframe_to_window_curve():
     window_surface = BSplineSurface(sections, v=BSplineDimension(degree=1), u=BSplineDimension(periodic=True))
     facecurve_sections = facecurve_extended_sections = [[d.position, d.position + putative_normal(d)*100] for d in face_to_seal_curve.subdivisions(output="derivatives", max_length=1)]
     facecurve_surface = BSplineSurface(facecurve_sections, v=BSplineDimension(degree=1))
-    preview(window_surface, facecurve_surface)
+    # preview(window_surface, facecurve_surface)
     # preview (facecurve_surface.intersections(window_surface).curves)
     window_extended_surface = window_surface
     facecurve_extended_surface = facecurve_surface
@@ -554,6 +559,8 @@ def pframe_to_window_curve():
     # preview(manually_defined_fallback_slope_curve)
     # preview(surface)
 
+
+# preview(window_extended_surface, pframe_to_seal_curve)
 
 @run_if_changed
 def approx_nose_surface():
@@ -594,40 +601,90 @@ def window_solid():
 
 
 @run_if_changed
-def pframe_extended():
-    sections = []
-    # thickness = 4
-    overlap_to_cut_later = 0.25
-    print (pframe_to_seal_curve.LastParameter(), face_to_seal_curve.LastParameter())
-    assert (pframe_to_seal_curve.LastParameter() == face_to_seal_curve.LastParameter())
-    assert (pframe_to_seal_curve.FirstParameter() == face_to_seal_curve.FirstParameter())
-    gframe_shadow = gframe_to_window_curve.extrude(Back*20)
+def pframe_to_seal_canonical_ds():
+    return pframe_to_seal_curve.subdivisions(output="derivatives", max_length=1)
 
-    for d in pframe_to_seal_curve.subdivisions(output="derivatives", max_length=1):
+@run_if_changed
+def pframe_to_seal_canonical_normals():
+    return [Direction(face_to_seal_curve.position(parameter=d.parameter),d.position) for d in pframe_to_seal_canonical_ds]
+
+@run_if_changed
+def pframe_to_seal_canonical_inwards_directions():
+    return [-facecurve_extended_surface.normal(closest = d.position) for d in pframe_to_seal_canonical_ds]
+
+@run_if_changed
+def pframe_to_window_corner_canonical_points():
+    return [RayIsh(d.position, normal).intersections(window_extended_surface).point() for d, normal in zip(pframe_to_seal_canonical_ds, pframe_to_seal_canonical_normals)]
+
+@run_if_changed
+def pframe_to_window_inset_canonical_points():
+    return [RayIsh(d.position+inwards*2.5, normal).intersections(window_extended_surface).point() for d, normal, inwards in zip(pframe_to_seal_canonical_ds, pframe_to_seal_canonical_normals, pframe_to_seal_canonical_inwards_directions)]
+
+@run_if_changed
+def pframe_faceward_not_obstructing_gframe_points():
+    gframe_shadow = gframe_exclusion_curve.extrude(Back*20)
+
+    def f(d, inwards):
         a = d.position
-        f = face_to_seal_curve.position(parameter=d.parameter)
-        normal = Direction(f,a)
-        inwards = -facecurve_extended_surface.normal(closest = a)
-        print(normal)
-        try:
-            b = RayIsh(a, normal).intersections(window_extended_surface).point() + normal*overlap_to_cut_later
-            b2 = RayIsh(a+inwards*2.5, normal).intersections(window_extended_surface).point() + normal*overlap_to_cut_later
-        except RuntimeError:
-            preview(pframe_to_seal_curve, a, a+inwards*2.5, window_extended_surface)
-        # b = a + normal * 20
         a2 = a+inwards*4
         gframe_overlap = Segment(a,a2).intersections(gframe_shadow)
         if gframe_overlap.points:
-            a2 = gframe_overlap.point()
-        sections.append(Wire([a,a2,b2,b], loop=True))
-    # preview(sections)
-    return Loft(sections, solid=True)
+            return gframe_overlap.point()
+        return a2
 
+    return [f(*t) for t in zip(pframe_to_seal_canonical_ds, pframe_to_seal_canonical_inwards_directions)]
+
+assert (pframe_to_seal_curve.LastParameter() == face_to_seal_curve.LastParameter())
+assert (pframe_to_seal_curve.FirstParameter() == face_to_seal_curve.FirstParameter())
+
+pframe_window_slot_depth = 1.0
+# The actual material and planning to use is 0.3mm thick. Technically maybe it should be a different thickness in the face-normal direction because of the different relative angles of the window surface, but those are all reasonably close to 90 degrees. Anyway, for ease of assembly, we make this lot significantly thicker than that and don't worry about the slight differences in angle, just fill the gap with sealant in the physical assembly.
+pframe_window_slot_thickness = 0.5
+pframe_window_slot_wall_thickness = 0.6
 
 @run_if_changed
 def pframe():
-    # preview(pframe_extended)
-    return pframe_extended.cut(Face(window_extended_surface).extrude(Front*100))
+    sections = []
+    # thickness = 4
+    # overlap_to_cut_later = 0.25
+    thicknesses = []
+    for d, normal, inwards, window_corner, window_inset, faceward_point in zip(pframe_to_seal_canonical_ds, pframe_to_seal_canonical_normals, pframe_to_seal_canonical_inwards_directions, pframe_to_window_corner_canonical_points, pframe_to_window_inset_canonical_points, pframe_faceward_not_obstructing_gframe_points):
+        window_inwards = Direction(window_corner, window_inset)
+        w0 = window_inset - normal*pframe_window_slot_thickness/2
+        w1 = window_corner + window_inwards*pframe_window_slot_wall_thickness - normal*pframe_window_slot_thickness/2
+        w2 = w1 + normal*pframe_window_slot_thickness
+        w3 = w2 + window_inwards*pframe_window_slot_depth
+        w4 = w3 + normal*pframe_window_slot_wall_thickness
+        w5 = window_corner + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness - pframe_window_slot_thickness/2)
+        thicknesses.append(d.position.distance(window_corner))
+        sections.append(Wire([
+            d.position,
+            faceward_point,
+            window_inset,
+            w1, w2, w3, w4, w5
+        ], loop=True))
+    print(min(thicknesses))
+    # preview(sections)
+    return Loft(sections, solid=True)
+
+@run_if_changed
+def rubber_holding_nub():
+    return Wire([
+        Point(-0.1, 0),
+        BSplineCurve([
+            Point(0.8, 0),
+            Point(0.55, 0.4),
+            Point(0.35, 0.4),
+            Point(0.35, 0.25),
+        ]),
+        Point(-0.1, 0.25),
+    ], loop = True).revolve(Right)
+# preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
+
+# @run_if_changed
+# def pframe():
+#     # preview(pframe_extended)
+#     return pframe_extended.cut(Face(window_extended_surface).extrude(Front*100))
 # preview(window_solid, pframe_extended)
 
 def corresponding_curve_dpairs(ds1, ds2, target_length = 1):
@@ -817,9 +874,34 @@ def prototype_3d_printable():
     left_half = Compound(pframe2, window2, gframe_housing, earpiece_strut)
     result = Compound(left_half, left_half @ Mirror(Right))
     save_STL("prototype_3d_printable", result)
-    # export("prototype_3d_printable.stl", "prototype_3d_printable_4.stl")
+    export("prototype_3d_printable.stl", "prototype_3d_printable_5.stl")
     return result
 
+
+@run_if_changed
+def unrolled_seal():
+    endpoints = [
+        0,
+        face_to_seal_curve.parameter(z = earpiece_top_front_outer[2]-earpiece_height/2),
+        face_to_seal_curve.LastParameter(),
+        ]
+    sections = []
+    for a,b in pairs(endpoints):
+        crosslines = []
+        for d in face_to_seal_curve.subdivisions(output="derivatives", start_parameter=a, end_parameter=b, max_length=1):
+            p = d.position
+            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
+            normal = Direction(p, p2)
+            b = RayIsh(p, normal).intersections(window_extended_surface).point()
+            crosslines.append([p, b])
+        sections.append(crosslines)
+    # sections[0] = sections[0][::-1][:-1] + sections[0]
+    result = [unroll_quad_strip(s).unrolled_wire() for s in sections]
+    save_inkscape_svg("unrolled_seal", result)
+    export("unrolled_seal.svg", "unrolled_seal_1.svg")
+    return result
+
+# preview(unrolled_seal)
 # s = gframe_to_window_curve.subdivisions(max_length=1)
 # frame_top = max(s, key=lambda f: f[2])
 # frame_bottom = min(s, key=lambda f: -f[0])
