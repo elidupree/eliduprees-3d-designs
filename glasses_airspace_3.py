@@ -650,12 +650,12 @@ def pframe():
     thicknesses = []
     for d, normal, inwards, window_corner, window_inset, faceward_point in zip(pframe_to_seal_canonical_ds, pframe_to_seal_canonical_normals, pframe_to_seal_canonical_inwards_directions, pframe_to_window_corner_canonical_points, pframe_to_window_inset_canonical_points, pframe_faceward_not_obstructing_gframe_points):
         window_inwards = Direction(window_corner, window_inset)
-        w0 = window_inset - normal*pframe_window_slot_thickness/2
-        w1 = window_corner + window_inwards*pframe_window_slot_wall_thickness - normal*pframe_window_slot_thickness/2
+        w0 = window_inset
+        w1 = window_corner + window_inwards*pframe_window_slot_wall_thickness
         w2 = w1 + normal*pframe_window_slot_thickness
         w3 = w2 + window_inwards*pframe_window_slot_depth
         w4 = w3 + normal*pframe_window_slot_wall_thickness
-        w5 = window_corner + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness - pframe_window_slot_thickness/2)
+        w5 = window_corner + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)
         thicknesses.append(d.position.distance(window_corner))
         sections.append(Wire([
             d.position,
@@ -849,12 +849,31 @@ def gframe_snuggler():
     return s
 
 @run_if_changed
+def gframe_window_gripper():
+    sections = []
+    gcurve = BSplineCurve([g for g,p in window_extended_sections], BSplineDimension(periodic=True))
+    pcurve = BSplineCurve([p for g,p in window_extended_sections], BSplineDimension(periodic=True))
+    for gd in gcurve.subdivisions(output = "derivatives", start_x = -10, start_max_by="z", end_x = -50, end_min_by="z", max_length = 0.2, wrap=0):
+        g = gd.position
+        p = pcurve.position(parameter = gd.parameter)
+        dir = Direction((p - g).projected_perpendicular(gd.tangent))
+        window_normal = dir.cross(gd.tangent)
+
+        b = g + window_normal*(pframe_window_slot_thickness + pframe_window_slot_wall_thickness)
+        c = b + dir*(pframe_window_slot_depth + pframe_window_slot_wall_thickness)
+        d = c - window_normal*pframe_window_slot_wall_thickness
+        e = d - dir*pframe_window_slot_depth
+        f = e - window_normal*pframe_window_slot_thickness
+        sections.append(Wire([g,b,c,d,e,f], loop = True))
+    return Loft(sections, solid=True)
+
+@run_if_changed
 def gframe_housing():
     plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
     plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
-    result = Compound(plate, gframe_snuggler, earpiece_stop)
+    result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
     # save_STL("gframe_housing", result)
     # export("gframe_housing.stl", "gframe_housing_1.stl")
     return result
@@ -866,7 +885,7 @@ def earpiece_strut():
     def section(y):
         a = earpiece_top_front_outer + approx_earpieces_vec * y / approx_earpieces_vec[1]
         def points(a, inwards):
-            b = RayIsh(a, Left).intersections(window_extended_surface).point() + Right*pframe_window_slot_thickness/2
+            b = RayIsh(a, Left).intersections(window_extended_surface).point()
             c = b + inwards*(earpiece_height - pframe_window_slot_wall_thickness)/2
             d = c + Left*pframe_window_slot_thickness
             e = d - inwards*pframe_window_slot_depth
@@ -875,12 +894,12 @@ def earpiece_strut():
         return Wire(points(a, Down) + points(a + Down*earpiece_height, Up)[::-1], loop = True)
 
     sections = [
-        section(y) for y in subdivisions(0, (pframe_back_y - 5.5 - earpiece_top_front_outer[1]), max_length=5)
+        section(y) for y in subdivisions(-2.3, (pframe_back_y - 5.5 - earpiece_top_front_outer[1]), max_length=2.5)
     ]
 
     return Loft(sections, solid=True)
 
-preview(earpiece_strut, pframe)
+preview(earpiece_strut, pframe, gframe_housing)
 
 @run_if_changed
 def prototype_3d_printable():
