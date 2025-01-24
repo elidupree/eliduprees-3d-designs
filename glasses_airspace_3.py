@@ -862,7 +862,25 @@ def gframe_housing():
 
 @run_if_changed
 def earpiece_strut():
-    return Vertex(earpiece_top_front_outer).extrude(Down*earpiece_height).extrude(approx_earpieces_vec * (pframe_back_y - 4 - earpiece_top_front_outer[1]) / approx_earpieces_vec.length()).extrude(Left*0.4, Left*10).cut(Face(window_extended_surface).extrude(Front*100))
+    # mirror = Mirror(Axes(earpiece_top_front_outer + Down*earpiece_height/2, Up))
+    def section(y):
+        a = earpiece_top_front_outer + approx_earpieces_vec * y / approx_earpieces_vec[1]
+        def points(a, inwards):
+            b = RayIsh(a, Left).intersections(window_extended_surface).point() + Right*pframe_window_slot_thickness/2
+            c = b + inwards*(earpiece_height - pframe_window_slot_wall_thickness)/2
+            d = c + Left*pframe_window_slot_thickness
+            e = d - inwards*pframe_window_slot_depth
+            f = e + Left*pframe_window_slot_wall_thickness
+            return [a,b,c,d,e,f]
+        return Wire(points(a, Down) + points(a + Down*earpiece_height, Up)[::-1], loop = True)
+
+    sections = [
+        section(y) for y in subdivisions(0, (pframe_back_y - 5.5 - earpiece_top_front_outer[1]), max_length=5)
+    ]
+
+    return Loft(sections, solid=True)
+
+preview(earpiece_strut, pframe)
 
 @run_if_changed
 def prototype_3d_printable():
