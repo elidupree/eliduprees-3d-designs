@@ -669,17 +669,21 @@ def pframe():
 
 @run_if_changed
 def rubber_holding_nub():
-    return Wire([
-        Point(-0.1, 0),
-        BSplineCurve([
-            Point(0.8, 0),
-            Point(0.55, 0.4),
-            Point(0.35, 0.4),
-            Point(0.35, 0.25),
-        ]),
-        Point(-0.1, 0.25),
-    ], loop = True).revolve(Right)
-# preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
+    ps = [
+        Point(1.1, 0),
+        Point(0.8, 0.5),
+        Point(0.55, 0.5),
+        Point(0.35, 0.5),
+        Point(0.35, 0.35),
+        Point(0.30, 0.35),
+        Point(0, 0.35),
+        Point(0, 0.40),
+        Point(0, 0.45),
+        Point(-0.2, 0.45),
+    ]
+    solid = Face(BSplineCurve(ps + [p @ Mirror(Back) for p in ps[::-1]])).extrude(Down*1,Up*0.35)
+    return solid.cut(HalfSpace(Point(0,0,-0.35), Direction(0.5,0,-1)))
+preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
 
 # @run_if_changed
 # def pframe():
@@ -766,7 +770,7 @@ def bsplinecurve_offset(curve, normal, offset, **kwargs):
     ds = curve.subdivisions(output="derivatives", max_length=0.4, **kwargs)
     for i,d in enumerate(ds):
         a = d.position
-        b = a + (d.tangent @ Rotate(normal, Degrees(90)))*offset
+        b = a + (d.tangent @ Rotate(normal, Degrees(90)))*offset(d)
         # good_idx = len(pairs) - 1
         # while good_idx > 0 and (b - pairs[good_idx][0].position).dot(pairs[good_idx][0].tangent) <= 0:
         #     good_idx -= 1
@@ -816,11 +820,16 @@ def gframe_snuggler():
     a = Wire(gframe_exclusion_curve)
     b = a.offset2D(-4, open=True)
     c = a @ Translate(Back*4)
-
-    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), -4, start_x = -10, start_max_by="z", end_x = -15, end_min_by="z")
+    
+    def bigness(p):
+        frac = max(0, (p - Point(-30,0,0)).dot(Direction(1,0,-0.4)) / 20)
+        # print(frac)
+        return 4 - (frac**2)*3
+    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), lambda d: -bigness(d.position), start_x = -10, start_max_by="z", end_x = -15, end_min_by="z")
     a = [p[0] for p in pairs]
-    b = [p[0]+Back*4 for p in pairs]
+    b = [p[0]+Back*bigness(p[0]) for p in pairs]
     c = [p[1] for p in pairs]
+    # preview(BSplineCurve(a),BSplineCurve(b),BSplineCurve(c))
     def foo(p,q,r):
         ps = gframe_to_window_curve.intersections(Plane(p, Direction((p-q).cross(r-q)))).points
         if not ps:
@@ -828,6 +837,7 @@ def gframe_snuggler():
         return min(ps, key=lambda t:p.distance(t))
     d = [ foo(p,q,r) for p,q,r in zip(a, b, c)]
     c = [window_extended_surface.intersections(Segment(p, q)).point() for p,q in zip(b, c)]
+    # s = Loft([Wire([a,d,c,b], loop = True) for a,b,c,d in zip(a,b,c,d)], solid=True)
     faces = [
         Face(BSplineSurface([a, d], u=BSplineDimension(degree = 1))),
         Face(BSplineSurface([d, c], u=BSplineDimension(degree = 1))),
@@ -869,10 +879,11 @@ def gframe_window_gripper():
 
 @run_if_changed
 def gframe_housing():
-    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
+    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
     plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
+    preview(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
     result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
     # save_STL("gframe_housing", result)
     # export("gframe_housing.stl", "gframe_housing_1.stl")
@@ -899,7 +910,48 @@ def earpiece_strut():
 
     return Loft(sections, solid=True)
 
-preview(earpiece_strut, pframe, gframe_housing)
+# preview(earpiece_strut, pframe, gframe_housing)
+
+seal_nubs = None
+@run_if_changed
+def unrolled_seal():
+    endpoints = [
+        0,
+        face_to_seal_curve.parameter(z = earpiece_top_front_outer[2]-earpiece_height/2),
+        face_to_seal_curve.LastParameter(),
+    ]
+    endpoint_distances = [face_to_seal_curve.distance(parameter = p) for p in endpoints]
+    sections = []
+    nubs = []
+    nub_inset = 1.7
+    for a,b in pairs(endpoint_distances):
+        crosslines = []
+        for d in face_to_seal_curve.subdivisions(output="derivatives", start_distance=a, end_distance=b, max_length=1):
+            p = d.position
+            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
+            normal = Direction(p, p2)
+            w = RayIsh(p, normal).intersections(window_extended_surface).point()
+            crosslines.append([p, w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)])
+        sections.append(crosslines)
+
+        for d in face_to_seal_curve.subdivisions(output="derivatives", start_distance=a+nub_inset, end_distance=b-nub_inset, max_length=5):
+            p = d.position
+            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
+            normal = Direction(p, p2)
+            outwards = Direction(d.tangent.cross(normal))
+            dim2 = Direction(outwards.cross(gframe_assumed_plane.normal()))
+            dim3 = Direction(outwards.cross(dim2))
+            # print(d.tangent.dot(normal))
+            w = RayIsh(p, normal).intersections(window_extended_surface).point()
+            nubs.append(rubber_holding_nub @ Transform(outwards, dim2, dim3, w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness - nub_inset)))
+        
+    # sections[0] = sections[0][::-1][:-1] + sections[0]
+    result = [unroll_quad_strip(s).unrolled_wire() for s in sections]
+    global seal_nubs
+    seal_nubs = Compound(nubs)
+    save_inkscape_svg("unrolled_seal", result)
+    export("unrolled_seal.svg", "unrolled_seal_1.svg")
+    return result
 
 @run_if_changed
 def prototype_3d_printable():
@@ -908,34 +960,22 @@ def prototype_3d_printable():
     pframe2 = pframe.cut(earpiece_cut)
     window2 = window_solid.cut(earpiece_cut)
     # preview(pframe2, window2)
-    left_half = Compound(pframe2, window2, gframe_housing, earpiece_strut)
+    left_half = Compound(pframe2, window2, gframe_housing, earpiece_strut, seal_nubs)
     result = Compound(left_half, left_half @ Mirror(Right))
-    save_STL("prototype_3d_printable", result)
-    export("prototype_3d_printable.stl", "prototype_3d_printable_5.stl")
+    # save_STL("prototype_3d_printable", result, linear_deflection=0.03)
+    # export("prototype_3d_printable.stl", "prototype_3d_printable_5.stl")
     return result
 
-
 @run_if_changed
-def unrolled_seal():
-    endpoints = [
-        0,
-        face_to_seal_curve.parameter(z = earpiece_top_front_outer[2]-earpiece_height/2),
-        face_to_seal_curve.LastParameter(),
-        ]
-    sections = []
-    for a,b in pairs(endpoints):
-        crosslines = []
-        for d in face_to_seal_curve.subdivisions(output="derivatives", start_parameter=a, end_parameter=b, max_length=1):
-            p = d.position
-            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
-            normal = Direction(p, p2)
-            b = RayIsh(p, normal).intersections(window_extended_surface).point()
-            crosslines.append([p, b])
-        sections.append(crosslines)
-    # sections[0] = sections[0][::-1][:-1] + sections[0]
-    result = [unroll_quad_strip(s).unrolled_wire() for s in sections]
-    save_inkscape_svg("unrolled_seal", result)
-    export("unrolled_seal.svg", "unrolled_seal_1.svg")
+def frame_3d_printable():
+    earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
+    # preview(pframe, window_solid, earpiece_cut)
+    pframe2 = pframe.cut(earpiece_cut)
+    # preview(pframe2, window2)
+    left_half = Compound(pframe2, gframe_housing, earpiece_strut, seal_nubs)
+    result = Compound(left_half, left_half @ Mirror(Right))
+    save_STL("frame_3d_printable", result, linear_deflection=0.03)
+    # export("frame_3d_printable.stl", "frame_3d_printable_1.stl")
     return result
 
 # preview(unrolled_seal)
@@ -944,6 +984,7 @@ def unrolled_seal():
 # frame_bottom = min(s, key=lambda f: -f[0])
 # print(frame_bottom[0])
 
+preview(frame_3d_printable, approx_face_surface, approx_earpieces)
 preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
 
