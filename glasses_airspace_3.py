@@ -60,6 +60,7 @@ def face_to_seal_curve():
 
 earpiece_top_front_outer = Point(-65.0, -1.2, 4.8)
 earpiece_height = 3.30
+earpiece_thickness = 0.85
 top_of_frame_z = earpiece_top_front_outer[2] + 10
 approx_earpieces_vec = Vector(-10.5, 68, 0)
 
@@ -683,7 +684,7 @@ def rubber_holding_nub():
     ]
     solid = Face(BSplineCurve(ps + [p @ Mirror(Back) for p in ps[::-1]])).extrude(Down*1,Up*0.35)
     return solid.cut(HalfSpace(Point(0,0,-0.35), Direction(0.5,0,-1)))
-preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
+# preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
 
 # @run_if_changed
 # def pframe():
@@ -822,14 +823,16 @@ def gframe_snuggler():
     c = a @ Translate(Back*4)
     
     def bigness(p):
-        frac = max(0, (p - Point(-30,0,0)).dot(Direction(1,0,-0.4)) / 20)
+        base = 3 + ((p[2] + 24)/42)
+        # frac = max(0, (p - Point(-30,0,0)).dot(Direction(1,0,-0.2)) / 22)
         # print(frac)
-        return 4 - (frac**2)*3
-    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), lambda d: -bigness(d.position), start_x = -10, start_max_by="z", end_x = -15, end_min_by="z")
+        frac = 0
+        return base * (1 - (frac**2)*0.75)
+    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), lambda d: -bigness(d.position), start_x = -9.3, start_max_by="z", end_x = -15, end_min_by="z")
     a = [p[0] for p in pairs]
     b = [p[0]+Back*bigness(p[0]) for p in pairs]
     c = [p[1] for p in pairs]
-    # preview(BSplineCurve(a),BSplineCurve(b),BSplineCurve(c))
+    preview(BSplineCurve(a),BSplineCurve(b),BSplineCurve(c))
     def foo(p,q,r):
         ps = gframe_to_window_curve.intersections(Plane(p, Direction((p-q).cross(r-q)))).points
         if not ps:
@@ -877,14 +880,26 @@ def gframe_window_gripper():
         sections.append(Wire([g,b,c,d,e,f], loop = True))
     return Loft(sections, solid=True)
 
+
+def gframe_snap(x):
+    d = gframe_exclusion_curve.derivatives(x=x, max_by="z")
+    inwards = d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(90))
+    a=d.position
+    b=a+Back*3.5
+    c=b+inwards*0.3
+    e=c+Back*0.5
+    f=e+Back*0.5
+    g=f-inwards*0.8+Back*0.7
+    return Edge(BSplineCurve([a,b,c,e,f,g])).extrude(-inwards*1).extrude(d.tangent*3, centered=True)
+
 @run_if_changed
 def gframe_housing():
     plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
     plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
-    preview(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
-    result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
+    # preview(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
+    result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper, gframe_snap(-12), gframe_snap(-55))
     # save_STL("gframe_housing", result)
     # export("gframe_housing.stl", "gframe_housing_1.stl")
     return result
@@ -953,14 +968,33 @@ def unrolled_seal():
     export("unrolled_seal.svg", "unrolled_seal_1.svg")
     return result
 
+
+@run_if_changed
+def pframe_with_snap_in_earpiece_slots():
+    leeway = 0.1
+    pinch = 0.12
+    a = earpiece_top_front_outer + Up*leeway
+    b = a + Right*(earpiece_thickness/2 + leeway)
+    b2 = b + Right*(earpiece_thickness/2 + leeway)
+    c = b2 + Down*pinch
+    d = c+Right*0.2
+    e = d+Right*0.2
+    f = e + Up*pinch
+    g = f+Right*2
+    h = g+Right*10
+    ps = [a,b,b2,c,d,e,f,g,h]
+    mirror = Mirror(Axes(earpiece_top_front_outer + Down*earpiece_height/2, Up))
+    earpiece_cut = Face(Wire(
+        BSplineCurve(ps + [p @ mirror for p in reversed(ps)]),
+        loop=True
+    )).extrude(approx_earpieces_vec)
+    return pframe.cut(earpiece_cut)
+
+
+
 @run_if_changed
 def prototype_3d_printable():
-    earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
-    # preview(pframe, window_solid, earpiece_cut)
-    pframe2 = pframe.cut(earpiece_cut)
-    window2 = window_solid.cut(earpiece_cut)
-    # preview(pframe2, window2)
-    left_half = Compound(pframe2, window2, gframe_housing, earpiece_strut, seal_nubs)
+    left_half = Compound(pframe_with_snap_in_earpiece_slots, window_solid, gframe_housing, earpiece_strut, seal_nubs)
     result = Compound(left_half, left_half @ Mirror(Right))
     # save_STL("prototype_3d_printable", result, linear_deflection=0.03)
     # export("prototype_3d_printable.stl", "prototype_3d_printable_5.stl")
@@ -968,13 +1002,9 @@ def prototype_3d_printable():
 
 @run_if_changed
 def frame_3d_printable():
-    earpiece_cut = approx_earpieces_outer_face.extrude(Right*10)
-    # preview(pframe, window_solid, earpiece_cut)
-    pframe2 = pframe.cut(earpiece_cut)
-    # preview(pframe2, window2)
-    left_half = Compound(pframe2, gframe_housing, earpiece_strut, seal_nubs)
+    left_half = Compound(pframe_with_snap_in_earpiece_slots, gframe_housing, earpiece_strut, seal_nubs)
     result = Compound(left_half, left_half @ Mirror(Right))
-    save_STL("frame_3d_printable", result, linear_deflection=0.03)
+    # save_STL("frame_3d_printable", result, linear_deflection=0.03)
     # export("frame_3d_printable.stl", "frame_3d_printable_1.stl")
     return result
 
