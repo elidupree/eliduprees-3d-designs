@@ -733,9 +733,9 @@ def points_along_wire(wire, *, max_length, tolerance = 1e-6):
         result.append(v)
   return result
 
-def wire_svg_path(wire, color = "black", tolerance = 1e-6):
-  points = points_along_wire(wire, max_length=0.5, tolerance=tolerance)
-  parts = [f'<path stroke="{color}" d="M {points[0][0]} {points[0][1]}']
+def wire_svg_path(wire, color = "black", *, max_length=0.5, tolerance = 1e-6):
+  points = points_along_wire(wire, max_length=max_length, tolerance=tolerance)
+  parts = [f"""<path stroke="{color}" stroke-width="0.3" d="M {points[0][0]} {points[0][1]}"""]
   for point in points[1:]:
     if point.distance(points[0]) < tolerance:
       parts.append(f' Z')
@@ -744,11 +744,11 @@ def wire_svg_path(wire, color = "black", tolerance = 1e-6):
   parts.append(f'" />')
   return "".join(parts)
   
-def save_inkscape_svg(name, wires):
+def save_inkscape_svg(name, wires, max_length=0.5):
   wires = recursive_flatten(wires)
   colors = ["black", "red", "green", "blue"]
   contents = "\n".join([
-    wire_svg_path(wire, color) for wire, color in zip(wires, itertools.cycle(colors))
+    wire_svg_path(wire, color, max_length=max_length) for wire, color in zip(wires, itertools.cycle(colors))
   ])
   filename = os.path.join (_cache_directory, name)+".svg"
   file_data = '''<?xml version="1.0" encoding="UTF-8" standalone="no"?>

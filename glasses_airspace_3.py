@@ -4,7 +4,7 @@ import math
 from pyocct_system import *
 from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, side_depthmap_sample_point, resample_curve_front, resample_curve_side, resample_point_frac
 from svg_utils import load_Inkscape_BSplineCurve
-from unroll import unroll_quad_strip
+from unroll import UnrolledSurface, unroll_quad_strip
 
 initialize_pyocct_system()
 
@@ -639,9 +639,10 @@ assert (pframe_to_seal_curve.LastParameter() == face_to_seal_curve.LastParameter
 assert (pframe_to_seal_curve.FirstParameter() == face_to_seal_curve.FirstParameter())
 
 pframe_window_slot_depth = 1.0
-# The actual material and planning to use is 0.3mm thick. Technically maybe it should be a different thickness in the face-normal direction because of the different relative angles of the window surface, but those are all reasonably close to 90 degrees. Anyway, for ease of assembly, we make this lot significantly thicker than that and don't worry about the slight differences in angle, just fill the gap with sealant in the physical assembly.
+# The actual material I'm planning to use is 0.3mm thick. Technically maybe it should be a different thickness in the face-normal direction because of the different relative angles of the window surface, but those are all reasonably close to 90 degrees. Anyway, for ease of assembly, we make the slot significantly thicker than that and don't worry about the slight differences in angle, just fill the gap with sealant in the physical assembly.
 pframe_window_slot_thickness = 0.5
 pframe_window_slot_wall_thickness = 0.6
+pframe_window_slot_slant = 0 #0.4
 
 @run_if_changed
 def pframe():
@@ -654,8 +655,8 @@ def pframe():
         w0 = window_inset
         w1 = window_corner + window_inwards*pframe_window_slot_wall_thickness
         w2 = w1 + normal*pframe_window_slot_thickness
-        w3 = w2 + window_inwards*pframe_window_slot_depth
-        w4 = w3 + normal*pframe_window_slot_wall_thickness
+        w3 = w2 + window_inwards*pframe_window_slot_depth + normal*pframe_window_slot_slant
+        w4 = w3 + normal*(pframe_window_slot_wall_thickness - pframe_window_slot_slant)
         w5 = window_corner + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)
         thicknesses.append(d.position.distance(window_corner))
         sections.append(Wire([
@@ -685,6 +686,11 @@ def rubber_holding_nub():
     solid = Face(BSplineCurve(ps + [p @ Mirror(Back) for p in ps[::-1]])).extrude(Down*1,Up*0.35)
     return solid.cut(HalfSpace(Point(0,0,-0.35), Direction(0.5,0,-1)))
 # preview(rubber_holding_nub, Vertex(Origin).extrude(Back*1), Vertex(Point(0.35,0,0)).extrude(Back*1), Vertex(Point(0.7,0,0)).extrude(Back*1))
+
+@run_if_changed
+def hole_for_rubber_holding_staple():
+    return Face(Circle(Axes(Origin, Right), 0.2)).extrude(Right*0.3, centered=True)
+    # return Vertex(Origin).extrude(Up*0.4, centered=True).extrude(Back*0.4, centered=True).extrude(Right*0.3, centered=True)
 
 # @run_if_changed
 # def pframe():
@@ -832,7 +838,7 @@ def gframe_snuggler():
     a = [p[0] for p in pairs]
     b = [p[0]+Back*bigness(p[0]) for p in pairs]
     c = [p[1] for p in pairs]
-    preview(BSplineCurve(a),BSplineCurve(b),BSplineCurve(c))
+    # preview(BSplineCurve(a),BSplineCurve(b),BSplineCurve(c))
     def foo(p,q,r):
         ps = gframe_to_window_curve.intersections(Plane(p, Direction((p-q).cross(r-q)))).points
         if not ps:
@@ -866,7 +872,7 @@ def gframe_window_gripper():
     sections = []
     gcurve = BSplineCurve([g for g,p in window_extended_sections], BSplineDimension(periodic=True))
     pcurve = BSplineCurve([p for g,p in window_extended_sections], BSplineDimension(periodic=True))
-    for gd in gcurve.subdivisions(output = "derivatives", start_x = -10, start_max_by="z", end_x = -50, end_min_by="z", max_length = 0.2, wrap=0):
+    for gd in gcurve.subdivisions(output = "derivatives", start_x = -9.2, start_max_by="z", end_x = -50, end_min_by="z", max_length = 0.2, wrap=1):
         g = gd.position
         p = pcurve.position(parameter = gd.parameter)
         dir = Direction((p - g).projected_perpendicular(gd.tangent))
@@ -874,8 +880,8 @@ def gframe_window_gripper():
 
         b = g + window_normal*(pframe_window_slot_thickness + pframe_window_slot_wall_thickness)
         c = b + dir*(pframe_window_slot_depth + pframe_window_slot_wall_thickness)
-        d = c - window_normal*pframe_window_slot_wall_thickness
-        e = d - dir*pframe_window_slot_depth
+        d = c - window_normal*(pframe_window_slot_wall_thickness - pframe_window_slot_slant)
+        e = d - dir*pframe_window_slot_depth - window_normal*pframe_window_slot_slant
         f = e - window_normal*pframe_window_slot_thickness
         sections.append(Wire([g,b,c,d,e,f], loop = True))
     return Loft(sections, solid=True)
@@ -886,15 +892,15 @@ def gframe_snap(x):
     inwards = d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(90))
     a=d.position
     b=a+Back*3.5
-    c=b+inwards*0.3
+    c=b+inwards*0.9
     e=c+Back*0.5
     f=e+Back*0.5
-    g=f-inwards*0.8+Back*0.7
+    g=f-inwards*1.3+Back*0.7
     return Edge(BSplineCurve([a,b,c,e,f,g])).extrude(-inwards*1).extrude(d.tangent*3, centered=True)
 
 @run_if_changed
 def gframe_housing():
-    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -16, start_min_by="z", end_x = -63, end_min_by="z", wrap=1)
+    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -9.2, start_max_by="z", end_x = -63, end_min_by="z", wrap=1)
     plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
@@ -905,6 +911,9 @@ def gframe_housing():
     return result
     # preview(gframe_to_window_curve,
 
+
+window_split_top_z = earpiece_top_front_outer[2] - earpiece_height/2 + pframe_window_slot_wall_thickness/2
+window_split_bottom_z = window_split_top_z - pframe_window_slot_thickness
 @run_if_changed
 def earpiece_strut():
     # mirror = Mirror(Axes(earpiece_top_front_outer + Down*earpiece_height/2, Up))
@@ -927,7 +936,43 @@ def earpiece_strut():
 
 # preview(earpiece_strut, pframe, gframe_housing)
 
-seal_nubs = None
+@run_if_changed
+def unrolled_shield():
+    # nose_split = approx_nose_surface.intersections(gframe_assumed_plane).curve().position(x=0)
+    # preview(Compound([Edge(a@Translate(Front*i/50), b@Translate(Front*i/50)) for i,(a,b) in enumerate(window_sections)]))
+    print(len(window_sections))
+    sections = []
+    def do_section(cutoff, direction, section):
+        is_cut = [section[0][0] < -40 and (p - cutoff).dot(direction) > 0 for p in section]
+        print(is_cut)
+        if is_cut == [False, False]:
+            sections.append(section)
+            return "included"
+        elif not all(is_cut):
+            a,b = section
+            mid = a.projected(Plane(cutoff, direction), by=Direction(a, b))
+            if is_cut[0]:
+                sections.append([mid, b])
+            else:
+                sections.append([a, mid])
+            return "split"
+        return "excluded"
+
+    split_idx = min(range(len(window_sections)), key=lambda i: window_sections[i][1].distance(Point(-999,0,999)))
+    for section in window_sections[split_idx:]:
+        do_section(Point(0, 0, window_split_bottom_z), Up, section)
+    for section in window_sections:
+        if do_section(Point(0, 0, window_split_top_z), Down, section) == "excluded":
+            break
+    # preview(Compound(Edge(*edge) for edge in sections))
+    result = unroll_quad_strip(sections).unrolled_wire()
+
+    save_inkscape_svg("unrolled_window", result)
+    # export("unrolled_window.svg", "unrolled_window_1.svg")
+    return result
+
+
+seal_holes = None
 @run_if_changed
 def unrolled_seal():
     endpoints = [
@@ -936,37 +981,71 @@ def unrolled_seal():
         face_to_seal_curve.LastParameter(),
     ]
     endpoint_distances = [face_to_seal_curve.distance(parameter = p) for p in endpoints]
-    sections = []
-    nubs = []
-    nub_inset = 1.7
+    pieces = []
+    holes = []
+    hole_inset = 1.7
     for a,b in pairs(endpoint_distances):
-        crosslines = []
+        seal_hole_distances = subdivisions(a+hole_inset, b-hole_inset, max_length=5)
+        seal_hole_locations = []
+        for dist in seal_hole_distances:
+            d = face_to_seal_curve.derivatives(distance=dist)
+            p = d.position
+            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
+            normal = Direction(p, p2)
+            outwards = Direction(d.tangent.cross(normal))
+            w = RayIsh(p, normal).intersections(window_extended_surface).point()
+            hole_location = w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness - hole_inset)
+            seal_hole_locations.append(hole_location)
+            try:
+                w2 = RayIsh(p - outwards*1, normal).intersections(window_extended_surface).point()
+            except RuntimeError:
+                preview(p, RayIsh(p - outwards*5, normal, 5), window_extended_surface)
+            window_outwards = Direction(w2, w)
+            # "outwards" makes the shortest hole,
+            # but don't allow it to go closer to the window
+            if window_outwards.dot(normal) > outwards.dot(normal):
+                dim1 = window_outwards
+            else:
+                dim1 = outwards
+            dim2 = Direction(dim1.cross(gframe_assumed_plane.normal()))
+            dim3 = Direction(dim1.cross(dim2))
+            # print(d.tangent.dot(normal))
+            holes.append(
+                # rubber_holding_nub
+                hole_for_rubber_holding_staple
+                @ Transform(dim1, dim2, dim3, hole_location))
+
+        latest_edge = None
+        next_seal_hole_dist_idx = 0
+        unrolled_seal_hole_locations = []
         for d in face_to_seal_curve.subdivisions(output="derivatives", start_distance=a, end_distance=b, max_length=1):
             p = d.position
             p2 = pframe_to_seal_curve.position(parameter=d.parameter)
             normal = Direction(p, p2)
             w = RayIsh(p, normal).intersections(window_extended_surface).point()
-            crosslines.append([p, w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)])
-        sections.append(crosslines)
-
-        for d in face_to_seal_curve.subdivisions(output="derivatives", start_distance=a+nub_inset, end_distance=b-nub_inset, max_length=5):
-            p = d.position
-            p2 = pframe_to_seal_curve.position(parameter=d.parameter)
-            normal = Direction(p, p2)
-            outwards = Direction(d.tangent.cross(normal))
-            dim2 = Direction(outwards.cross(gframe_assumed_plane.normal()))
-            dim3 = Direction(outwards.cross(dim2))
-            # print(d.tangent.dot(normal))
-            w = RayIsh(p, normal).intersections(window_extended_surface).point()
-            nubs.append(rubber_holding_nub @ Transform(outwards, dim2, dim3, w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness - nub_inset)))
+            beyond_w = w + normal*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)
+            section = [p, beyond_w]
+            
+            if latest_edge is None:
+                piece = UnrolledSurface(*section)
+                latest_edge = piece.edges[0]
+            else:
+                if next_seal_hole_dist_idx < len(seal_hole_distances):
+                    next_seal_hole_dist = seal_hole_distances[next_seal_hole_dist_idx]
+                    if next_seal_hole_dist < face_to_seal_curve.distance(parameter=d.parameter):
+                        unrolled_seal_hole_locations.append(latest_edge.relative_point(seal_hole_locations[next_seal_hole_dist_idx]))
+                        next_seal_hole_dist_idx += 1
+                latest_edge = piece.extend_edge_to_quad(latest_edge, *section)[1]
+        piece_wires = [piece.unrolled_wire()] + [Wire(Circle(Axes(p.u, Up), 0.2)) for p in unrolled_seal_hole_locations]
+        pieces.append([w @ Translate(Right*len(pieces)*50) for w in piece_wires])
         
     # sections[0] = sections[0][::-1][:-1] + sections[0]
-    result = [unroll_quad_strip(s).unrolled_wire() for s in sections]
-    global seal_nubs
-    seal_nubs = Compound(nubs)
-    save_inkscape_svg("unrolled_seal", result)
-    export("unrolled_seal.svg", "unrolled_seal_1.svg")
-    return result
+    global seal_holes
+    seal_holes = Compound(holes)
+    # preview(pieces)
+    save_inkscape_svg("unrolled_seal", pieces, max_length=0.05)
+    export("unrolled_seal.svg", "unrolled_seal_2.svg")
+    return pieces
 
 
 @run_if_changed
@@ -988,24 +1067,124 @@ def pframe_with_snap_in_earpiece_slots():
         BSplineCurve(ps + [p @ mirror for p in reversed(ps)]),
         loop=True
     )).extrude(approx_earpieces_vec)
-    return pframe.cut(earpiece_cut)
+    # print("hmm...")
+    # preview(seal_holes)
+    return pframe.cut([earpiece_cut, seal_holes])
 
 
 
 @run_if_changed
 def prototype_3d_printable():
-    left_half = Compound(pframe_with_snap_in_earpiece_slots, window_solid, gframe_housing, earpiece_strut, seal_nubs)
+    left_half = Compound(pframe_with_snap_in_earpiece_slots, window_solid, gframe_housing, earpiece_strut)
     result = Compound(left_half, left_half @ Mirror(Right))
     # save_STL("prototype_3d_printable", result, linear_deflection=0.03)
     # export("prototype_3d_printable.stl", "prototype_3d_printable_5.stl")
     return result
 
+
+
+def wire_subdivisions(wire, **kwargs):
+    results = []
+    start_lengths = [0]
+    start_lengths_on_curves = []
+    curves = list(oriented_edge_curves(wire))
+    for c, a, b in curves:
+        if a > b:
+            b,a=a,b
+        length = c.length()
+        start_lengths.append(start_lengths[-1] + c.length(a,b))
+        start_lengths_on_curves.append(c.length(0, a))
+
+    for d in subdivisions(0, start_lengths[-1], **kwargs):
+        for s, (c, a, b), sc in zip(start_lengths, curves, start_lengths_on_curves):
+            # print(d, s, a, b)
+            if d > s:
+                if a < b:
+                    results.append((d, c.derivatives(distance=sc + (d-s)), False))
+                else:
+                    results.append((d, c.derivatives(distance=sc - (d-s)), True))
+                break
+    return start_lengths[-1], results
+
+def support_for_wire(wire):
+    length, points = wire_subdivisions(wire, max_length=0.5)
+    periods = math.ceil(length / 30)
+    build_reference_point = gframe_reference_point + gframe_assumed_plane.normal()*(pframe_window_slot_thickness+pframe_window_slot_wall_thickness)
+    build_plane = Plane(build_reference_point, gframe_assumed_plane.normal())
+    sections = []
+    thickness = 0.5
+    max_slope = 0.3
+    prev_sideways = None
+    bottom_edge = []
+    for dist,derivs,reversed in points:
+        p = derivs.position
+        height = (build_reference_point - p).dot(gframe_assumed_plane.normal())
+        # tiny separation to ease breaking-off later
+        if height > 0.5:
+            p = p + gframe_assumed_plane.normal() * min(0.1, height - 0.5)
+        height2 = (build_reference_point - p).dot(gframe_assumed_plane.normal())
+        assert 0 <= height2 <= height
+        wiggle_factor = min(3, height) * max_slope
+        assert wiggle_factor >= 0
+        wiggledness = math.sin(periods * dist * math.tau / length)*wiggle_factor
+        # print(wiggledness )
+        sideways = Direction(derivs.tangent.cross(gframe_assumed_plane.normal()))
+        if reversed:
+            sideways = -sideways
+        if prev_sideways is not None:
+            assert prev_sideways.dot(sideways) > 0
+        prev_sideways = sideways
+        p2 = p.projected(build_plane) + sideways*wiggledness
+        sections.append(Wire([
+            p + sideways*thickness/2,
+            p2 + sideways*thickness/2,
+            p2 - sideways*thickness/2,
+            p - sideways*thickness/2,
+        ], loop = True))
+        if height > 0.5:
+            bottom_edge.append(p2)
+    wall = Loft (sections, solid = True, ruled=True)
+    # preview(Compound(sections[::2]), Loft (sections, solid = True, ruled=True))
+    raft = Face(Wire(bottom_edge).offset2d(1.5)).extrude(Up*0.2)
+    # return wall
+    return Compound(wall, raft)
+
+
+@run_if_changed
+def frame_outer_support():
+    es = sorted(pframe.edges(), key = lambda e: e.bounds().min()[0])
+    # preview(pframe, es[2])
+    return support_for_wire(Wire(es[2]))
+@run_if_changed
+def frame_inner_support():
+    pieces = []
+    es = sorted(gframe_snuggler.edges(), key = lambda e: e.bounds().min()[2])
+    top = es[0].cut(HalfSpace(Point(0, 0, -10), Down)).cut(HalfSpace(Point(-52, 0, 0), Left))
+    bot = es[0].cut(HalfSpace(Point(0, 0, -10), Up)).cut(HalfSpace(Point(-55, 0, 0), Left)).cut(HalfSpace(Point(-21, 0, 0), Right))
+    # .intersection(Vertex(-30, -10, -10).extrude(Left*20).extrude(Down*50).extrude(Back*20))
+    pieces.append(support_for_wire(top))
+    pieces.append(support_for_wire(bot))
+
+    # preview(gframe_snuggler, es[2])
+    # top = es[2].cut(HalfSpace(Point(0, 0, -10), Down)).cut(HalfSpace(Point(-52, 0, 0), Left))
+    bot = es[2].cut(HalfSpace(Point(0, 0, -10), Up)).cut(HalfSpace(Point(-45, 0, 0), Left)).cut(HalfSpace(Point(-21, 0, 0), Right))
+    # pieces.append(support_for_wire(top))
+    pieces.append(support_for_wire(bot))
+    # preview(gframe_snuggler, pieces)
+    # preview(gframe_snuggler, bot, support_for_wire(bot))
+
+
+    es2 = sorted(gframe_window_gripper.edges(), key = lambda e: e.bounds().min()[0])
+    side = es2[2].cut(HalfSpace(Point(-58,0,0), Direction(1, 0, -0.1)))
+    pieces.append(support_for_wire(side))
+    return Compound(pieces)
+
 @run_if_changed
 def frame_3d_printable():
-    left_half = Compound(pframe_with_snap_in_earpiece_slots, gframe_housing, earpiece_strut, seal_nubs)
+    left_half = Compound(pframe_with_snap_in_earpiece_slots, gframe_housing, earpiece_strut, frame_outer_support, frame_inner_support)
     result = Compound(left_half, left_half @ Mirror(Right))
     # save_STL("frame_3d_printable", result, linear_deflection=0.03)
-    # export("frame_3d_printable.stl", "frame_3d_printable_1.stl")
+    # export("frame_3d_printable.stl", "frame_3d_printable_2.stl")
     return result
 
 # preview(unrolled_seal)
