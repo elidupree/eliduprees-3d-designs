@@ -1,3 +1,50 @@
+"""
+
+PRINTING NOTES:
+
+The purple PETG is more viscous than my usual. I had to use slower printing speed, or it'd under-extrude.
+
+Cura settings I customized for this:
+* 30 print speed, 10 initial layer speed
+* zero horizontal expansion
+* 0.1 layer height, to be precise and get away with big overhangs
+* a raft, with only 0.2mm air gap
+
+I also saved the Cura project in the exports directory.
+
+ASSEMBLY NOTES:
+
+Clean up the print using end-nippers, rotary tool abrasive spongy wheels to scrub off the coarse stringing, rotary tool sanding drum for fine smoothing. You particularly want to smooth down any pointy bits on the surfaces that might contact the flat parts, the face, or the glasses lens/frame.
+
+Use pointy soldering iron tip to puncture the sewing-holes. Be careful not to let the heat bend the frame, or mess up the window-slots more than they already are.
+
+Use pointy soldering iron tip to clean up the window-slots.
+
+Prepare the unrolled rubber pieces:
+* Painter's tape on both sides of a 0.35mm sheet of TPE that was sold as an exercise band.
+* Pre-slit the holes on the paper printouts, so they will be easier to remove from a needle/thread later. (Probably not important, you could just tear it)
+* Double-sided tape the paper printouts onto it (tape don't overlap the hole locations), and cut slightly oversized.
+* Very lightly score the tape on the other side, to remove later so that the glue can adhere to the TPE in only the frame-contact area, and not the face-contact area.
+
+Prepare the unrolled window:
+* Painter's tape on both sides of a 0.3mm sheet of clear polycarbonate, sold as 0.010" polycarbonate.
+* Cut 1mm undersized in most places, to compensate for the 0.6mm slot-wall and some imprecision/glue volume in the slot. Theoretically this leaves the sheet 0.6mm deep in a 1mm slot.
+* Cut exact-sized in the places that don't have a slot. Measure the actual print for this, so you optimally align with any printing errors. (Not actually that important)
+* Score the tape near the edges, to remove later so that the glue can adhere to the edges, but not most of the surface.
+
+Sew the rubber to the frame:
+* Have the soldering iron (and other print-fixing tools) on hand in case you need to fix any holes.
+* Use thread that won't be melted by the soldering iron if you need to fix the print later.
+* With your needle you can puncture the TPE at the locations marked by the paper printout.
+* As you go, peel back some painter's tape (the full non-frame-side and half the frame-side, so they don't get sewn down) and lay down bits of shoe goo under the TPE.
+* After each section, reapply the painter's tape to the non-frame side of the TPE to protect it for next step.
+
+Glue the window to the frame:
+* Have the soldering iron (and other print-fixing tools) on hand in case you need to fix anything.
+* Set the edge of the window into the slots everywhere to make sure it works. Then remove it, and start applying shoe goo, reinserting it to the slots, and taping the window to the frame with more painter's tape.
+
+
+"""
 
 import math
 
@@ -689,7 +736,7 @@ def rubber_holding_nub():
 
 @run_if_changed
 def hole_for_rubber_holding_staple():
-    return Face(Circle(Axes(Origin, Right), 0.2)).extrude(Right*0.3, centered=True)
+    return Face(Circle(Axes(Origin, Right), 0.2)).extrude(Right*0.5, centered=True)
     # return Vertex(Origin).extrude(Up*0.4, centered=True).extrude(Back*0.4, centered=True).extrude(Right*0.3, centered=True)
 
 # @run_if_changed
@@ -834,7 +881,7 @@ def gframe_snuggler():
         # print(frac)
         frac = 0
         return base * (1 - (frac**2)*0.75)
-    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), lambda d: -bigness(d.position), start_x = -9.3, start_max_by="z", end_x = -15, end_min_by="z")
+    pairs = bsplinecurve_offset(gframe_exclusion_curve, gframe_assumed_plane.normal(), lambda d: -bigness(d.position), start_x = -16, start_max_by="z", end_x = -15, end_min_by="z")
     a = [p[0] for p in pairs]
     b = [p[0]+Back*bigness(p[0]) for p in pairs]
     c = [p[1] for p in pairs]
@@ -872,7 +919,7 @@ def gframe_window_gripper():
     sections = []
     gcurve = BSplineCurve([g for g,p in window_extended_sections], BSplineDimension(periodic=True))
     pcurve = BSplineCurve([p for g,p in window_extended_sections], BSplineDimension(periodic=True))
-    for gd in gcurve.subdivisions(output = "derivatives", start_x = -9.2, start_max_by="z", end_x = -50, end_min_by="z", max_length = 0.2, wrap=1):
+    for gd in gcurve.subdivisions(output = "derivatives", start_x = -16, start_max_by="z", end_x = -50, end_min_by="z", max_length = 0.2, wrap=0):
         g = gd.position
         p = pcurve.position(parameter = gd.parameter)
         dir = Direction((p - g).projected_perpendicular(gd.tangent))
@@ -892,20 +939,21 @@ def gframe_snap(x):
     inwards = d.tangent @ Rotate(gframe_assumed_plane.normal(), Degrees(90))
     a=d.position
     b=a+Back*3.5
-    c=b+inwards*0.9
+    c=b+inwards*1.0
     e=c+Back*0.5
     f=e+Back*0.5
-    g=f-inwards*1.3+Back*0.7
-    return Edge(BSplineCurve([a,b,c,e,f,g])).extrude(-inwards*1).extrude(d.tangent*3, centered=True)
+    g=f-inwards*1.4+Back*0.8
+    return Edge(BSplineCurve([a,b,c,e,f,g])).extrude(-inwards*1).extrude(d.tangent*5, centered=True)
+
 
 @run_if_changed
 def gframe_housing():
-    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -9.2, start_max_by="z", end_x = -63, end_min_by="z", wrap=1)
+    plate = bsplinecurve_offset(gframe_to_window_curve, gframe_assumed_plane.normal(), lambda p: 1, start_x = -19, start_max_by="z", end_x = -63, end_min_by="z", wrap=0)
     plate = BSplineSurface(plate, v=BSplineDimension(degree = 1))
     plate = Face(plate).extrude(Back*0.5)
     earpiece_stop = Vertex(earpiece_top_front_outer).extrude(Front*10).extrude(Left*0.2,Right*2).extrude(Down*4,Up*0.6).cut(HalfSpace(gframe_reference_point, gframe_assumed_plane.normal()))
     # preview(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper)
-    result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper, gframe_snap(-12), gframe_snap(-55))
+    result = Compound(plate, gframe_snuggler, earpiece_stop, gframe_window_gripper, gframe_snap(-20), gframe_snap(-55))
     # save_STL("gframe_housing", result)
     # export("gframe_housing.stl", "gframe_housing_1.stl")
     return result
@@ -1051,7 +1099,7 @@ def unrolled_seal():
 @run_if_changed
 def pframe_with_snap_in_earpiece_slots():
     leeway = 0.1
-    pinch = 0.12
+    pinch = 0 #0.12
     a = earpiece_top_front_outer + Up*leeway
     b = a + Right*(earpiece_thickness/2 + leeway)
     b2 = b + Right*(earpiece_thickness/2 + leeway)
@@ -1184,7 +1232,7 @@ def frame_3d_printable():
     left_half = Compound(pframe_with_snap_in_earpiece_slots, gframe_housing, earpiece_strut, frame_outer_support, frame_inner_support)
     result = Compound(left_half, left_half @ Mirror(Right))
     # save_STL("frame_3d_printable", result, linear_deflection=0.03)
-    # export("frame_3d_printable.stl", "frame_3d_printable_2.stl")
+    # export("frame_3d_printable.stl", "frame_3d_printable_3.stl")
     return result
 
 # preview(unrolled_seal)
@@ -1193,6 +1241,7 @@ def frame_3d_printable():
 # frame_bottom = min(s, key=lambda f: -f[0])
 # print(frame_bottom[0])
 
+preview(prototype_3d_printable)
 preview(frame_3d_printable, approx_face_surface, approx_earpieces)
 preview(face_to_seal_curve, approx_earpieces, approx_face_surface, gframe_to_window_curve, pframe_to_seal_curve, pframe_to_window_curve,
         # dpairs_to_surface(corresponding_curve_dpairs(pframe_to_window_curve.subdivisions(start_distance=0, end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.2), gframe_to_window_curve.subdivisions(start_closest = Point(0,0,9999), end_x = hard_force_gframe_plane_x, end_min_by="z", output="derivatives",max_length=0.01, wrap=1))),
