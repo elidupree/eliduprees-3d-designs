@@ -1,4 +1,7 @@
+import math
 from pyocct_system import *
+
+inch = 25.4
 
 def wallify(rows, thickness, *, loop):
     """
@@ -31,3 +34,24 @@ def wallify(rows, thickness, *, loop):
     #preview(surface, other_surface, joiner)
     wall = Solid(Shell(Face(surface).complemented(), Face(other_surface), joiner))
     return wall
+
+
+def pointy_hexagon(*, short_radius = None, long_radius = None):
+    # if short_radius is None:
+    #     short_radius = long_radius * math.cos(math.tau / 12)
+    if long_radius is None:
+        long_radius = short_radius / math.cos(math.tau / 12)
+
+    return Compound(
+        Face(Wire([
+            Point(long_radius, 0, 0) @ Rotate(Up, degrees=i * 60)
+            for i in range(6)
+        ], loop=True)),
+        # make it a little spiky, to compensate for print irregularities
+        Face(Wire([
+            p
+            for i in range(6)
+            for p in [Point(long_radius*0.5, 0, 0) @ Rotate(Up, degrees=i * 60 - 30),
+                      Point(long_radius*1.28, 0, 0) @ Rotate(Up, degrees=i * 60),]
+        ], loop=True)),
+    )

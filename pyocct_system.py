@@ -578,6 +578,8 @@ def _load_cache (g, name):
 _last_finished_ric_function = {"name": "the start of the program", "time": datetime.datetime.now()}
   
 def run_if_changed (function):
+  if _cache_directory is None:
+    raise RuntimeError("called run_if_changed without initializing first; add `initialize_pyocct_system()`?")
   function_name = function.__name__
   g = function.__globals__
   key = _global_key(g, function_name)
