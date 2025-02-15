@@ -8,17 +8,19 @@ spring_full_diameter = 5
 spring_full_radius = spring_full_diameter/2
 pivot_to_springonarm = 7
 spring_overset = 1
-pivot_to_springonbase = 15
+pivot_to_springonbase = 12
 usable_grip_length = 40
 grip_curve_depth = 5
 target_tool_diameter = 10
+arm_thickness = 5
 
 pivot = Origin
 spring_on_arm = pivot + Vector(-spring_overset, 0, pivot_to_springonarm)
 spring_on_base = pivot + Vector(-spring_overset, 0, -pivot_to_springonbase)
-trigger_pivot = pivot + Vector(pivot_to_springonbase, 0, spring_full_radius)
+trigger_pivot = pivot + Vector(pivot_to_springonbase, 0, spring_full_radius + arm_thickness/2)
+far_right_of_base = pivot[0] + (pivot_to_springonarm + spring_full_radius + usable_grip_length)
+trigger_slider_end = Point(far_right_of_base - arm_thickness/2, 0, spring_on_base[2])
 
-arm_thickness = 5
 peg_radius = 1.5
 
 inner_width = spring_full_diameter+2
@@ -38,7 +40,7 @@ full_width = mid_width+3*2
 def pegs():
     def peg(p, f = full_width):
         return Face(Circle(Axes(p, Front), peg_radius)).extrude(Front*f, centered=True)
-    return [peg(spring_on_arm, mid_width), peg(spring_on_base), peg(pivot).cut(peg(pivot, inner_width))]
+    return [peg(spring_on_arm, mid_width), peg(spring_on_base), peg(pivot).cut(peg(pivot, inner_width)), peg(trigger_pivot, mid_width)]
 
 @run_if_changed
 def tool_grabber_arm():
@@ -55,27 +57,28 @@ def tool_grabber_arm():
         BSplineCurve(curve_points),
         curve_points[-1].projected(build_plane),
         (pivot + Down*(arm_thickness/2)).projected(build_plane),
+        pivot + Vector(arm_thickness/2, 0, -arm_thickness/2),
         trigger_pivot + Vector(arm_thickness/2, 0, -arm_thickness/2),
         trigger_pivot + Vector(arm_thickness/2, 0, arm_thickness/2),
     ], loop=True)).extrude(Front*mid_width, centered=True)
 
-    arm = arm.cut (Vertex(spring_on_arm).extrude(Up*100, centered=True).extrude(Left*6, Right*100).extrude(Back*inner_width, centered=True))
+    arm = arm.cut (Vertex(spring_on_arm).extrude(Left*100, centered=True).extrude(Up*6, Down*100).extrude(Back*inner_width, centered=True))
+    arm = Fillet(arm, [(e, 2) for e in arm.edges() if all_equal((e[0],e[2]) for e in e.vertices())])
     arm = arm.cut (pegs)
     return arm
 
 
 @run_if_changed
 def tool_grabber_trigger():
-    trigger = Vertex(spring_base).extrude(Up*arm_thickness, centered=True).extrude(Left*70, Right*20).extrude(Back*mid_width, centered=True)
-
-    trigger = trigger.cut (Vertex(spring_on_arm).extrude(Up*100, centered=True).extrude(Left*6, Right*100).extrude(Back*inner_width, centered=True))
+    # hack: make it disambiguate a plane
+    trigger = Wire(trigger_pivot, trigger_pivot+Right*0.01, trigger_slider_end).offset2d(arm_thickness/2, fill=True).extrude(Back*inner_width, centered=True)
     return trigger
 
 @run_if_changed
 def tool_grabber_base():
-    base = Vertex(spring_base).extrude(Up*arm_thickness, centered=True).extrude(Left*70, Right*20).extrude(Back*full_width, centered=True)
+    base = Vertex(spring_on_base).extrude(Up*arm_thickness, centered=True).extrude(Left*(arm_thickness/2), Right*20).extrude(Back*full_width, centered=True)
 
-    base = base.cut (Vertex(spring_on_arm).extrude(Up*100, centered=True).extrude(Left*6, Right*100).extrude(Back*full_width, centered=True))
+    base = base.cut (Vertex(spring_on_arm).extrude(Up*100, centered=True).extrude(Left*6, Right*100).extrude(Back*mid_width, centered=True))
     return base
 
 
