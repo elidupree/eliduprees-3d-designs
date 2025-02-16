@@ -55,3 +55,45 @@ def pointy_hexagon(*, short_radius = None, long_radius = None):
                       Point(long_radius*1.28, 0, 0) @ Rotate(Up, degrees=i * 60),]
         ], loop=True)),
     )
+
+
+def sorted_points_from_edges(edges):
+    result = [v.point() for v in edges[0].vertices()]
+    rest = edges[1:]
+    while rest:
+        new_rest = []
+        for edge in rest:
+            points = [v.point() for v in edge.vertices()]
+            epsilon=0.00001
+            if points[0].distance(result[-1]) < epsilon:
+                result.append (points [1])
+            elif points[1].distance(result[-1]) < epsilon:
+                result.append (points [0])
+            else:
+                new_rest.append(edge)
+        if len(new_rest) == len(rest):
+            break
+        rest = new_rest
+    return result
+
+def stitch_unordered_edges_to_wire(edges):
+    result = [edges[0]]
+    next = edges[0].vertices()[1].point()
+    rest = edges[1:]
+    while rest:
+        new_rest = []
+        for edge in rest:
+            points = [v.point() for v in edge.vertices()]
+            epsilon=0.00001
+            if points[0].distance(next) < epsilon:
+                result.append(edge)
+                next = points[1]
+            elif points[1].distance(next) < epsilon:
+                result.append(edge)
+                next = points[0]
+            else:
+                new_rest.append(edge)
+        if len(new_rest) == len(rest):
+            break
+        rest = new_rest
+    return Wire(result)

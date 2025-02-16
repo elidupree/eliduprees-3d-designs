@@ -99,25 +99,6 @@ def drill_to_lego_shaft():
     return result
 
 
-def sorted_points_from_edges(edges):
-    result = [v.point() for v in edges[0].vertices()]
-    rest = edges[1:]
-    while rest:
-        new_rest = []
-        for edge in rest:
-            points = [v.point() for v in edge.vertices()]
-            epsilon=0.00001
-            if points[0].distance(result[-1]) < epsilon:
-                result.append (points [1])
-            elif points[1].distance(result[-1]) < epsilon:
-                result.append (points [0])
-            else:
-                new_rest.append(edge)
-        if len(new_rest) == len(rest):
-            break
-        rest = new_rest
-    return result
-
 @run_if_changed
 def cardboard_roller_stuff():
     crusher_diameter = 25.9
