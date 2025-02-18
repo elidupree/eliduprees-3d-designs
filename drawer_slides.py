@@ -50,6 +50,6 @@ def slider_strip_10in():
     save_STL("slider_strip_10in", result, linear_deflection=0.2)
     return result
 
-export("slider_strip_10in.stl", "slider_strip_10in_1.stl")
+# export("slider_strip_10in.stl", "slider_strip_10in_1.stl")
 
 preview(slider_strip_10in)
