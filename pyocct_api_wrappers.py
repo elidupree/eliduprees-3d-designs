@@ -1223,6 +1223,10 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
   @export
   def acos(ratio):
     return Radians(math.acos(ratio))
+
+  @export
+  def atan2(y,x):
+    return Radians(math.atan2(y,x))
       
   @export
   def Revolve(shape, axis, angle = None, *, radians=None, degrees=None):
