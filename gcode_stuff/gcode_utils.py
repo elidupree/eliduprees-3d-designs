@@ -1,3 +1,4 @@
+import math
 
 filament_diameter = 1.75
 mm3_per_extrusion_distance = filament_diameter * filament_diameter
@@ -60,7 +61,9 @@ M84 X Y E ;Disable all steppers but Z
 def wrap_gcode(gcode, **kwargs):
     return start_gcode(**kwargs) + gcode + finish_gcode(**kwargs)
 
-def fastmove(x=None, y=None, z=None):
+def fastmove(x=None, y=None, z=None, coords=None):
+    if coords is not None:
+        x,y,z = coords
     result = ["G0"]
     if x is not None:
         last_position["x"] = x
@@ -75,7 +78,9 @@ def fastmove(x=None, y=None, z=None):
     result.append('F18000')
     return " ".join(result)
 
-def square_jump(x, y, z, min_transit_z):
+def square_jump(x=None, y=None, z=None, coords=None, *, min_transit_z):
+    if coords is not None:
+        x,y,z = coords
     result = []
     if last_position["z"] < min_transit_z:
         result.append(fastmove(z=min_transit_z))
@@ -91,22 +96,38 @@ def set_extrusion_reference(e):
     last_position["e"] = e
     return f'G92 E{e:.5f}'
 
-def g1(x=None, y=None, z=None, e=None, f=None, eplus=None):
+def g1(x=None, y=None, z=None, e=None, f=None, coords=None, eplus=None, eplus_cross_sectional_area=None):
     result = ["G1"]
-    if x is not None:
-        last_position["x"] = x
-        result.append(f'X{ender3_center_x + x:.5f}')
-    if y is not None:
-        last_position["y"] = y
-        result.append(f'Y{ender3_center_y + y:.5f}')
-    if z is not None:
-        last_position["z"] = z
-        result.append(f'Z{z:.5f}')
+    if coords is not None:
+        x,y,z = coords
+    if x is None:
+        x = last_position["x"]
+    if y is None:
+        y = last_position["y"]
+    if z is None:
+        z = last_position["z"]
+
+    if eplus_cross_sectional_area is not None:
+        dist = math.sqrt((x-last_position["x"])**2 + (y-last_position["y"])**2 + (z-last_position["z"])**2)
+        eplus = eplus_cross_sectional_area*dist
     if eplus is not None:
         e = last_position["e"] + eplus
-    if e is not None:
+    if e is None:
+        e = last_position["e"]
+
+    if x != last_position["x"]:
+        last_position["x"] = x
+        result.append(f'X{ender3_center_x + x:.5f}')
+    if y != last_position["y"]:
+        last_position["y"] = y
+        result.append(f'Y{ender3_center_y + y:.5f}')
+    if z != last_position["z"]:
+        last_position["z"] = z
+        result.append(f'Z{z:.5f}')
+    if e != last_position["e"]:
         last_position["e"] = e
         result.append(f'E{e:.5f}')
+
     if f is not None:
         result.append(f'F{f}')
     

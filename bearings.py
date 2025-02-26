@@ -1,5 +1,7 @@
 import math
+import numpy as np
 from gcode_stuff.gcode_utils import *
+from spiral_printing import make_spiral
 from pyocct_system import *
 initialize_pyocct_system()
 
@@ -66,7 +68,7 @@ def careful_circle_commands(*, center, top_z, height, radius, outwards_dir, line
 
         if i==0:
             # result.extend(square_jump(x, y, top_z, min_transit_z))
-            result.append(g1(x=x, y=y, z=top_z, f=1500))
+            result.append(g1(x=x, y=y, z=top_z, f=150))
         else:
             result.append(g1(x=x, y=y, z=top_z, eplus=line_width*stroke_thickness*radius*(math.tau/360), f=f))
 
@@ -132,5 +134,167 @@ def bearing():
     export_string(gcode, "bearing_1.gcode")
 
 
+
+"""
+def spiral(*, parameter01_to_cross_section_curve, nozzle_width, line_width, starting_downfill, max_layer_height, min_transit_z, f):
+    def try_loop(curve_steps, fixed_control_points):
+        '''
+Assume that the "layer-position to v" function is a quadratic B-spline, so it can be smooth.
+
+Assume that we've already committed to a segment of that B-spline, which means committing to 4 control points. We are now trying to commit to the next segment, i.e. one more control point.
+
+We don't actually want to maximize that new control point, because we want to leave room for the later control points to grow. That control point will influence another 3 segments after the one we are now committing to.
+
+Our choice of next control point has no effect on the starting position OR velocity of the segment we're about to commit to – what it does is apply a constant jump to the starting acceleration.
+
+A control point can never be lower than the previous ones, so at the very least, if we are setting the new control point to x, then it must be permissible to continue having the upcoming points be x until you reach a constant-x function. This means we have to look at the next 2 segments after the one we are committing to, which incorporate 2 more control points. (The next segment after them could be constant-x.)
+
+Additionally, we don't want to accelerate so hard that we would have to brake to a constant.
+
+
+Naïvely, perhaps we would only want to accelerate hard enough that we could then continue at a fixed speed for the next 2 segments. If the input actually forces us to slow down, then this makes us go unnecessarily slow preemptively. That really doesn't seem like a problem, and the general optimization problem doesn't have a clear best answer.
+
+If we required the next 2 segments to be able to continue linearly, then clearly that would be stricter than requiring them to have all the control points be x, so that's okay.
+
+The only real "problem scenario" I can think of is that if you are approaching a point where you have to slow down a lot (a sudden large overhang? no, a speed issue in the input parameterization…), this would constrain you to exponentially decaying towards it instead. Maybe that's just a case of "bad input".
+
+… Actually, arguably, the whole point here is to correct for bad input. "reparameterize the input into a permissible-layers form". Smoothness in "layer to v" doesn't actually seem right (what if v wasn't smooth? Enforcing smoothness means we enforced the input-nonsmoothness to be visible in the output!)
+
+A slicing approach would divide v into layers, and then there would just happen to be a particular layer transition that includes the input discontinuity-of-derivative. Here though, the transition may happen in the middle of a layer, so we should use an approach where the layer-to-v may have a sudden jump ANYWHERE in the derivative. The only smoothness we care about is smoothness of physical distances …
+
+So if the constraints are…
+* Never reduce v
+* try to be smooth in ... z? Not exactly z if you're tilted. Smooth in "distance to the layer you're fusing to" perhaps? Even that wobbles around a layer when there is a tilt, but that part's inevitable.
+
+The main thing we care about is: don't go backwards in v, and don't make any fuse-points too far apart from each other. Within that, we would prefer to make the fuse-point-distance smooth as you move up the layers on any particular side…
+
+Consider this: use, for reference, a pair of constant-v cross-sections. At each point, find its closest neighbor in EACH of those cross-sections and position it proportionally between them. If it is proportionally too far from either…        '''
+
+
+def try_loop(curve_steps, prev_loop_start_param, start_param, stop_param):
+        # prev = previous_curve.derivatives(parameter=previous_curve.LastParameter())
+        prev = None
+        points = []
+        too_coarse = 0
+        too_steep = 0
+        for step in range(1,curve_steps+1):
+            rise_parameter = Between(rise_parameter_start, rise_parameter_stop, step/curve_steps)
+            curve = parameter01_to_cross_section_curve(rise_parameter)
+            d = curve.derivatives(distance=curve.length() * step/curve_steps)
+            point = d.position
+            # ref = previous_curve.position(closest=point)
+            ref = parameter01_to_cross_section_curve(max(0, rise_parameter + rise_parameter_start - rise_parameter_stop)).position(closest=point)
+
+            if prev is not None:
+                movement = (point - prev.position)
+                offsetness = movement.projected_perpendicular(prev.tangent).length() / 0.002
+                curvedness = (d.tangent - prev.tangent).length() * 360 / math.tau
+                too_coarse = max(too_coarse, offsetness, curvedness)
+
+            riseness = (point - ref)[2] / max_layer_height
+            assert (riseness >= 0)
+            overhangness = (point - ref).projected_perpendicular(Up).length() / (nozzle_width*0.6)
+            # if overhangness > 1:
+            #     print(point, ref)
+            #     preview(point, ref, previous_curve)
+            too_steep = max(too_steep, riseness, overhangness)
+
+            points.append((point, (ref - point).length()))
+
+            prev = d
+
+        return points, too_coarse, too_steep
+
+    def points_to_curve(points):
+        return BSplineCurve([p for p,d in points], BSplineDimension(degree=1))
+
+    def try_2_loops(curve_steps, rise_parameter_start, rise_parameter_stop, previous_curve):
+        rise_middle = Between(rise_parameter_start, rise_parameter_stop)
+        p1, c1, s1 = try_loop(curve_steps, rise_parameter_start, rise_middle,)
+        p2, c2, s2 = try_loop(curve_steps, rise_middle, rise_parameter_stop)
+        return p1, p2, max(c1, c2), max(s1, s2)
+
+    commands = [set_extrusion_reference(0)]
+    all_points = []
+
+    current_parameter = 0
+    # established_curve = parameter01_to_cross_section_curve(0)
+    # printed_curves = []
+
+    started = False
+    def add_curve(ps):
+        # nonlocal established_curve
+        # established_curve = points_to_curve(ps)
+        # printed_curves.append(established_curve)
+        for p,d in ps:
+            all_points.append(p)
+            if started:
+                commands.append(g1(coords=p, eplus_cross_sectional_area=line_width*d, f=f))
+            else:
+                started = True
+                commands.extend(square_jump(coords=p, min_transit_z=min_transit_z))
+
+    while True:
+        next_parameter = 1
+        steps = 10
+        while True:
+            if current_parameter == 1:
+                p1, too_coarse, _ = try_loop(steps, current_parameter, next_parameter, established_curve)
+                too_steep = 0
+                p2 = []
+            else:
+                p1, p2, too_coarse, too_steep = try_2_loops(steps, current_parameter, next_parameter, established_curve)
+
+            if too_steep > 1:
+                print(f"too steep: {current_parameter}, {next_parameter}, {too_steep}")
+                next_parameter = Between(current_parameter, next_parameter, np.clip(1/too_steep, 0.6, 0.96))
+                if next_parameter - current_parameter < 0.01:
+                    preview(established_curve, Compound(Vertex(p) for p,d in p1+p2))
+            elif too_coarse > 1:
+                print(f"too coarse: {current_parameter}, {next_parameter}, {steps}, {too_coarse}")
+                steps = math.ceil(steps*np.clip(too_coarse, 1.05, 2))
+                if steps > 2000:
+                    preview(established_curve, Compound(Vertex(p) for p,d in p1+p2))
+
+            else: # if too_steep <= 1 and too_coarse <= 1:
+                print(f"added curve to {next_parameter} with {steps} steps")
+                curves_to_add = [p1]
+                if next_parameter == 1 and current_parameter < 1:
+                    curves_to_add.append(p2)
+                    current_parameter = 1
+                else:
+                    current_parameter = Between(current_parameter, next_parameter)
+                for ps in curves_to_add:
+                    add_curve(ps)
+
+                break
+        if current_parameter == 1:
+            break
+
+    # preview(printed_curves)
+    return all_points, commands
+"""
+
+@run_if_changed
+def spiral_test():
+    def curvefn(v):
+        return Circle(Axes(Point(0,0,v*10), Direction(v*0.2,0,1), Back), 5+5*v*v)
+    # preview(curvefn(v) for v in subdivisions(0,1,amount=20))
+    spiral_start, spiral_points, spiral_commands = make_spiral(
+        v_to_cross_section_curve=curvefn,
+        nozzle_width=0.4,
+        line_width=0.5,
+        max_layer_height=0.3,
+        starting_downfill=0.2,
+        f=900,
+    )
+    commands = [
+                   'M106 S255 ; Fan 100%',
+               ] + square_jump(coords=spiral_start, min_transit_z=0.3) + spiral_commands
+    gcode = wrap_gcode("\n".join(commands))
+
+    export_string(gcode, "spiral_test_2.gcode")
+
+    preview(BSplineCurve(spiral_points, BSplineDimension(degree=1)))
 
 
