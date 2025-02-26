@@ -4,7 +4,7 @@ mm3_per_extrusion_distance = filament_diameter * filament_diameter
 ender3_center_x = 235/2
 ender3_center_y = 235/2
 
-def start_gcode(min_temp = 200, good_temp = 250):
+def start_gcode(min_temp = 200, good_temp = 255):
     return f'''
 G90     ; Use absolute positioning
 G92 E0  ; Set extruder reference point
@@ -60,18 +60,52 @@ M84 X Y E ;Disable all steppers but Z
 def wrap_gcode(gcode, **kwargs):
     return start_gcode(**kwargs) + gcode + finish_gcode(**kwargs)
 
-def fastmove(x, y, z):
-    return f'G0 X{ender3_center_x + x:.5f} Y{ender3_center_y + y:.5f} Z{z:.5f} F18000'
-
-def g1(x=None, y=None, z=None, e=None, f=None):
-    result = ["G1"]
+def fastmove(x=None, y=None, z=None):
+    result = ["G0"]
     if x is not None:
+        last_position["x"] = x
         result.append(f'X{ender3_center_x + x:.5f}')
     if y is not None:
+        last_position["y"] = y
         result.append(f'Y{ender3_center_y + y:.5f}')
     if z is not None:
+        last_position["z"] = z
         result.append(f'Z{z:.5f}')
+
+    result.append('F18000')
+    return " ".join(result)
+
+def square_jump(x, y, z, min_transit_z):
+    result = []
+    if last_position["z"] < min_transit_z:
+        result.append(fastmove(z=min_transit_z))
+    if z < min_transit_z:
+        result.append(fastmove(x=x,y=y,z=min_transit_z))
+        result.append(fastmove(z=z))
+    else:
+        result.append(fastmove(x=x,y=y,z=z))
+    return result
+
+last_position = {"x":0,"y":0,"z":0,"e":0}
+def set_extrusion_reference(e):
+    last_position["e"] = e
+    return f'G92 E{e:.5f}'
+
+def g1(x=None, y=None, z=None, e=None, f=None, eplus=None):
+    result = ["G1"]
+    if x is not None:
+        last_position["x"] = x
+        result.append(f'X{ender3_center_x + x:.5f}')
+    if y is not None:
+        last_position["y"] = y
+        result.append(f'Y{ender3_center_y + y:.5f}')
+    if z is not None:
+        last_position["z"] = z
+        result.append(f'Z{z:.5f}')
+    if eplus is not None:
+        e = last_position["e"] + eplus
     if e is not None:
+        last_position["e"] = e
         result.append(f'E{e:.5f}')
     if f is not None:
         result.append(f'F{f}')

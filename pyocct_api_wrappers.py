@@ -159,13 +159,20 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       
     factor = 1/(amount - 1)
     return [start + delta*i*factor for i in range(amount)]
+
+  @export
+  def linear_step(x, left=0, right=1):
+    f = (x - left) / (right - left)
+    if f <= 0: return 0
+    if f >= 1: return 1
+    return f
   
   @export
   def smootherstep(x, left=0, right=1):
     f = (x - left) / (right - left)
     if f <= 0: return 0
     if f >= 1: return 1
-    return f*f*f*(f*(f*6 - 15) + 10 );
+    return f*f*f*(f*(f*6 - 15) + 10)
   
   export_locals ("pairs, all_equal, subdivisions")
   
