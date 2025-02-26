@@ -477,11 +477,12 @@ def _checksum_of_global (g, name, stack = []):
       raise _ChecksumOfGlobalError("tried to get checksum of a cache thing that doesn't have one (did you refer to a run_if_changed function?")
     return in_memory ["checksum"]
 
-  if name not in g:
-    raise _ChecksumOfGlobalError(f"tried to check current value of `{g['__name__']}.{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
+  # if name not in g:
+  #   raise _ChecksumOfGlobalError(f"tried to check current value of `{g['__name__']}.{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
   value = g[name]
 
   code, code2 = _get_code (value)
+  # print(key, stack)
   if id(value) in _global_location_by_deserialized_object_id:
     g2, name2 = _global_location_by_deserialized_object_id[id(value)]
     result = _checksum_of_global (g2, name2, stack + [key])
@@ -490,23 +491,31 @@ def _checksum_of_global (g, name, stack = []):
     if " at 0x" in result:
       raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
   else:
-    #print(key, code)
     code2 = inspect.getsource (value)
     hasher = hashlib.sha256()
     #hasher.update (code.encode ("utf-8"))
     hasher.update (code2.encode ("utf-8"))
-    # print(code2)
-    for name2 in _globals_loaded_by_code (code):
+    globals_loaded = _globals_loaded_by_code(code)
+    # print(key, globals_loaded)
+    module = sys.modules[value.__module__]
+    g2 = vars(module)
+    for name2 in globals_loaded:
+      if name2 not in g2:
+        raise _ChecksumOfGlobalError(f"tried to check current value of `{g2['__name__']}.{name2}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
+
+      # we only want to check things inside my own project:
+      v2 = g2[name2]
       try:
-        module = sys.modules[value.__module__]
-      except AttributeError:
-        # I ran into "module 'numpy' has no attribute '__module__'
-        # just assume it works fine in this case
-        continue
-      # also, only want to check things inside my own project
-      if not module.__file__.startswith(os.path.dirname(__file__)):
-        continue
-      g2 = vars(module)
+        file = inspect.getfile(v2)
+      except TypeError:
+        # v2 is a builtin module, class, or function
+        file = None
+      if file is not None:
+        abspath = os.path.abspath(file)
+        if not abspath.startswith(os.path.dirname(__file__)):
+          print(f"Skipping checksum of {g['__name__']}.{name2} because it's outside this project ({abspath})")
+          continue
+
       checksum_2 = _checksum_of_global (g2, name2, stack + [key])
       hasher.update (checksum_2.encode ("utf-8"))
     result = hasher.hexdigest()
