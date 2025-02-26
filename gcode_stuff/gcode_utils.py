@@ -78,9 +78,17 @@ def fastmove(x=None, y=None, z=None, coords=None):
     result.append('F18000')
     return " ".join(result)
 
+# Hack: update the globals that say where we are
+def assume_at(**kwargs):
+    fastmove(**kwargs)
+
 def square_jump(x=None, y=None, z=None, coords=None, *, min_transit_z):
     if coords is not None:
         x,y,z = coords
+    if (x,y) == (last_position["x"],last_position["y"]):
+        if z == last_position["z"]:
+            return []
+        return [fastmove(z=z)]
     result = []
     if last_position["z"] < min_transit_z:
         result.append(fastmove(z=min_transit_z))
@@ -91,12 +99,15 @@ def square_jump(x=None, y=None, z=None, coords=None, *, min_transit_z):
         result.append(fastmove(x=x,y=y,z=z))
     return result
 
-last_position = {"x":0,"y":0,"z":0,"e":0}
-def set_extrusion_reference(e):
-    last_position["e"] = e
-    return f'G92 E{e:.5f}'
+last_position = {"x":0,"y":0,"z":0,"e_filament":0}
 
-def g1(x=None, y=None, z=None, e=None, f=None, coords=None, eplus=None, eplus_cross_sectional_area=None):
+def zero_extrusion_reference():
+    return set_extrusion_reference(e_filament=0)
+def set_extrusion_reference(*, e_filament):
+    last_position["e_filament"] = e_filament
+    return f'G92 E{e_filament:.5f}'
+
+def g1(x=None, y=None, z=None, e_filament=None, e_mm3=None, f=None, coords=None, eplus_mm3=None, eplus_cross_sectional_mm2=None):
     result = ["G1"]
     if coords is not None:
         x,y,z = coords
@@ -107,13 +118,15 @@ def g1(x=None, y=None, z=None, e=None, f=None, coords=None, eplus=None, eplus_cr
     if z is None:
         z = last_position["z"]
 
-    if eplus_cross_sectional_area is not None:
+    if eplus_cross_sectional_mm2 is not None:
         dist = math.sqrt((x-last_position["x"])**2 + (y-last_position["y"])**2 + (z-last_position["z"])**2)
-        eplus = eplus_cross_sectional_area*dist
-    if eplus is not None:
-        e = last_position["e"] + eplus
-    if e is None:
-        e = last_position["e"]
+        eplus_mm3 = eplus_cross_sectional_mm2*dist
+    if eplus_mm3 is not None:
+        e_mm3 = last_position["e_filament"]*mm3_per_extrusion_distance + eplus_mm3
+    if e_mm3 is not None:
+        e_filament = e_mm3 / mm3_per_extrusion_distance
+    if e_filament is None:
+        e_filament = last_position["e_filament"]
 
     if x != last_position["x"]:
         last_position["x"] = x
@@ -124,9 +137,9 @@ def g1(x=None, y=None, z=None, e=None, f=None, coords=None, eplus=None, eplus_cr
     if z != last_position["z"]:
         last_position["z"] = z
         result.append(f'Z{z:.5f}')
-    if e != last_position["e"]:
-        last_position["e"] = e
-        result.append(f'E{e:.5f}')
+    if e_filament != last_position["e_filament"]:
+        last_position["e_filament"] = e_filament
+        result.append(f'E{e_filament:.5f}')
 
     if f is not None:
         result.append(f'F{f}')

@@ -35,7 +35,7 @@ initialize_pyocct_system()
 #     return result
 
 def careful_circle_commands(*, center, top_z, height, radius, outwards_dir, line_width, start_degrees=0, sweep_degrees, min_transit_z, f):
-    result = [set_extrusion_reference(0)]
+    result = [zero_extrusion_reference()]
 
     insweep_start = 360-sweep_degrees
     insweep_return_start = insweep_start+360-sweep_degrees
@@ -68,9 +68,9 @@ def careful_circle_commands(*, center, top_z, height, radius, outwards_dir, line
 
         if i==0:
             # result.extend(square_jump(x, y, top_z, min_transit_z))
-            result.append(g1(x=x, y=y, z=top_z, f=150))
+            result.append(g1(x=x, y=y, z=top_z, f=1500))
         else:
-            result.append(g1(x=x, y=y, z=top_z, eplus=line_width*stroke_thickness*radius*(math.tau/360), f=f))
+            result.append(g1(x=x, y=y, z=top_z, eplus_mm3=line_width*stroke_thickness*radius*(math.tau/360), f=f))
 
 
     return result
@@ -99,7 +99,7 @@ def bearing_commands(*, bearing_height, inner_radius, roller_min_radius, roller_
         inface_radius -= startness*0.4
         outface_radius += startness*0.4
 
-        shared_args = {"top_z":top_z, "height":layer_height, "line_width":line_width,"min_transit_z":layer_height/2}
+        shared_args = {"top_z":top_z, "height":layer_height + (0.1 if l==0 else 0), "line_width":line_width,"min_transit_z":layer_height/2}
 
         commands.extend(careful_circle_commands(center=Origin, radius=outface_radius, outwards_dir=-1, start_degrees=current_degrees, sweep_degrees=40, f=900, **shared_args))
         current_degrees -= 40
@@ -126,8 +126,8 @@ def bearing():
         roller_max_radius=2.5,
         num_rollers=18,
         line_width=0.5,
-        max_layer_height=0.15,
-        leeway=0.9)
+        max_layer_height=0.2,
+        leeway=0.2)
 
     gcode = wrap_gcode("\n".join(commands))
 
@@ -214,7 +214,7 @@ def try_loop(curve_steps, prev_loop_start_param, start_param, stop_param):
         p2, c2, s2 = try_loop(curve_steps, rise_middle, rise_parameter_stop)
         return p1, p2, max(c1, c2), max(s1, s2)
 
-    commands = [set_extrusion_reference(0)]
+    commands = [zero_extrusion_reference()]
     all_points = []
 
     current_parameter = 0
@@ -229,7 +229,7 @@ def try_loop(curve_steps, prev_loop_start_param, start_param, stop_param):
         for p,d in ps:
             all_points.append(p)
             if started:
-                commands.append(g1(coords=p, eplus_cross_sectional_area=line_width*d, f=f))
+                commands.append(g1(coords=p, eplus_cross_sectional_mm2=line_width*d, f=f))
             else:
                 started = True
                 commands.extend(square_jump(coords=p, min_transit_z=min_transit_z))
@@ -284,17 +284,80 @@ def spiral_test():
         v_to_cross_section_curve=curvefn,
         nozzle_width=0.4,
         line_width=0.5,
-        max_layer_height=0.3,
+        max_layer_height=0.2,
         starting_downfill=0.2,
         f=900,
     )
-    commands = [
+    commands = ([
                    'M106 S255 ; Fan 100%',
-               ] + square_jump(coords=spiral_start, min_transit_z=0.3) + spiral_commands
+               ] +
+               square_jump(coords=spiral_start, min_transit_z=0.2) +
+               spiral_commands)
     gcode = wrap_gcode("\n".join(commands))
 
-    export_string(gcode, "spiral_test_2.gcode")
+    export_string(gcode, "spiral_test_4.gcode")
 
     preview(BSplineCurve(spiral_points, BSplineDimension(degree=1)))
 
+
+ball_diameter = 3.5
+ball_radius = ball_diameter/2
+sq2 = math.sqrt(2)
+races_base = 0.5
+races_inner_radius = 19/2+0.5
+ball_center_offset = races_inner_radius + 0.5 + ball_radius
+
+@run_if_changed
+def inner_race():
+    def inner_race_fn(v):
+        z = v*(ball_diameter/sq2 + races_base)
+        offs = max(0, z - races_base) - (ball_radius/sq2)
+
+        r = ball_center_offset - math.sqrt(ball_radius**2 - offs**2) - 0.25
+        return Circle(Axes(Point(0,0,z), Up), r)
+    inner_race_start, inner_race_points, inner_race_commands = make_spiral(
+        v_to_cross_section_curve=inner_race_fn,
+        nozzle_width=0.4,
+        line_width=0.5,
+        max_layer_height=0.2,
+        starting_downfill=0.2,
+        f=900,
+    )
+    commands = ([
+                    'M106 S255 ; Fan 100%',
+                ] +
+                square_jump(coords=inner_race_start, min_transit_z=0.2) +
+                inner_race_commands)
+    gcode = wrap_gcode("\n".join(commands))
+
+    export_string(gcode, "inner_race_2.gcode")
+
+    return BSplineCurve(inner_race_points, BSplineDimension(degree=1))
+
+@run_if_changed
+def outer_race_half():
+    def outer_race_fn(v):
+        z = v*(ball_radius/sq2 + races_base)
+        offs = max(0, z - races_base) - (ball_radius/sq2)
+
+        r = ball_center_offset + math.sqrt(ball_radius**2 - offs**2) + 0.25
+        return Circle(Axes(Point(0,0,z), Up), r)
+    outer_race_start, outer_race_points, outer_race_commands = make_spiral(
+        v_to_cross_section_curve=outer_race_fn,
+        nozzle_width=0.4,
+        line_width=0.5,
+        max_layer_height=0.2,
+        starting_downfill=0.2,
+        f=900,
+    )
+    commands = ([
+                    'M106 S255 ; Fan 100%',
+                ] +
+                square_jump(coords=outer_race_start, min_transit_z=0.2) +
+                outer_race_commands)
+    gcode = wrap_gcode("\n".join(commands))
+
+    export_string(gcode, "outer_race_2.gcode")
+
+    return BSplineCurve(outer_race_points, BSplineDimension(degree=1))
 

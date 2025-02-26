@@ -41,7 +41,8 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
 
                 coarseness = max(coarseness, pointiness/0.05, pointiness/(c-a).length()*360)
 
-            layer_to_layer = derivatives[-1].position - derivatives[-2].position
+            # not all points will perfectly align, and misalignment isn't depth, so ignore difference-components in the derivatives[1].tangent direction
+            layer_to_layer = (derivatives[-1].position - derivatives[-2].position).projected_perpendicular(derivatives[1].tangent)
             riseness = layer_to_layer[2] / max_layer_height
             if riseness < 0:
                 raise RuntimeError("spiral moved downwards")
@@ -50,14 +51,14 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
 
             steepness = max(steepness, riseness, overhangness)
 
-            points_and_depths.append((current, (current - below).length()))
+            points_and_depths.append((current, (current - below).projected_perpendicular(derivatives[1].tangent).length()))
 
             recent.append(current)
 
         return points_and_depths, coarseness, steepness
 
 
-    commands = [set_extrusion_reference(0)]
+    commands = [zero_extrusion_reference()]
     all_points = []
     started = False
     start_position = None
@@ -86,10 +87,11 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
                 for p,d in points_and_depths:
                     all_points.append(p)
                     if started:
-                        commands.append(g1(coords=p, eplus_cross_sectional_area=line_width*(d+extra_depth), f=f))
+                        commands.append(g1(coords=p, eplus_cross_sectional_mm2=line_width*(d+extra_depth), f=f))
                     else:
                         started = True
                         start_position = p
+                        assume_at(coords=p)
                 cross_sections_achieved.append(next)
                 break
 
