@@ -31,19 +31,28 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
         curves = [v_to_cross_section_curve(v) for v in vs]
         lengths = [c.length() for c in curves]
         recent = [curves[1].position(distance=0)]
+        recent_fracs = [0]
         points_and_depths = []
-        coarseness = 0
+        extra_steps = []
         steepness = 0
-        for step in range(1, curve_steps+1):
-            frac = step/curve_steps
+        for frac in curve_steps:
             derivatives = [c.derivatives(distance = l * frac) for c, l in zip (curves, lengths)]
             below, current = [Between (d0.position, d1.position, frac) for d0,d1 in [derivatives[0:2], derivatives[1:3]]]
 
+            recent.append(current)
+            recent_fracs.append(frac)
             if len(recent) > 2:
                 a,b,c = recent[-3:]
+                af,bf,cf = recent_fracs[-3:]
                 pointiness = (b-a).projected_perpendicular(Direction(a,c)).length()
 
-                coarseness = max(coarseness, pointiness/0.05, pointiness/(c-a).length()*360)
+                coarseness = pointiness/0.05
+                l = (c-a).length()
+                if l > 0.01:
+                    coarseness = max(coarseness, pointiness/(c-a).length()*360)
+                if coarseness > 1:
+                    extra_steps.append(Between(af,bf))
+                    extra_steps.append(Between(bf,cf))
 
             # not all points will perfectly align, and misalignment isn't depth, so ignore difference-components in the derivatives[1].tangent direction
             layer_to_layer = (derivatives[-1].position - derivatives[-2].position).projected_perpendicular(derivatives[1].tangent)
@@ -57,9 +66,10 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
 
             points_and_depths.append((current, (current - below).projected_perpendicular(derivatives[1].tangent).length()))
 
-            recent.append(current)
-
-        return points_and_depths, coarseness, steepness
+        refined_steps = steps
+        if extra_steps:
+            refined_steps = sorted(set(refined_steps + extra_steps))
+        return points_and_depths, refined_steps, steepness
 
 
     commands = [zero_extrusion_reference()]
@@ -70,10 +80,10 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
     cross_sections_achieved = [0,0]
     while cross_sections_achieved[-2] < 1:
         next = 1
-        steps = 10
+        steps = subdivisions(0,1,amount=11)[1:]
         min_swing_size = 0.05
         while True:
-            points_and_depths, coarseness, steepness = try_next_section(steps,cross_sections_achieved[-2:]+[next])
+            points_and_depths, refined_steps, steepness = try_next_section(steps,cross_sections_achieved[-2:]+[next])
             if steepness > 1:
                 print(f"too steep: {cross_sections_achieved[-2:]}, {next}, {steepness}")
                 next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 0.5, 1-min_swing_size))
@@ -81,12 +91,12 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
                 print(f"not steep enough: {cross_sections_achieved[-2:]}, {next}, {steepness}")
                 next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 1+min_swing_size, 2))
                 min_swing_size *= 0.6
-            elif coarseness > 1:
-                print(f"too coarse: {cross_sections_achieved[-2:]}, {next}, {steps}, {coarseness}")
-                steps = math.ceil(steps*np.clip(coarseness, 1.05, 2))
+            elif len(refined_steps) > len(steps):
+                print(f"too coarse: {cross_sections_achieved[-2:]}, {next}, {len(steps)}, {len(refined_steps)}")
+                steps = refined_steps #math.ceil(steps*np.clip(coarseness, 1.05, 2))
 
             else: # if too_steep <= 1 and coarseness <= 1:
-                print(f"added curve to {next} with {steps} steps")
+                print(f"added curve to {next} with {len(steps)} steps")
                 extra_depth = 0 if started else starting_downfill
                 for p,d in points_and_depths:
                     all_points.append(p)

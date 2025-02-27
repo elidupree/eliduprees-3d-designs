@@ -362,39 +362,66 @@ def outer_race_half():
     return BSplineCurve(outer_race_points, BSplineDimension(degree=1))
 
 CPAP_inner_radius=19/2
-CPAP_min_wall_thickness=0.9
-CPAP_ball_leeway=0.05
+CPAP_min_wall_thickness=0.8
+CPAP_ball_leeway=0.03
 CPAP_ball_space_radius= ball_radius
 CPAP_bearing_ball_center_offset = CPAP_inner_radius + CPAP_min_wall_thickness + CPAP_ball_space_radius
 CPAP_bearing_outermost_radius = CPAP_bearing_ball_center_offset + CPAP_ball_leeway + CPAP_min_wall_thickness*2
 CPAP_most_walls_thickness = CPAP_min_wall_thickness + (1-1/sq2)*CPAP_ball_space_radius
+# large enough to be just-over-flush with the balls:
+CPAP_inner_race_base = ball_radius*(1-1/sq2)+0.1
+
+CPAP_retainer_bite_thickness = 1
+CPAP_retainer_bite_depth = CPAP_most_walls_thickness - CPAP_min_wall_thickness
+CPAP_joint_overshoot_for_sanding=1
+
 @run_if_changed
 def curved_tube_with_builtin_inner_race():
     def ball_facing_radius(z):
-        offs = min((CPAP_ball_space_radius/sq2), abs(z - races_base - (CPAP_ball_space_radius/sq2)))
+        offs = min((CPAP_ball_space_radius/sq2), abs(z - CPAP_inner_race_base - (CPAP_ball_space_radius/sq2)))
         return CPAP_bearing_ball_center_offset - math.sqrt(CPAP_ball_space_radius**2 - offs**2)
 
-    bearing_top_z = (CPAP_ball_space_radius*sq2 + races_base)
+    bearing_top_z = (CPAP_ball_space_radius*sq2 + CPAP_inner_race_base)
 
     torus_rows = []
     tube_radius = CPAP_inner_radius+CPAP_most_walls_thickness/2
     revolution_radius = CPAP_bearing_outermost_radius
     revolution_center = Point(revolution_radius, 0, 0)
     revolution_axis = Axis(revolution_center, Back)
+    retainer_face_start_center = Origin @ Rotate(revolution_axis, Degrees(30))
+    retainer_face_along = Up @ Rotate(revolution_axis, Degrees(30))
     for i in range(360):
         tube_angle = Degrees(i)
-        start = Point(tube_radius,0,0) @ Rotate(Up, tube_angle)
+        curve_start = Point(tube_radius,0,0) @ Rotate(Up, tube_angle)
+        curve_end = (curve_start @ Rotate (revolution_axis, Degrees(30)))
+        tube_outwards = Right @ Rotate(Up, tube_angle)
+        retainer_face_outwards = tube_outwards @ Rotate(revolution_axis, Degrees(30))
+        retainer_bite_surface = BSplineCurve([
+            curve_end,
+            curve_end+retainer_face_along*CPAP_retainer_bite_thickness/2 - retainer_face_outwards*CPAP_retainer_bite_depth/2,
+            curve_end+retainer_face_along*CPAP_retainer_bite_thickness,
+            curve_end+retainer_face_along*(CPAP_retainer_bite_thickness + CPAP_joint_overshoot_for_sanding),
+        ])
         for j in range(1000):
             zplus = j*0.1
-            angle = asin(zplus/(revolution_center-start)[0])
-            position = start @ Rotate (revolution_axis, angle)
-            # print(start, zplus, position[2], angle.degrees, position.distance(revolution_center), start.distance(revolution_center))
-            if angle.degrees > 30:
-                break
+            plane = Plane(Point(0,0,zplus), Up)
+            ratio = zplus/(revolution_center-curve_start)[0]
+            if ratio < 1:
+                angle = asin(ratio)
+                position = curve_start @ Rotate (revolution_axis, angle)
+                # print(start, zplus, position[2], angle.degrees, position.distance(revolution_center), start.distance(revolution_center))
+            if ratio >= 1 or angle.degrees > 30:
+                ps = plane.intersections(retainer_bite_surface)
+                if ps.points:
+                    position = ps.point()
+                else:
+                    break
+
             if len (torus_rows) <= j:
                 torus_rows.append ([])
             torus_rows [j].append (position + Up*bearing_top_z)
-
+    retainer_face_start_center = retainer_face_start_center + Up*bearing_top_z
+    revolution_center = revolution_center + Up*bearing_top_z
     complete_torus_rows = [r for r in torus_rows if len(r) == 360]
     incomplete_torus_rows = torus_rows[len(complete_torus_rows):]
 
@@ -420,16 +447,29 @@ def curved_tube_with_builtin_inner_race():
         a,b = CPAP_inner_radius, ball_facing_radius(center[2])
         r = Between(a,b)
         return Circle(Axes(center, circle_axis), r)
-    # preview((curvefn(v) for v in subdivisions(0,1,amount=20)), complete_torus_surface)
+    # preview((curvefn(v) for v in subdivisions(0,1,amount=20)), complete_torus_surface, Compound(Edge(BSplineCurve(r)) for r in incomplete_torus_rows[1::2]))
     def thickness_fn(p):
-        return ball_facing_radius(p[2]) - CPAP_inner_radius
+        retainerness = (p - retainer_face_start_center).dot(retainer_face_along)
+        if retainerness > 1:
+            ref = retainer_face_start_center + retainer_face_along*retainerness
+        elif p[2] < bearing_top_z:
+            ref = Point(0,0,p[2])
+        else:
+            d = Direction((p-revolution_center).projected_perpendicular(Back))
+            ref = revolution_center+d*revolution_radius
+
+        dist = p.distance(ref)
+        return (dist - CPAP_inner_radius)*2 #/(((p-ref)/dist).projected_perpendicular(Up)).length()
+        # if 0 < retainerness < 1:
+        #     return CPAP_most_walls_thickness - CPAP_retainer_bite_depth*(1-abs(retainerness*2-1))
+        # return ball_facing_radius(p[2]) - CPAP_inner_radius
     f = 900
     start, points, commands = make_spiral(
         v_to_cross_section_curve=curvefn,
         max_overhang=0.5,
         line_width=thickness_fn,
-        max_layer_height=0.3,
-        starting_downfill=0.2,
+        max_layer_height=0.2,
+        starting_downfill=0.1,
         f=f,
     )
     commands = ([
@@ -439,17 +479,93 @@ def curved_tube_with_builtin_inner_race():
                 commands)
 
     parity = 1
-    for row in incomplete_torus_rows[3::4]:
+    for row in incomplete_torus_rows[1::2]:
         row = row[::parity]
         parity = -parity
         points.extend(row)
         commands.append(g1(coords=row[0], f=f))
         for p in row[1:]:
-            commands.append(g1(coords=p, eplus_cross_sectional_mm2=CPAP_most_walls_thickness*0.4, f=f))
+            commands.append(g1(coords=p, eplus_cross_sectional_mm2=thickness_fn(p)*0.2, f=f))
 
     gcode = wrap_gcode("\n".join(commands))
 
-    export_string(gcode, "curved_tube_with_builtin_inner_race_2.gcode")
+    export_string(gcode, "curved_tube_with_builtin_inner_race_5.gcode")
 
     return BSplineCurve(points, BSplineDimension(degree=1))
-preview(curved_tube_with_builtin_inner_race)
+
+
+CPAP_outer_race_base = 0.5
+@run_if_changed
+def CPAP_outer_race_half():
+    def outer_race_fn(v):
+        z = v*(ball_radius/sq2 + CPAP_outer_race_base)
+        z_above_base = z - CPAP_outer_race_base
+        offs = max(0, z - CPAP_outer_race_base) - (ball_radius/sq2)
+
+        r = CPAP_bearing_ball_center_offset + math.sqrt(ball_radius**2 - offs**2) + CPAP_min_wall_thickness + CPAP_ball_leeway
+        if z_above_base < 0:
+            r += z_above_base
+        return Circle(Axes(Point(0,0,z), Up), r)
+    outer_race_start, outer_race_points, outer_race_commands = make_spiral(
+        v_to_cross_section_curve=outer_race_fn,
+        max_overhang=0.5,
+        line_width=CPAP_min_wall_thickness,
+        max_layer_height=0.2,
+        starting_downfill=0.1,
+        f=900,
+    )
+    commands = ([
+                    'M106 S255 ; Fan 100%',
+                ] +
+                square_jump(coords=outer_race_start, min_transit_z=0.2) +
+                outer_race_commands)
+    gcode = wrap_gcode("\n".join(commands))
+
+    export_string(gcode, "CPAP_outer_race_3.gcode")
+
+    return BSplineCurve(outer_race_points, BSplineDimension(degree=1))
+
+
+@run_if_changed
+def CPAP_bearings_retainer_ring():
+    flat_bottom = Plane(Point(0,0,0), Up)
+    flat_top = Plane(Point(0,0,CPAP_retainer_bite_thickness), Up)
+    ball_center = Point(CPAP_bearing_ball_center_offset + CPAP_ball_leeway, 0, CPAP_retainer_bite_thickness + ball_radius+0.1)
+    a = ball_center + Direction(1,0,-1)*(ball_radius+CPAP_min_wall_thickness)
+    b = a + Direction(1,0,-1)*CPAP_min_wall_thickness
+    arc = Edge(a,b).revolve(Axis(ball_center, Back), Degrees(-90))
+
+    rest = Face(Wire([
+        b.projected(flat_bottom, by=Direction(-1,0,-1)),
+        b,
+        a,
+        a.projected(flat_top, by=Direction(-1,0,-1)),
+        Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, CPAP_retainer_bite_thickness),
+        Point(CPAP_inner_radius + CPAP_min_wall_thickness, 0, CPAP_retainer_bite_thickness/2),
+        Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, 0),
+    ], loop=True))
+    whole_thing = Compound(arc, rest).revolve(Up)
+
+    slit_thickness=1
+
+    tabs = Compound(
+        Vertex(b).revolve(Axis(ball_center, Back), Degrees(-90)),
+        Edge(b, b.projected(flat_bottom, by=Direction(-1,0,-1))),
+    ).extrude(Left*0.2,Right*5).extrude(Back*(CPAP_min_wall_thickness*2+slit_thickness), centered=True)
+    slit = Vertex(Origin).extrude(Back*slit_thickness, centered=True).extrude(Right*100).extrude(Up*100)
+    # preview(whole_thing, tabs, slit)
+    tab_holes = Face(Circle(Axes(b+Right*3+Up*ball_center[2],Back),1)).extrude(Back*10, centered=True)
+    
+    result = Compound(
+        whole_thing,
+        tabs.cut(tab_holes),
+    ).cut(slit)
+
+    save_STL("CPAP_bearings_retainer_ring", result)
+    export("CPAP_bearings_retainer_ring.stl", "CPAP_bearings_retainer_ring_2.stl")
+    preview(result)
+    return result
+
+
+
+preview(curved_tube_with_builtin_inner_race, CPAP_outer_race_half, CPAP_bearings_retainer_ring @ Translate(Down*(CPAP_retainer_bite_thickness+0.1)))
