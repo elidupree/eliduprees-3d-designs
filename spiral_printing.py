@@ -82,15 +82,17 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
         next = 1
         steps = subdivisions(0,1,amount=11)[1:]
         min_swing_size = 0.05
+        max_swing_size = 2
         while True:
             points_and_depths, refined_steps, steepness = try_next_section(steps,cross_sections_achieved[-2:]+[next])
             if steepness > 1:
                 print(f"too steep: {cross_sections_achieved[-2:]}, {next}, {steepness}")
-                next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 0.5, 1-min_swing_size))
-            elif steepness < 0.98 and next != 1:
+                next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 1/max_swing_size, 1-min_swing_size))
+            elif steepness < 0.95 and next != 1:
                 print(f"not steep enough: {cross_sections_achieved[-2:]}, {next}, {steepness}")
-                next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 1+min_swing_size, 2))
+                next = Between(cross_sections_achieved[-1], next, np.clip(1/steepness, 1+min_swing_size, max_swing_size))
                 min_swing_size *= 0.6
+                max_swing_size = max_swing_size**0.6
             elif len(refined_steps) > len(steps):
                 print(f"too coarse: {cross_sections_achieved[-2:]}, {next}, {len(steps)}, {len(refined_steps)}")
                 steps = refined_steps #math.ceil(steps*np.clip(coarseness, 1.05, 2))
