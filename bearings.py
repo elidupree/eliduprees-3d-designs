@@ -275,7 +275,7 @@ def try_loop(curve_steps, prev_loop_start_param, start_param, stop_param):
     return all_points, commands
 """
 
-@run_if_changed
+# @run_if_changed
 def spiral_test():
     def curvefn(v):
         return Circle(Axes(Point(0,0,v*10), Direction(v*0.2,0,1), Back), 5+5*v*v)
@@ -307,7 +307,7 @@ races_base = 0.5
 races_inner_radius = 19/2+0.5
 ball_center_offset = races_inner_radius + 0.5 + ball_radius
 
-@run_if_changed
+# @run_if_changed
 def inner_race():
     def inner_race_fn(v):
         z = v*(ball_diameter/sq2 + races_base)
@@ -334,7 +334,7 @@ def inner_race():
 
     return BSplineCurve(inner_race_points, BSplineDimension(degree=1))
 
-@run_if_changed
+# @run_if_changed
 def outer_race_half():
     def outer_race_fn(v):
         z = v*(ball_radius/sq2 + races_base)
@@ -366,6 +366,8 @@ CPAP_min_wall_thickness=0.9
 CPAP_ball_leeway=0.05
 CPAP_ball_space_radius= ball_radius
 CPAP_bearing_ball_center_offset = CPAP_inner_radius + CPAP_min_wall_thickness + CPAP_ball_space_radius
+CPAP_bearing_outermost_radius = CPAP_bearing_ball_center_offset + CPAP_ball_leeway + CPAP_min_wall_thickness*2
+CPAP_most_walls_thickness = CPAP_min_wall_thickness + (1-1/sq2)*CPAP_ball_space_radius
 @run_if_changed
 def curved_tube_with_builtin_inner_race():
     def ball_facing_radius(z):
@@ -373,37 +375,81 @@ def curved_tube_with_builtin_inner_race():
         return CPAP_bearing_ball_center_offset - math.sqrt(CPAP_ball_space_radius**2 - offs**2)
 
     bearing_top_z = (CPAP_ball_space_radius*sq2 + races_base)
+
+    torus_rows = []
+    tube_radius = CPAP_inner_radius+CPAP_most_walls_thickness/2
+    revolution_radius = CPAP_bearing_outermost_radius
+    revolution_center = Point(revolution_radius, 0, 0)
+    revolution_axis = Axis(revolution_center, Back)
+    for i in range(360):
+        tube_angle = Degrees(i)
+        start = Point(tube_radius,0,0) @ Rotate(Up, tube_angle)
+        for j in range(1000):
+            zplus = j*0.1
+            angle = asin(zplus/(revolution_center-start)[0])
+            position = start @ Rotate (revolution_axis, angle)
+            # print(start, zplus, position[2], angle.degrees, position.distance(revolution_center), start.distance(revolution_center))
+            if angle.degrees > 30:
+                break
+            if len (torus_rows) <= j:
+                torus_rows.append ([])
+            torus_rows [j].append (position + Up*bearing_top_z)
+
+    complete_torus_rows = [r for r in torus_rows if len(r) == 360]
+    incomplete_torus_rows = torus_rows[len(complete_torus_rows):]
+
+    complete_torus_surface = BSplineSurface(complete_torus_rows, v=BSplineDimension(periodic = True))
+    # print([r[1] for r in complete_torus_rows])
+    # print(list(complete_torus_surface.UMultiplicities()))
+    # print(list(complete_torus_surface.UKnots()))
+    # # print(complete_torus_surface.VKnots(0).position(distance=5))
+    # print(complete_torus_surface.UIso(1.5).position(distance=5))
+    knots = list(complete_torus_surface.UKnots())
+    cts_a, cts_b = knots[0], knots[-1]
+
     def curvefn(v):
         circle_axis = Up
         if v < 0.5:
             center = Point(0,0,(v/0.5)*bearing_top_z)
         else:
-            rotation = Rotate(Axis(Point(CPAP_inner_radius+3,0,bearing_top_z), Back), Degrees(((v-0.5)/0.5)*20))
-            center = Point(0,0,bearing_top_z) @ rotation
-            circle_axis = circle_axis @ rotation
+            # rotation = Rotate(Axis(Point(CPAP_bearing_outermost_radius,0,bearing_top_z), Back), Degrees(((v-0.5)/0.5)*20))
+            # center = Point(0,0,bearing_top_z) @ rotation
+            # circle_axis = circle_axis @ rotation
+            return complete_torus_surface.UIso(Between(cts_a, cts_b, (v-0.5)/0.5))
 
         a,b = CPAP_inner_radius, ball_facing_radius(center[2])
         r = Between(a,b)
         return Circle(Axes(center, circle_axis), r)
-    # preview(curvefn(v) for v in subdivisions(0,1,amount=20))
+    # preview((curvefn(v) for v in subdivisions(0,1,amount=20)), complete_torus_surface)
     def thickness_fn(p):
         return ball_facing_radius(p[2]) - CPAP_inner_radius
+    f = 900
     start, points, commands = make_spiral(
         v_to_cross_section_curve=curvefn,
         max_overhang=0.5,
         line_width=thickness_fn,
         max_layer_height=0.3,
         starting_downfill=0.2,
-        f=900,
+        f=f,
     )
     commands = ([
                     'M106 S255 ; Fan 100%',
                 ] +
                 square_jump(coords=start, min_transit_z=0.2) +
                 commands)
+
+    parity = 1
+    for row in incomplete_torus_rows[3::4]:
+        row = row[::parity]
+        parity = -parity
+        points.extend(row)
+        commands.append(g1(coords=row[0], f=f))
+        for p in row[1:]:
+            commands.append(g1(coords=p, eplus_cross_sectional_mm2=CPAP_most_walls_thickness*0.4, f=f))
+
     gcode = wrap_gcode("\n".join(commands))
 
-    export_string(gcode, "curved_tube_with_builtin_inner_race_1.gcode")
+    export_string(gcode, "curved_tube_with_builtin_inner_race_2.gcode")
 
     return BSplineCurve(points, BSplineDimension(degree=1))
 preview(curved_tube_with_builtin_inner_race)

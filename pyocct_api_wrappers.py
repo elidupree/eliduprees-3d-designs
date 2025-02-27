@@ -1228,6 +1228,10 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       self.degrees = self.turns * 360
 
   @export
+  def asin(ratio):
+    return Radians(math.asin(ratio))
+
+  @export
   def acos(ratio):
     return Radians(math.acos(ratio))
 
