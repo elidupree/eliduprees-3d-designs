@@ -1,9 +1,10 @@
 import math
 import numpy as np
+import numbers
 from gcode_stuff.gcode_utils import *
 from pyocct_system import *
 
-def make_spiral(*, v_to_cross_section_curve, nozzle_width, line_width, starting_downfill, max_layer_height, f, go_to_start = fastmove):
+def make_spiral(*, v_to_cross_section_curve, max_overhang, line_width, starting_downfill, max_layer_height, f):
     """
     Calculate the route for a FDM nozzle to move in a spiral to render the provided surface, so it can form a single-wall with absolutely no printing artifacts like stringing or z-seams.
 
@@ -11,8 +12,8 @@ Input is given as a function from parameter that ranges from 0 to 1 (call it v) 
 
 Design-wise, our approach is this: iterate from bottom to top, splitting the surface into layers, with a search for permissible layer heights. With in each layer, we actually need to proceed in a spiral; so we pick 2 constant-v cross-sections of the input, and proceed around them by equal proportions of arc length, placing the spiral-points in between the layers.
     :param v_to_cross_section_curve: The input surface
-    :param nozzle_width: Determines the permissible overhang
-    :param line_width: The assumed line width to generate (I usually use slightly higher than the nozzle width)
+    :param max_overhang: Determines the permissible overhang
+    :param line_width: The assumed line width to generate (I usually use slightly higher than the nozzle width). Can be a number or a function from location to number.
     :param starting_downfill: make the first layer have this much extra stroke thickness, for bed adhesion
     :param max_layer_height: layers will not be made further apart than this in z
     :param f: speed of print (mm/min; TODO maybe support lower speeds for tighter turns? and/or enforcing thinner layer heights for that?)
@@ -22,6 +23,9 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
         3. the gcode commands (as a list of strings)
     """
 
+    if isinstance(line_width, numbers.Number):
+        line_width_number = line_width
+        line_width = lambda p: line_width_number
 
     def try_next_section(curve_steps, vs):
         curves = [v_to_cross_section_curve(v) for v in vs]
@@ -47,7 +51,7 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
             if riseness < 0:
                 raise RuntimeError("spiral moved downwards")
                 preview (curves, current, below)
-            overhangness = layer_to_layer.projected_perpendicular(Up).length() / (nozzle_width*0.6)
+            overhangness = layer_to_layer.projected_perpendicular(Up).length() / (max_overhang)
 
             steepness = max(steepness, riseness, overhangness)
 
@@ -87,7 +91,7 @@ Design-wise, our approach is this: iterate from bottom to top, splitting the sur
                 for p,d in points_and_depths:
                     all_points.append(p)
                     if started:
-                        commands.append(g1(coords=p, eplus_cross_sectional_mm2=line_width*(d+extra_depth), f=f))
+                        commands.append(g1(coords=p, eplus_cross_sectional_mm2=line_width(p)*(d+extra_depth), f=f))
                     else:
                         started = True
                         start_position = p
