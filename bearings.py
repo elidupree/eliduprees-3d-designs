@@ -363,20 +363,31 @@ def outer_race_half():
 
 CPAP_inner_radius=19/2
 CPAP_min_wall_thickness=0.8
-CPAP_ball_leeway=0.03
+CPAP_ball_leeway=0.2
 CPAP_ball_space_radius= ball_radius
 CPAP_bearing_ball_center_offset = CPAP_inner_radius + CPAP_min_wall_thickness + CPAP_ball_space_radius
-CPAP_bearing_outermost_radius = CPAP_bearing_ball_center_offset + CPAP_ball_leeway + CPAP_min_wall_thickness*2
 CPAP_most_walls_thickness = CPAP_min_wall_thickness + 0.5
+CPAP_bearing_outermost_radius = CPAP_bearing_ball_center_offset + CPAP_ball_leeway + CPAP_min_wall_thickness+CPAP_most_walls_thickness
 
 # CPAP_inner_race_base = ball_radius*(1-1/sq2)+0.1
 
 CPAP_halfrace_grip_degrees = 60
 CPAP_halfrace_grip_height = ball_radius*Degrees (CPAP_halfrace_grip_degrees).sin()
 
-CPAP_retainer_bite_thickness = 1
+CPAP_retainer_bite_thickness = 3
 CPAP_retainer_bite_depth = CPAP_most_walls_thickness - CPAP_min_wall_thickness
-CPAP_joint_overshoot_for_sanding=0.5
+CPAP_joint_overshoot_for_sanding=0.2
+
+def CPAP_retainer_bite_profile(base, along, out, overshoot):
+    return [
+        base,
+               base + along*0.5 - out*CPAP_retainer_bite_depth,
+               base + along*1,
+               base + along*2,
+               base + along*2.5 - out*CPAP_retainer_bite_depth,
+               base + along*3,
+    ] + ([base+along*(3+CPAP_joint_overshoot_for_sanding)] if overshoot else [])
+
 
 CPAP_segment_revolution_degrees = 30
 
@@ -406,12 +417,7 @@ def curved_tube_with_builtin_inner_race():
         curve_end = (curve_start @ Rotate (revolution_axis, Degrees(CPAP_segment_revolution_degrees)))
         tube_outwards = Right @ Rotate(Up, tube_angle)
         retainer_face_outwards = tube_outwards @ Rotate(revolution_axis, Degrees(CPAP_segment_revolution_degrees))
-        retainer_bite_surface = BSplineCurve([
-            curve_end,
-            curve_end+retainer_face_along*CPAP_retainer_bite_thickness/2 - retainer_face_outwards*CPAP_retainer_bite_depth/2,
-            curve_end+retainer_face_along*CPAP_retainer_bite_thickness,
-            curve_end+retainer_face_along*(CPAP_retainer_bite_thickness + CPAP_joint_overshoot_for_sanding),
-        ], BSplineDimension(degree=1))
+        retainer_bite_surface = BSplineCurve(CPAP_retainer_bite_profile(curve_end, retainer_face_along, retainer_face_outwards/2, True), BSplineDimension(degree=1))
         for j in range(1000):
             zplus = j*0.1
             plane = Plane(Point(0,0,zplus), Up)
@@ -499,7 +505,7 @@ def curved_tube_with_builtin_inner_race():
 
     gcode = wrap_gcode("\n".join(commands))
 
-    export_string(gcode, "curved_tube_with_builtin_inner_race_5.gcode")
+    export_string(gcode, "curved_tube_with_builtin_inner_race_6.gcode")
 
     return BSplineCurve(points, BSplineDimension(degree=1))
 
@@ -532,7 +538,7 @@ def CPAP_outer_race_half():
                 outer_race_commands)
     gcode = wrap_gcode("\n".join(commands))
 
-    export_string(gcode, "CPAP_outer_race_3.gcode")
+    export_string(gcode, "CPAP_outer_race_4.gcode")
 
     return BSplineCurve(outer_race_points, BSplineDimension(degree=1))
 
@@ -541,44 +547,62 @@ def CPAP_outer_race_half():
 def CPAP_bearings_retainer_ring():
     flat_bottom = Plane(Point(0,0,0), Up)
     flat_top = Plane(Point(0,0,CPAP_retainer_bite_thickness), Up)
-    ring_height = CPAP_retainer_bite_thickness+ball_radius*2+0.1
-    virtual_ball_center = Point(CPAP_bearing_ball_center_offset+CPAP_min_wall_thickness + CPAP_ball_leeway, 0, CPAP_retainer_bite_thickness + ball_radius+0.1)
+    ring_height = CPAP_retainer_bite_thickness+ball_radius*2+0.1+1
+    # theoretically only needs x = CPAP_bearing_ball_center_offset+CPAP_min_wall_thickness + CPAP_ball_leeway
+    # , but in practice it was always tight on the races and loose on the tube.
+    # Trial and error found that +0.6 worked.
+    virtual_ball_center = Point(CPAP_bearing_ball_center_offset+CPAP_min_wall_thickness + CPAP_ball_leeway + 0.6, 0, CPAP_retainer_bite_thickness + ball_radius+0.1)
     dir1 = (Right@Rotate(Back, Degrees(CPAP_halfrace_grip_degrees)))
     a = virtual_ball_center + dir1*(ball_radius)
     b = a + dir1*CPAP_min_wall_thickness
     arc = Edge(a,b).revolve(Axis(virtual_ball_center, Back), Degrees(-2*CPAP_halfrace_grip_degrees))
 
-    rest_wire=Wire([
-        b.projected(flat_bottom, by=Direction(-1,0,-1)),
-        b,
-        a,
-        a.projected(flat_top, by=Direction(-1,0,-1)),
-        Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, CPAP_retainer_bite_thickness),
-        Point(CPAP_inner_radius + CPAP_min_wall_thickness, 0, CPAP_retainer_bite_thickness/2),
-        Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, 0),
-    ], loop=True)
-    # preview(rest_wire)
-    rest = Face(rest_wire)
-    whole_thing = Compound(arc, rest).revolve(Up)
+    # rest_wire=Wire([
+    #     b.projected(flat_bottom, by=Direction(-1,0,-1)),
+    #     b,
+    #     a,
+    #     a.projected(flat_top, by=Direction(-1,0,-1)),
+    #     Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, CPAP_retainer_bite_thickness),
+    #     Point(CPAP_inner_radius + CPAP_min_wall_thickness, 0, CPAP_retainer_bite_thickness/2),
+    #     Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, 0),
+    # ], loop=True)
+    # # preview(rest_wire)
+    # rest = Face(rest_wire)
+    rest = Compound(
+        Edge(a,b).extrude(Vector(-1,0,-1)),
+        (Wire(CPAP_retainer_bite_profile(Point(CPAP_inner_radius + CPAP_most_walls_thickness, 0, 0), Up, Right, False)).extrude(Right*10)
+             )).cut([
+            Vertex(Origin).extrude(Down*100).extrude(Right*100, centered=True),
+            # HalfSpace(b, Direction(1, 0, -1)),
+            Vertex(b).extrude(Direction(1, 0, 1)*100, centered=True).extrude(Direction(1, 0, -1)*100),
+        ])
+    # preview(rest)
+    # preview(arc, rest)
+    whole_thing = Compound(arc,
+                           rest,
+                           (Edge(a,b)@Rotate(Axis(virtual_ball_center, Back), Degrees(-2*CPAP_halfrace_grip_degrees))).extrude(Direction(-1,0,1)*2)).revolve(Up)
+    # preview(whole_thing)
 
     slit_thickness=1
 
     tabs = Compound(
         Vertex(b).revolve(Axis(virtual_ball_center, Back), Degrees(-2*CPAP_halfrace_grip_degrees)),
         Edge(b, b.projected(flat_bottom, by=Direction(-1,0,-1))),
-    ).extrude(Left*0.2,Right*50).extrude(Back*(CPAP_min_wall_thickness*2+slit_thickness), centered=True)
-    tabs = Intersection(tabs, Face(Circle(Axes(Point(b[0]+1.5,0,ring_height/2),Back), 4)).extrude(Back*50, centered=True))
+    ).extrude(Left*0.5,Right*50).extrude(Back*(CPAP_most_walls_thickness*4+slit_thickness), centered=True)
+    tabs = Intersection(tabs, Face(Circle(Axes(Point(b[0]+0.5,0,ring_height/2),Back), 5.5)).extrude(Back*50, centered=True))
     slit = Vertex(Origin).extrude(Back*slit_thickness, centered=True).extrude(Right*100).extrude(Up*100)
     # preview(whole_thing, tabs, slit)
-    tab_holes = Face(Circle(Axes(Point(b[0]+3,0,ring_height/2),Back),1)).extrude(Back*10, centered=True)
+    tab_holes = Face(Circle(Axes(Point(b[0]+3.5,0,ring_height/2),Back),1.2)).extrude(Back*10, centered=True)
     
     result = Compound(
         whole_thing,
         tabs.cut(tab_holes),
-    ).cut([HalfSpace(Point(0,0,ring_height), Up), slit])
-
+    ).cut([
+        # HalfSpace(Point(0,0,ring_height), Up),
+        slit])
+    # preview(result)
     save_STL("CPAP_bearings_retainer_ring", result)
-    export("CPAP_bearings_retainer_ring.stl", "CPAP_bearings_retainer_ring_2.stl")
+    export("CPAP_bearings_retainer_ring.stl", "CPAP_bearings_retainer_ring_3.stl")
     preview(result)
     return result
 
