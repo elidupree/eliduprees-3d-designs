@@ -8,7 +8,7 @@ This is only for top-level library code, so the design is as follows:
 * When you want to generate code, you write `@generate_code` over a nullary function that returns a string.
 * The goal is to make it so that every thus-tagged function also has the generated code under it, wrapped in the comments `# == Begin generated code ==` and `# == End generated code ==`
 * When the interpreter reaches this function, it automatically runs it and calculates the generated code, then checks the current state of the file. If the generated code is already present, it does nothing more. If not present, it throws a GeneratedCodeNeedsUpdate exception.
-* To handle these exceptions, you should make a script that calls update_all_generated_code() on the module - which repeatedly imports the module, catches exceptions, and performs the actual code updates. Also, any generated-code blocks not induced by a @generate_code function will be deleted by update_all_generated_code() (identified by their comments).
+* To handle these exceptions, you should put `this_file_uses_code_generation()` at the top of the module. This makes it so that when you run the module as __main__, it repeatedly executes the file, catches exceptions, and performs the actual code updates. Also, it deletes any generated-code blocks not induced by a @generate_code function (identified by their comments).
 """
 import base64
 import hashlib
@@ -239,32 +239,17 @@ def _print_exception_during_update(exc_info, file_path):
         print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
     traceback.print_exception(ty, exc, tb)
 
-def update_all_generated_code(module_name):
-    if module_name in sys.modules:
-        return
-    module_spec = importlib.util.find_spec(module_name)
-    file_path = module_spec.origin
+def _update_all_generated_code(file_path):
     _remove_generated_code_before_first_generator(file_path)
-    m = None
     attempts = 100
     for attempt in range(attempts):
+        with open(file_path) as f:
+            source_text = f.read()
         try:
-            if m is None:
-                m = importlib.import_module(module_name)
-            else:
-                vars(m).clear()
-                importlib.reload(m)
-            break
-        except GeneratedCodeNeedsUpdate as e:
-            # print("Generated code changed:", e.new_code)
-            # In case we generate a syntax error, we want to be able to reload 1 more time (hopefully this will never matter because we won't run out of attempts, but just in case)
-            if attempt + 1 < attempts:
-                e.execute()
-                continue
+            code = compile(source_text, file_path, "exec")
         except SyntaxError as e:
             # We need special handling for syntax errors, because if you leave a syntax error in the generated code, you can't even rerun the generation.
-            with open(file_path) as f:
-                lines = f.read().splitlines()
+            lines = source_text.splitlines()
 
             chunk = _generated_code_chunk_containing(lines, e.end_lineno-1)
             if chunk is None:
@@ -281,10 +266,19 @@ def update_all_generated_code(module_name):
             lines.insert(e.end_lineno, _labeled_line(f'"{" "*e.offset}^ {e} "', label))
             with atomic_write(file_path, overwrite=True) as file:
                 file.write("\n".join(lines))
-                
+
             import traceback
             traceback.print_exception(SyntaxError, e, None)
             break
+
+        try:
+            exec(code)
+        except GeneratedCodeNeedsUpdate as e:
+            # print("Generated code changed:", e.new_code)
+            # In case we generate a syntax error, we want to be able to reload 1 more time (hopefully this will never matter because we won't run out of attempts, but just in case)
+            if attempt + 1 < attempts:
+                e.execute()
+                continue
         except Exception as e:
             import traceback
             ty, exc, tb = sys.exc_info()
@@ -293,4 +287,8 @@ def update_all_generated_code(module_name):
             traceback.print_exception(ty, exc, tb)
             break
 
-
+def this_file_uses_code_generation():
+    caller = inspect.currentframe().f_back
+    if caller.f_globals["__name__"] == "__main__":
+        _update_all_generated_code(caller.f_globals["__file__"])
+        sys.exit(0)
