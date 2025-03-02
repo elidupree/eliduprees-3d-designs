@@ -250,8 +250,9 @@ def _update_all_generated_code(file_path):
         except SyntaxError as e:
             # We need special handling for syntax errors, because if you leave a syntax error in the generated code, you can't even rerun the generation.
             lines = source_text.splitlines()
+            line_index = (e.end_lineno if hasattr(e, "end_lineno") else e.lineno) - 1
 
-            chunk = _generated_code_chunk_containing(lines, e.end_lineno-1)
+            chunk = _generated_code_chunk_containing(lines, line_index)
             if chunk is None:
                 raise
 
@@ -263,7 +264,7 @@ def _update_all_generated_code(file_path):
                     return line
                 return _labeled_line("# " + _unlabeled_line(line, label), label)
             lines[start:end] = [commented_line(line) for line in lines[start:end]]
-            lines.insert(e.end_lineno, _labeled_line(f'"{" "*e.offset}^ {e} "', label))
+            lines.insert(line_index+1, _labeled_line(f'"{" "*e.offset}^ {e} "', label))
             with atomic_write(file_path, overwrite=True) as file:
                 file.write("\n".join(lines))
 
@@ -286,6 +287,7 @@ def _update_all_generated_code(file_path):
                 tb = tb.tb_next
             traceback.print_exception(ty, exc, tb)
             break
+
 
 def this_file_uses_code_generation():
     caller = inspect.currentframe().f_back
