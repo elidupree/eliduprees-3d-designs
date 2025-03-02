@@ -20,7 +20,7 @@ import random
 import re
 import sys
 # from collections import defaultdict
-from typing import List
+from typing import List, Tuple, Optional
 
 from atomicwrites import atomic_write
 
@@ -48,17 +48,20 @@ def _parse_start_label(line):
 def _line_label_of_generated_code_line(line):
     return line[-(len(generated_code_line_label) - 2 + generated_code_hash_length):]
 
+def _labeled_line(raw_line, line_label):
+    target_length = 80
+    forced_length = len(raw_line) + len(line_label)
+    return raw_line + " "*(target_length-forced_length) + line_label
+def _unlabeled_line(labeled_line, line_label):
+    assert(labeled_line[-len(line_label):] == line_label)
+    return labeled_line[:-len(line_label)].rstrip()
 
 def _full_generated_lines(generator_name, fn_hash, raw_lines):
     start_label = generated_code_start_label.format(generator_name)
     line_label = generated_code_line_label.format(fn_hash)
     end_label = generated_code_end_label.format(generator_name)
-    def labeled_line(raw_line):
-        target_length = 80
-        forced_length = len(raw_line) + len(line_label)
-        return raw_line + " "*(target_length-forced_length) + line_label
     return [
-        labeled_line(line) for line in
+        _labeled_line(line, line_label) for line in
         [start_label] + raw_lines + [end_label]
     ]
 
@@ -104,23 +107,7 @@ def generate_code(code_generation_function):
         # # corresponding_lines = existing_lines[:first_existing_lineno_after_generated_code][:-len(full_generated_lines)]
         if updated_lines != existing_lines:
             new_code = "\n".join(updated_lines)
-
-            # We need special handling for syntax errors, because if you put a syntax error in the generated code, you can't even rerun the generation.
-            try:
-                compile(source=new_code, filename=os.path.basename(file_path), mode="exec", optimize=0)
-            except SyntaxError as e:
-                # print([getattr(e, f) for f in dir(e)])
-                line_idx = (e.lineno - 1) - lineidx_after_generator
-                end_line_idx = (e.end_lineno - 1) - lineidx_after_generator
-                # thought of putting this at the start, but don't want to affect line numbers
-                # ['"Code disabled due to syntax error (see below)"']+
-                error_reported_lines = ["# " + line for line in raw_generated_lines]
-                error_reported_lines.insert(end_line_idx + 1, f'"{" "*e.offset}^ {e} "')
-                # error_reported_lines.insert(line_idx - 1, f'" SyntaxError in generated code ({(line_idx,end_line_idx, e.lineno,e.end_lineno)}): "')
-                updated_lines = _lines_with_replacing_generated_code_at(lineidx_after_generator, existing_lines, _full_generated_lines(generator_name, fn_hash, error_reported_lines))
-                new_code = "\n".join(updated_lines)
-            if new_code != old_code:
-                raise GeneratedCodeNeedsUpdate(file_path, old_code, new_code)
+            raise GeneratedCodeNeedsUpdate(file_path, old_code, new_code)
             # print(f"mismatch: {corresponding_lines}, {full_generated_lines}")
             # needs_rewriting = True
 
@@ -190,6 +177,26 @@ def _lines_with_removing_generated_code_before_first_generator(original_lines: L
     return result
 
 
+def _generated_code_chunk_containing(lines: List[str], line_index: int) -> Optional[Tuple[int, int, str]]:
+    current_chunk_start_index = None
+    current_chunk_label = None
+    for i, line in enumerate(lines):
+        if current_chunk_label is None:
+            start_of = _parse_start_label(line)
+            if start_of is None:
+                if i >= line_index:
+                    return None
+            else:
+                current_chunk_start_index = i
+                current_chunk_label = _line_label_of_generated_code_line(line)
+        else:
+            if not line.endswith(current_chunk_label):
+                if i > line_index:
+                    return current_chunk_start_index, i, current_chunk_label
+                current_chunk_start_index = None
+                current_chunk_label = None
+
+
 def _lines_with_replacing_generated_code_at_start(original_lines: List[str], generated_lines: List[str]) -> List[str]:
     cleaned = _lines_with_removing_generated_code_before_first_generator(original_lines)
     return generated_lines + cleaned
@@ -223,6 +230,15 @@ class GeneratedCodeNeedsUpdate(Exception):
             file.write(self.new_code)
 
 
+def _print_exception_during_update(exc_info, file_path):
+    import traceback
+    ty, exc, tb = exc_info
+    print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
+    while inspect.getframeinfo(tb.tb_frame).filename != file_path:
+        tb = tb.tb_next
+        print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
+    traceback.print_exception(ty, exc, tb)
+
 def update_all_generated_code(module_name):
     if module_name in sys.modules:
         return
@@ -230,7 +246,8 @@ def update_all_generated_code(module_name):
     file_path = module_spec.origin
     _remove_generated_code_before_first_generator(file_path)
     m = None
-    for attempt in range(100):
+    attempts = 100
+    for attempt in range(attempts):
         try:
             if m is None:
                 m = importlib.import_module(module_name)
@@ -240,15 +257,40 @@ def update_all_generated_code(module_name):
             break
         except GeneratedCodeNeedsUpdate as e:
             # print("Generated code changed:", e.new_code)
-            e.execute()
-            continue
-        except:
+            # In case we generate a syntax error, we want to be able to reload 1 more time (hopefully this will never matter because we won't run out of attempts, but just in case)
+            if attempt + 1 < attempts:
+                e.execute()
+                continue
+        except SyntaxError as e:
+            # We need special handling for syntax errors, because if you leave a syntax error in the generated code, you can't even rerun the generation.
+            with open(file_path) as f:
+                lines = f.read().splitlines()
+
+            chunk = _generated_code_chunk_containing(lines, e.end_lineno-1)
+            if chunk is None:
+                raise
+
+            # thought of putting this at the start, but don't want to affect line numbers
+            # ['"Code disabled due to syntax error (see below)"']+
+            start, end, label = chunk
+            def commented_line(line):
+                if line.startswith("#"):
+                    return line
+                return _labeled_line("# " + _unlabeled_line(line, label), label)
+            lines[start:end] = [commented_line(line) for line in lines[start:end]]
+            lines.insert(e.end_lineno, _labeled_line(f'"{" "*e.offset}^ {e} "', label))
+            with atomic_write(file_path, overwrite=True) as file:
+                file.write("\n".join(lines))
+                
+            import traceback
+            traceback.print_exception(SyntaxError, e, None)
+            break
+        except Exception as e:
             import traceback
             ty, exc, tb = sys.exc_info()
             while inspect.getframeinfo(tb.tb_frame).filename != file_path:
                 tb = tb.tb_next
             traceback.print_exception(ty, exc, tb)
             break
-        #     print(f"Exception in code-generation file: \n{traceback.format_exc()}")
 
 
