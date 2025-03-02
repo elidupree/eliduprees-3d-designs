@@ -106,6 +106,7 @@ def generate_code(code_generation_function):
         # corresponding_lines = existing_lines[lineidx_after_generator:][:len(full_generated_lines)]
         # # corresponding_lines = existing_lines[:first_existing_lineno_after_generated_code][:-len(full_generated_lines)]
         if updated_lines != existing_lines:
+            print(f"Rewriting generated code for {generator_name}")
             new_code = "\n".join(updated_lines)
             raise GeneratedCodeNeedsUpdate(file_path, old_code, new_code)
             # print(f"mismatch: {corresponding_lines}, {full_generated_lines}")
@@ -167,7 +168,7 @@ def _lines_with_removing_generated_code_before_first_generator(original_lines: L
         if start_of is not None:
             # print(f"found generated code")
             label = _line_label_of_generated_code_line(line)
-            while original_lines[i].endswith(label):
+            while i < len(original_lines) and original_lines[i].endswith(label):
                 # print(f"found more generated code")
                 i += 1
             continue
@@ -177,24 +178,32 @@ def _lines_with_removing_generated_code_before_first_generator(original_lines: L
     return result
 
 
-def _generated_code_chunk_containing(lines: List[str], line_index: int) -> Optional[Tuple[int, int, str]]:
+def _closest_generated_code_chunk_starting_above(lines: List[str], line_index: int) -> Optional[Tuple[int, int, str]]:
+    last_chunk_start_index = None
+    last_chunk_end_index = None
     current_chunk_start_index = None
-    current_chunk_label = None
+    last_chunk_label = None
     for i, line in enumerate(lines):
-        if current_chunk_label is None:
+        if current_chunk_start_index is None:
             start_of = _parse_start_label(line)
             if start_of is None:
                 if i >= line_index:
+                    if last_chunk_start_index is not None:
+                        return last_chunk_start_index, last_chunk_end_index, last_chunk_label
                     return None
             else:
-                current_chunk_start_index = i
-                current_chunk_label = _line_label_of_generated_code_line(line)
+                current_chunk_start_index = last_chunk_start_index = i
+                last_chunk_label = _line_label_of_generated_code_line(line)
         else:
-            if not line.endswith(current_chunk_label):
+            if not line.endswith(last_chunk_label):
+                last_chunk_end_index = i
                 if i > line_index:
-                    return current_chunk_start_index, i, current_chunk_label
+                    break
                 current_chunk_start_index = None
-                current_chunk_label = None
+    if current_chunk_start_index is not None:
+        last_chunk_end_index = len(lines)
+    if last_chunk_start_index is not None:
+        return last_chunk_start_index, last_chunk_end_index, last_chunk_label
 
 
 def _lines_with_replacing_generated_code_at_start(original_lines: List[str], generated_lines: List[str]) -> List[str]:
@@ -233,28 +242,33 @@ class GeneratedCodeNeedsUpdate(Exception):
 def _print_exception_during_update(exc_info, file_path):
     import traceback
     ty, exc, tb = exc_info
-    print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
+    # print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
     while inspect.getframeinfo(tb.tb_frame).filename != file_path:
         tb = tb.tb_next
-        print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
+        # print(inspect.getframeinfo(tb.tb_frame).filename, file_path)
     traceback.print_exception(ty, exc, tb)
 
 def _update_all_generated_code(file_path):
     _remove_generated_code_before_first_generator(file_path)
     attempts = 100
     for attempt in range(attempts):
+        # print(f"attempt {attempt}")
         with open(file_path) as f:
             source_text = f.read()
         try:
             code = compile(source_text, file_path, "exec")
+            # print("compiled")
         except SyntaxError as e:
+            # print("SyntaxError")
             # We need special handling for syntax errors, because if you leave a syntax error in the generated code, you can't even rerun the generation.
             lines = source_text.splitlines()
             line_index = (e.end_lineno if hasattr(e, "end_lineno") else e.lineno) - 1
 
-            chunk = _generated_code_chunk_containing(lines, line_index)
+            chunk = _closest_generated_code_chunk_starting_above(lines, line_index)
             if chunk is None:
+                # print("what")
                 raise
+            # print("ok", chunk)
 
             # thought of putting this at the start, but don't want to affect line numbers
             # ['"Code disabled due to syntax error (see below)"']+
@@ -264,7 +278,7 @@ def _update_all_generated_code(file_path):
                     return line
                 return _labeled_line("# " + _unlabeled_line(line, label), label)
             lines[start:end] = [commented_line(line) for line in lines[start:end]]
-            lines.insert(line_index+1, _labeled_line(f'"{" "*e.offset}^ {e} "', label))
+            lines.insert(min(line_index+1, end), _labeled_line(f'"{" "*e.offset}^ {e} "', label))
             with atomic_write(file_path, overwrite=True) as file:
                 file.write("\n".join(lines))
 
@@ -273,14 +287,18 @@ def _update_all_generated_code(file_path):
             break
 
         try:
-            exec(code)
+            globals = {"__name__": os.path.splitext(os.path.basename(file_path))[0]}
+            exec(code, globals, globals)
+            break
         except GeneratedCodeNeedsUpdate as e:
             # print("Generated code changed:", e.new_code)
             # In case we generate a syntax error, we want to be able to reload 1 more time (hopefully this will never matter because we won't run out of attempts, but just in case)
             if attempt + 1 < attempts:
                 e.execute()
                 continue
-        except Exception as e:
+        except SyntaxError as e:
+            assert False
+        except:
             import traceback
             ty, exc, tb = sys.exc_info()
             while inspect.getframeinfo(tb.tb_frame).filename != file_path:
