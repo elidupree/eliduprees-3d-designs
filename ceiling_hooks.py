@@ -23,10 +23,11 @@ def screw_cut():
     x1 = -wide_cut_radius - min_thickness
     x2 = x1 - 5
     screw_flat_thickness=1*4
+    downish = Direction(0.06, 0, -1) # the ceiling slants a little bit, making it so that a perfectly vertical (wall-parallel) driver would not reach the screw head without this slant
     return Compound(
         rounded_ends_thing(x1, x2, inch*0.11).extrude(Down*100),
-        Face(Circle(Axes(Point(x1,0,0-screw_flat_thickness),Up),wide_cut_radius)).extrude(Down*100),
-        Wire([Point(x1,0,0-screw_flat_thickness), Point(x1-wide_cut_radius,0,0-screw_flat_thickness), Point(x1-wide_cut_radius-50,0,0-screw_flat_thickness-50)]).extrude(Down*100).extrude(Back*wide_cut_radius*2, centered = True)
+        Face(Circle(Axes(Point(x1,0,0-screw_flat_thickness),Up),wide_cut_radius)).extrude(downish*100),
+        Wire([Point(x1,0,0-screw_flat_thickness), Point(x2-wide_cut_radius,0,0-screw_flat_thickness), Point(x2-wide_cut_radius-50,0,0-screw_flat_thickness-50)]).extrude(downish*100).extrude(Back*wide_cut_radius*2, centered = True)
     )
 
 def hook(box_lip_thickness_with_leeway, box_lip_height_with_leeway, width, inset_space, screw_spacing, bend_accommodation=0):
@@ -76,9 +77,26 @@ def middle_hook_narrow():
     # width can theoretically be up to ~118 but we use less so it's easy to aim
     return hook(6, 50, 80, needed_extra_leeway, 20)
 
+@run_if_changed
+def wedge():
+    f = Face(Wire([
+        BSplineCurve([
+            Point(0, 0, 0),
+            Point(-8, 0, 0),
+            Point(-14, -8, 0),
+            Point(-15, -15, 0),
+        ]),
+        Point(-16, -30, 0),
+        Point(0, -30, 0),
+    ], loop=True))
+    handle = Vertex(-8, -30, 0).extrude(Front*20).extrude(Left*6, centered=True).cut(Vertex(-8, -30, 0).extrude(Front*19).extrude(Left*4, centered=True))
+    return Compound(f, handle).extrude(Down*15)
+
 save_STL("corner_hook", corner_hook, linear_deflection=0.2)
 export("corner_hook.stl", "corner_hook_2.stl")
 save_STL("middle_hook_straddle", middle_hook_straddle, linear_deflection=0.2)
-export("middle_hook_straddle.stl", "middle_hook_straddle_2.stl")
-preview(corner_hook @ Translate(Back*90), middle_hook_straddle, middle_hook_narrow @ Translate(Front*90))
+export("middle_hook_straddle.stl", "middle_hook_straddle_3.stl")
+save_STL("wedge", wedge, linear_deflection=0.2)
+export("wedge.stl", "wedge_1.stl")
+preview(corner_hook @ Translate(Back*90), middle_hook_straddle, middle_hook_narrow @ Translate(Front*90), wedge)
 
