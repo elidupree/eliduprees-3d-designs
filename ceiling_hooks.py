@@ -9,16 +9,24 @@ generous_thickness = 8
 catch_height = 3
 box_length = 21.25*inch
 
+def rounded_ends_thing(x1, x2, small_radius):
+    return Compound(
+        [Face(Circle(Axes(Point(x,0,0),Up),small_radius)) for x in [x1, x2]],
+        Edge(Point(x1, 0, 0), Point(x2, 0, 0)).extrude(Back*small_radius*2, centered=True)
+    )
+
+
 # 0,0,0 is "end of box, middle, ceiling"
 @run_if_changed
 def screw_cut():
     wide_cut_radius = 8
-    x = -wide_cut_radius - min_thickness
+    x1 = -wide_cut_radius - min_thickness
+    x2 = x1 - 5
     screw_flat_thickness=1*4
     return Compound(
-        Face(Circle(Axes(Point(x,0,0),Up),inch*0.11)).extrude(Down*100),
-        Face(Circle(Axes(Point(x,0,0-screw_flat_thickness),Up),wide_cut_radius)).extrude(Down*100),
-        Wire([Point(x,0,0-screw_flat_thickness), Point(x-wide_cut_radius,0,0-screw_flat_thickness), Point(x-wide_cut_radius-50,0,0-screw_flat_thickness-50)]).extrude(Down*100).extrude(Back*wide_cut_radius*2, centered = True)
+        rounded_ends_thing(x1, x2, inch*0.11).extrude(Down*100),
+        Face(Circle(Axes(Point(x1,0,0-screw_flat_thickness),Up),wide_cut_radius)).extrude(Down*100),
+        Wire([Point(x1,0,0-screw_flat_thickness), Point(x1-wide_cut_radius,0,0-screw_flat_thickness), Point(x1-wide_cut_radius-50,0,0-screw_flat_thickness-50)]).extrude(Down*100).extrude(Back*wide_cut_radius*2, centered = True)
     )
 
 def hook(box_lip_thickness_with_leeway, box_lip_height_with_leeway, width, inset_space, screw_spacing, bend_accommodation=0):
@@ -46,7 +54,7 @@ def hook(box_lip_thickness_with_leeway, box_lip_height_with_leeway, width, inset
 
 corner_box_lip_thickness_with_leeway = 4
 # could be 37, strictly; add 3 to cope with ceiling-induced irregularities in the _angle_ it gets mounted
-corner_box_lip_height_with_leeway = 40
+corner_box_lip_height_with_leeway = 42 # 40 was not-quite-enough, technically worked but had a bit of a "clicky squeeze past in one place"
 corner_hook_full_height = corner_box_lip_height_with_leeway+catch_height+generous_thickness
 @run_if_changed
 def corner_hook():
@@ -62,15 +70,15 @@ print("needed_extra_leeway", needed_extra_leeway)
 @run_if_changed
 def middle_hook_straddle():
     # width can theoretically be up to ~118 but we use less so it's easy to aim
-    return hook(6, 48, 90, needed_extra_leeway, 34)
+    return hook(6, 50, 90, needed_extra_leeway, 34)
 @run_if_changed
 def middle_hook_narrow():
     # width can theoretically be up to ~118 but we use less so it's easy to aim
-    return hook(6, 48, 80, needed_extra_leeway, 20)
+    return hook(6, 50, 80, needed_extra_leeway, 20)
 
 save_STL("corner_hook", corner_hook, linear_deflection=0.2)
-export("corner_hook.stl", "corner_hook_1.stl")
+export("corner_hook.stl", "corner_hook_2.stl")
 save_STL("middle_hook_straddle", middle_hook_straddle, linear_deflection=0.2)
-export("middle_hook_straddle.stl", "middle_hook_straddle_1.stl")
+export("middle_hook_straddle.stl", "middle_hook_straddle_2.stl")
 preview(corner_hook @ Translate(Back*90), middle_hook_straddle, middle_hook_narrow @ Translate(Front*90))
 
