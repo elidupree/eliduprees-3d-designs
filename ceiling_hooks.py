@@ -47,8 +47,10 @@ def hook(box_lip_thickness_with_leeway, box_lip_height_with_leeway, width, inset
     if screw_spacing == "single":
         result = result.cut(screw_cut @ Translate(Left*(inset_space+bend_accommodation)))
     else:
-        result = result.cut([screw_cut @ Translate(Left*(inset_space+bend_accommodation) + Back*screw_spacing*d) @ Rotate(Up, Degrees(7*d)) for d in [-1,1]])
-    result = result.intersection(Face(Circle(Axes(Point(-11-inset_space,0,0),Up),width/2)).extrude(Down*100))
+        result = result.cut([screw_cut @ Translate(Left*(inset_space+bend_accommodation) + Back*screw_spacing*d)
+                             @ Rotate(Up, Degrees(3*d))
+                             for d in [-1,1]])
+    result = result.intersection(rounded_ends_thing(-5-width/10, -10-width/10-inset_space,width/2).extrude(Down*100))
     # result = Vertex (Origin).extrude
     return result
 
@@ -79,18 +81,34 @@ def middle_hook_narrow():
 
 @run_if_changed
 def wedge():
-    f = Face(Wire([
+    f = Wire([
         BSplineCurve([
-            Point(0, 0, 0),
-            Point(-8, 0, 0),
+            Point(-1, -1, 0),
+            Point(-8, -1, 0),
             Point(-14, -8, 0),
-            Point(-15, -15, 0),
+            Point(-14, -15, 0),
+            Point(-14, -24, 0),
+            Point(-11, -29, 0),
         ]),
-        Point(-16, -30, 0),
-        Point(0, -30, 0),
+        Point(0, -29, 0),
+    ], loop=True).offset2d(1.0, fill=True)
+    handle = Wire([
+            Point(-6, -30, 0),
+            Point(-10, -30, 0),
+            Point(-10, -50, 0),
+            Point(-6, -50, 0),
+        ], loop=True).offset2d(1.0, fill=True)
+    block = Face(Wire([
+        BSplineCurve([
+            Point(0, -4, 0),
+            Point(-7, -6, 0),
+            Point(-10, -9, 0),
+            Point(-10, -15, 0),
+        ]),
+        Point(-10, -29, 0),
+        Point(0, -29, 0),
     ], loop=True))
-    handle = Vertex(-8, -30, 0).extrude(Front*20).extrude(Left*6, centered=True).cut(Vertex(-8, -30, 0).extrude(Front*19).extrude(Left*4, centered=True))
-    return Compound(f, handle).extrude(Down*15)
+    return Compound(f, handle, block).extrude(Down*10)
 
 save_STL("corner_hook", corner_hook, linear_deflection=0.2)
 export("corner_hook.stl", "corner_hook_2.stl")
