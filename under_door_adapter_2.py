@@ -35,7 +35,7 @@ def hose_to_bearing():
                        ]
 
                        + [Point(bearing_od/2+wall_thickness, 0, hose_rib_period * (thread_turns + 0.5)), Point(bearing_od/2+wall_thickness, 0, -hose_rib_period*0.5)], loop=True)
-    thread_hoops = [thread_hoop @ Rotate(Up, Turns(turns)) @ Translate(Up*(bearing_thickness + (turns-0.5)*hose_rib_period)) for turns in subdivisions(0, 1, max_length=1/120)]
+    thread_hoops = [thread_hoop @ Rotate(Up, Turns(-turns)) @ Translate(Up*(bearing_thickness + (turns-0.5)*hose_rib_period)) for turns in subdivisions(0, 1, max_length=1/120)]
     thread = Loft(thread_hoops, solid=True, ruled=True)
     # preview(result, thread)
     thread = thread.cut([
