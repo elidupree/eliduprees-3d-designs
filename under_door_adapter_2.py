@@ -6,6 +6,7 @@ initialize_pyocct_system()
 hose_od = 46
 hose_without_ribs_od = 40
 bearing_od = 50
+bearing_id = 40
 bearing_thickness = 6
 hose_rib_thickness = 3.6
 hose_rib_period = 6
@@ -58,3 +59,121 @@ def hose_to_bearing():
     save_STL("hose_to_bearing", result, linear_deflection=0.02)
     export("hose_to_bearing.stl", "hose_to_bearing_1.stl")
     preview(result)
+
+
+definite_space_under_door = 29 # 30 probably works, and it's what I used last time, which worked; 29 plays it nice and safe, especially since I want to hover it rather than dragging on the floor
+door_thickness = 34.2
+# give some leeway for shims to wedge in or whatever
+door_gap_thickness = door_thickness + 2
+brace_thickness = 3
+
+hose_od_leeway_radius = bearing_od/2+wall_thickness + 0.5
+hose_od_leeway_start_y = -(door_thickness/2 + brace_thickness)
+hose_center_y = hose_od_leeway_start_y - hose_od_leeway_radius
+hose_center = Point(0, hose_center_y, 0)
+tube_front_y = hose_center_y - bearing_id/2
+
+plate_thickness=1.2
+
+@run_if_changed
+def bottom_of_door():
+    return Vertex(Origin).extrude(Right*100, centered=True).extrude(Back*door_thickness, centered=True).extrude(Up*50)
+
+under_door_halfwidth = 30
+
+@run_if_changed
+def tube_footprint_quarter_points():
+    return ([
+            Point(under_door_halfwidth, 0, 0),
+            Point(under_door_halfwidth, -door_thickness/2, 0),
+            Point(under_door_halfwidth, -20, 0),
+            Point(under_door_halfwidth, -25, 0),
+        ]+
+        [hose_center + Vector(0,-bearing_id/2,0) @ Rotate(Up, Turns(t)) for t in subdivisions(0.22, 0, amount=20)])
+
+# @run_if_changed
+# def tube_footprint():
+#     return BSplineCurve(
+#         tube_footprint_quarter_points
+#         + [p @ Mirror(Right) for p in tube_footprint_quarter_points[1:-1][::-1]]
+#         + [p @ Mirror(Origin) for p in tube_footprint_quarter_points]
+#         + [p @ Mirror(Back) for p in tube_footprint_quarter_points[1:-1][::-1]]
+#         , BSplineDimension(periodic=True))
+# preview(tube_footprint)
+
+@run_if_changed
+def hose_id_pressurefit():
+    return Face(Circle(Axes(hose_center, Up), bearing_id/2)).extrude(Up*(bearing_thickness)).cut(Face(Circle(Axes(hose_center, Up), bearing_id/2-wall_thickness)).extrude(Up*(bearing_thickness)))
+
+def curved_end(inset):
+    base_y = -door_gap_thickness/2-brace_thickness+wall_thickness
+    return BSplineCurve([
+        Point(-under_door_halfwidth+inset, base_y-inset, 0),
+        Point(-under_door_halfwidth+inset, base_y-definite_space_under_door+inset, 0),
+        Point(0, base_y-definite_space_under_door+inset, 0),
+        Point(under_door_halfwidth-inset, base_y-definite_space_under_door+inset, 0),
+        Point(under_door_halfwidth-inset, base_y-inset, 0),
+    ])
+
+def tube_footprint(inset):
+    return Wire([curved_end(inset), curved_end(inset).reversed() @ Mirror(Back)], loop=True)
+# preview(tube_footprint.edges())
+def circle_to_squareish(inset):
+    height=50
+    return Loft([Wire(Circle(Axes(hose_center + Up*z, Up), bearing_id/2 - inset)) for z in subdivisions(height, height * 0.8, amount=7)] + [Wire(curved_end(inset), loop=True) @ Translate(0, -z*0.6, z) for z in subdivisions(height*0.1, 0, amount=7)], solid=True)
+
+slot_in_leeway_one_sided = 0.3
+
+@run_if_changed
+def circle_to_squareish_outer_solid():
+    return circle_to_squareish(0)
+
+@run_if_changed
+def circle_to_squareish_solid():
+    return circle_to_squareish_outer_solid.cut(circle_to_squareish(wall_thickness))
+
+@run_if_changed
+def tube_top_plate():
+    slot_in_outer_inset = -2*slot_in_leeway_one_sided-wall_thickness
+    plate_frame = Compound(
+        Face(tube_footprint(0)).cut(Face(tube_footprint(wall_thickness))).extrude(Down*brace_thickness),
+        Face(tube_footprint(slot_in_outer_inset-wall_thickness)).cut(Face(tube_footprint(slot_in_outer_inset))).extrude(Down*brace_thickness),
+        Face(tube_footprint(slot_in_outer_inset-wall_thickness)).cut(Face(tube_footprint(wall_thickness))).extrude(Down*plate_thickness))
+    middle_plate = Vertex(Origin).extrude(Back*(door_gap_thickness+brace_thickness*2), centered=True).extrude(Left*under_door_halfwidth*2, centered=True).extrude(Down*plate_thickness)
+    support_fins = [Vertex(x,0,0).extrude (Back*(door_gap_thickness+brace_thickness*2), centered=True).extrude (Left*wall_thickness, centered=True).extrude(Down*brace_thickness) for x in subdivisions(-under_door_halfwidth, under_door_halfwidth, max_length=12)[1:-1] ]
+
+    brace = Face(Wire([
+        BSplineCurve([
+        Point(-under_door_halfwidth, -door_gap_thickness/2, 0),
+        Point(-under_door_halfwidth, -door_gap_thickness/2 - brace_thickness, 0),
+        Point(-under_door_halfwidth, -door_gap_thickness/2 - brace_thickness*3, 0),
+        Point(0, hose_center_y - door_thickness/2, 0),
+        Point(under_door_halfwidth, -door_gap_thickness/2 - brace_thickness*3, 0),
+        Point(under_door_halfwidth, -door_gap_thickness/2 - brace_thickness, 0),
+        Point(under_door_halfwidth, -door_gap_thickness/2, 0),])
+    ], loop=True)).extrude(Up*40).cut(circle_to_squareish(wall_thickness/2))
+    # preview(brace, circle_to_squareish_outer_solid.wires())
+    return Compound(middle_plate, plate_frame, support_fins, circle_to_squareish_solid, circle_to_squareish_solid @ Mirror(Back), brace, brace @ Mirror(Back))
+
+@run_if_changed
+def tube_bottom_solid():
+    # intended to print as-is with Cura's "spiralize outer contour"
+    d = 13
+    k = Point(0,d*0.6,-brace_thickness-1.5-d)
+    half = Face(curved_end(-wall_thickness - slot_in_leeway_one_sided).cartesian_product(BSplineCurve([
+        Point(0,0,-plate_thickness),
+        Point(0,0,-brace_thickness),
+        Point(0,0,-brace_thickness-0.5),
+        Point(0,0,-brace_thickness-1),
+        k,
+        Point(0,k[1] + (definite_space_under_door + k[2]),-definite_space_under_door),
+    ]))).extrude(Back*100).cut(HalfSpace(Origin,Back))
+    return Compound(half, half @ Mirror(Back))
+
+
+save_STL("tube_top_plate", tube_top_plate, linear_deflection=0.2)
+export("tube_top_plate.stl", "tube_top_plate_1.stl")
+save_STL("tube_bottom_solid", tube_bottom_solid, linear_deflection=0.2)
+export("tube_bottom_solid.stl", "tube_bottom_solid_1.stl")
+preview(bottom_of_door, tube_footprint(0), tube_top_plate, tube_bottom_solid)
+
