@@ -1255,25 +1255,31 @@ def frame_3d_printable():
 @run_if_changed
 def nose_support():
     front_curve = front_curve_from_layout_file("nose_support")
-    relevant_face_surface = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-10, 15, max_length=0.5)] for x in subdivisions(-20, 20, max_length=0.5)])
+    upish = Left.cross(gframe_assumed_plane.normal())
+    relevant_face_surface = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
     front_ref = Point(0,0,3.6).projected(onto=gframe_assumed_plane, by=Front)
 
     contact_surface = Intersection(Face(Wire(front_curve, front_curve.reversed() @ Mirror(Left))).extrude(Back*100), Face(relevant_face_surface))
-    contact_plate = contact_surface.extrude(Front*2)
+    contact_plate = Compound(
+        contact_surface.extrude(Front*2),
+        Intersection(contact_surface, HalfSpace(Origin, Left)).extrude(Front*2 + Left*1),
+        Intersection(contact_surface, HalfSpace(Origin, Right)).extrude(Front*2 + Right*1),
+    )
     
-    front_surface = Vertex(front_ref).extrude(Left*15, centered=True).extrude(Left.cross(gframe_assumed_plane.normal())*5, centered=True)
+    front_surface = Vertex(front_ref).extrude(Left*18, centered=True).extrude(upish*5, centered=True)
     gframe_exclusion = Face(Wire(gframe_exclusion_curve, loop=True))
     gframe_exclusion = Compound(gframe_exclusion, gframe_exclusion @ Mirror(Left))
+    gframe_exclusion = Compound(gframe_exclusion @ Translate(upish*0.1), gframe_exclusion @ Translate(-upish*0.1))
     front_surface = front_surface.cut(gframe_exclusion)
-    front_surface = front_surface.cut(Vertex(front_ref).extrude(Left*2.5, centered=True).extrude(Left.cross(gframe_assumed_plane.normal())*5, centered=True))
+    front_surface = front_surface.cut(Vertex(front_ref).extrude(Left*2.5, centered=True).extrude(upish*5, centered=True))
     block = front_surface.extrude(Back*100)
     block = Intersection(block, contact_surface.extrude(Front*100))
     
     result=Compound(contact_plate, block)
     save_STL("nose_support", result)
-    export("nose_support.stl", "nose_support_1.stl")
+    export("nose_support.stl", "nose_support_2.stl")
 
-    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block)
+    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block, gframe_exclusion_curve)
 
 @run_if_changed
 def blue_light_layout_scratchpad():
