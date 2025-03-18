@@ -123,7 +123,7 @@ def set_extrusion_reference(*, e_filament):
     last_position["e_filament"] = e_filament
     return f'G92 E{e_filament:.5f}'
 
-def g1(x=None, y=None, z=None, e_filament=None, e_mm3=None, f=None, coords=None, eplus_mm3=None, eplus_cross_sectional_mm2=None):
+def g1(x=None, y=None, z=None, e_filament=None, e_mm3=None, f=None, coords=None, eplus_mm3=None, eplus_cross_sectional_mm2=None, f_mm_s=None):
     result = ["G1"]
     if coords is not None:
         x,y,z = coords
@@ -157,6 +157,8 @@ def g1(x=None, y=None, z=None, e_filament=None, e_mm3=None, f=None, coords=None,
         last_position["e_filament"] = e_filament
         result.append(f'E{e_filament:.5f}')
 
+    if f_mm_s is not None:
+        f = f_mm_s*60
     if f is not None:
         result.append(f'F{f}')
     
