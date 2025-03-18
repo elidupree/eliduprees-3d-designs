@@ -12,7 +12,9 @@ Cura settings I customized for this:
 
 I also saved the Cura project in the exports directory.
 
-ASSEMBLY NOTES:
+========================
+     ASSEMBLY NOTES:
+========================
 
 Clean up the print using end-nippers, rotary tool abrasive spongy wheels to scrub off the coarse stringing, rotary tool sanding drum for fine smoothing. You particularly want to smooth down any pointy bits on the surfaces that might contact the flat parts, the face, or the glasses lens/frame.
 
@@ -44,12 +46,26 @@ Glue the window to the frame:
 * Set the edge of the window into the slots everywhere to make sure it works. Then remove it, and start applying shoe goo, reinserting it to the slots, and taping the window to the frame with more painter's tape.
 
 
+=================================
+     PROTOYTPE OBSERVATIONS:
+=================================
+
+The print-assembly process was way too much work, and the dimensions came out slightly inconsistent with the model. I've thought of a way to do it with flat sheets instead of the 3D print, which should be easier.
+
+The prototype largely worked for its intent, but:
+* it's annoying to blow my nose
+* the TPE rubber eventually got wavy, making the seal worse unless I present to my face
+* when pressed to my face with force, it always wants to slide up the nose, putting it in the wrong position. I want to block this motion; to block it, you would need a point on the face whose normal is downwards. Most such points allow a lot of skin movement, and thus make bad contact points. The one exception I've found is the concavities right next to the nose, in the eye socket. This seems like a viable place to make a contact-point; it could even replace glasses' built-in nosepieces. This is achievable as a separate 3D print that interfaces directly with the glasses frame, and can also interface with future airspace things if that's helpful.
+* the forehead is a little too tall when I'm wearing the PAPR; it would probably be fine to lower it without much other changes. The sides also annoyingly catch on the PAPR; overall I would be happier if it was slimmed down.
+* While wearing the PAPR, my eyes still dry out! I believe this is mainly a matter of not being sealed well enough; the gaps around the glasses definitely seem to be contributing here, so we should seal them in the next version (a jury-rigged plug was partially helpful). The bulk also may be helping force air go to through the things rather than around.
+* The lenses stick out enough that they can be scratched by a flat surface; in the next version, I should make a lip that protrudes enough to set them down flat on their face.
+
 """
 
 import math
 
 from pyocct_system import *
-from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, side_depthmap_sample_point, resample_curve_front, resample_curve_side, resample_point_frac
+from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, front_depthmap_normal, side_depthmap_sample_point, side_depthmap_sample_x, resample_curve_front, resample_curve_side, resample_point_frac
 from svg_utils import load_Inkscape_BSplineCurve
 from unroll import UnrolledSurface, unroll_quad_strip
 
@@ -112,6 +128,7 @@ top_of_frame_z = earpiece_top_front_outer[2] + 10
 approx_earpieces_vec = Vector(-10.5, 68, 0)
 
 print (f"forehead y: {front_depthmap_sample_y(-28, 14)}")
+print (f"near ear x: {side_depthmap_sample_x(pframe_back_y, earpiece_top_front_outer[2])}")
 
 
 @run_if_changed
@@ -1235,11 +1252,75 @@ def frame_3d_printable():
     # export("frame_3d_printable.stl", "frame_3d_printable_3.stl")
     return result
 
+@run_if_changed
+def nose_support():
+    front_curve = front_curve_from_layout_file("nose_support")
+    relevant_face_surface = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-10, 15, max_length=0.5)] for x in subdivisions(-20, 20, max_length=0.5)])
+    front_ref = Point(0,0,3.6).projected(onto=gframe_assumed_plane, by=Front)
+
+    contact_surface = Intersection(Face(Wire(front_curve, front_curve.reversed() @ Mirror(Left))).extrude(Back*100), Face(relevant_face_surface))
+    contact_plate = contact_surface.extrude(Front*2)
+    
+    front_surface = Vertex(front_ref).extrude(Left*15, centered=True).extrude(Left.cross(gframe_assumed_plane.normal())*5, centered=True)
+    gframe_exclusion = Face(Wire(gframe_exclusion_curve, loop=True))
+    gframe_exclusion = Compound(gframe_exclusion, gframe_exclusion @ Mirror(Left))
+    front_surface = front_surface.cut(gframe_exclusion)
+    front_surface = front_surface.cut(Vertex(front_ref).extrude(Left*2.5, centered=True).extrude(Left.cross(gframe_assumed_plane.normal())*5, centered=True))
+    block = front_surface.extrude(Back*100)
+    block = Intersection(block, contact_surface.extrude(Front*100))
+    
+    result=Compound(contact_plate, block)
+    save_STL("nose_support", result)
+    export("nose_support.stl", "nose_support_1.stl")
+
+    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block)
+
+@run_if_changed
+def blue_light_layout_scratchpad():
+    x = -67/2
+    highest_view_slope_with_relaxed_brows = 2/3
+    highest_view_direction_with_relaxed_brows = Direction(0, -1, highest_view_slope_with_relaxed_brows)
+    highest_view_slope_with_raised_brows = 1.1
+    highest_view_direction_with_raised_brows = Direction(0, -1, highest_view_slope_with_raised_brows)
+    brow_raise_distance = 5
+    eye_to_brow_y = brow_raise_distance / (highest_view_slope_with_raised_brows - highest_view_slope_with_relaxed_brows)
+    brow_y = 6
+    eye_y = brow_y + eye_to_brow_y
+    print(eye_to_brow_y)
+    # print(front_depthmap_normal(x, 0))
+    # limiting_brow_point_z = max(subdivisions(8,20,max_length=0.1), key=lambda z: (front_depthmap_normal(x, z).dot(Direction(0, -highest_view_slope_with_relaxed_brows, -1))))
+    # limiting_brow_point = front_depthmap_sample_point(x, limiting_brow_point_z)
+    relaxed_brow_point = min([front_depthmap_sample_point(x, z) for z in subdivisions(0,15,max_length=0.1)], key=lambda p: abs(p[1] - brow_y))
+    print(relaxed_brow_point)
+    eye_point = Point(x, eye_y, relaxed_brow_point[2] - highest_view_slope_with_relaxed_brows*eye_to_brow_y)
+    highest_view_ray_with_relaxed_brows = RayIsh(eye_point, highest_view_direction_with_relaxed_brows, length=70)
+    highest_view_ray_with_raised_brows = RayIsh(eye_point, highest_view_direction_with_raised_brows, length=70)
+    lowest_invisible_point = highest_view_ray_with_raised_brows.intersections(approx_face_surface).point()
+    lowest_permitted_invisible_point = min([p for p in [front_depthmap_sample_point(x, z) + Front*3 for z in subdivisions(0,30,max_length=0.1)] if (p - eye_point).projected_perpendicular(highest_view_direction_with_raised_brows)[2] > 0], key=lambda p: p[2])
+    # lowest_invisible_point[2]
+    gframe_top = Point(x, -6, 15)
+
+    d1 = gframe_top-lowest_permitted_invisible_point
+    a1 = atan2(d1[2], d1[1])
+
+    d2 = gframe_top-eye_point
+    a2 = atan2(d2[2], d2[1])
+
+    a3 = Radians((a1.radians + a2.radians) / 2)
+    mirror_normal = Front @ Rotate(Left, a3)
+    mirror_tangent = Up @ Rotate(Left, a3)
+    mirror = RayIsh(gframe_top, mirror_tangent, length=30)
+    save_inkscape_svg("blue_light_layout_scratchpad", [Edge(e) @ Transform(Up, Right, Back) for e in [mirror, highest_view_ray_with_relaxed_brows, highest_view_ray_with_raised_brows, BSplineCurve([eye_point, gframe_top, lowest_permitted_invisible_point], BSplineDimension(degree=1)), approx_face_surface.intersections(Segment(Point(x, 100, 0), Point(x, -100, 0)).extrude(Up*30)).curve()]], max_length=0.05)
+    export("blue_light_layout_scratchpad.svg", "blue_light_layout_scratchpad.svg")
+
+
+    preview(approx_face_surface, gframe_to_window_curve, highest_view_ray_with_relaxed_brows, highest_view_ray_with_raised_brows, lowest_invisible_point, lowest_permitted_invisible_point, gframe_top, mirror)
 # preview(unrolled_seal)
 # s = gframe_to_window_curve.subdivisions(max_length=1)
 # frame_top = max(s, key=lambda f: f[2])
 # frame_bottom = min(s, key=lambda f: -f[0])
 # print(frame_bottom[0])
+
 
 preview(prototype_3d_printable)
 preview(frame_3d_printable, approx_face_surface, approx_earpieces)

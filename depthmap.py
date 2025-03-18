@@ -9,7 +9,7 @@ def normal_of_depthmap_sampler(sampler, x, y, epsilon=0.001):
     dxe, dye = sampler(x+epsilon, y), sampler(x, y+epsilon)
     if dxe is None or dye is None: return None
     dddx,dddy = dxe - d, dye - d
-    return Direction(Vector(epsilon, 0, dddx).cross(Vector(0, epsilon, dddy)))
+    return -Direction(Vector(epsilon, 0, dddx).cross(Vector(0, epsilon, dddy)))
 
 class Depthmap:
     def __init__(self, file_path, *, pixels_per_unit, px_at_zero, py_at_zero, min_depth, max_depth, invalid_depths = None):
