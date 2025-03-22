@@ -109,6 +109,7 @@ while True:
             handle_line_from_printer(split[0])
 
     for event in pygame.event.get():
+        print(event)
         if event.type == pygame.JOYDEVICEADDED:
             joystick = pygame.joystick.Joystick(event.device_index)
             joysticks.append(joystick)
