@@ -147,7 +147,8 @@ def tube_top_plate():
         Point(-under_door_halfwidth, -door_gap_thickness/2, 0),
         Point(-under_door_halfwidth, -door_gap_thickness/2 - brace_thickness, 0),
         Point(-under_door_halfwidth, -door_gap_thickness/2 - brace_thickness*3, 0),
-        Point(0, hose_center_y - door_thickness/2, 0),
+        Point(-20, hose_center_y, 0),
+        Point(20, hose_center_y, 0),
         Point(under_door_halfwidth, -door_gap_thickness/2 - brace_thickness*3, 0),
         Point(under_door_halfwidth, -door_gap_thickness/2 - brace_thickness, 0),
         Point(under_door_halfwidth, -door_gap_thickness/2, 0),])
