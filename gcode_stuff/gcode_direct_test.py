@@ -1,5 +1,7 @@
+import functools
 import math
 import sys
+from collections import deque
 from queue import Queue
 
 import serial
@@ -18,12 +20,17 @@ joysticks = []
 print("Serial ports", [p.device for p in serial.tools.list_ports.comports()])
 
 command_queue = Queue()
+commands_sent = deque()
 def queue_command(command):
     command_queue.put(command)
 printer_busy = False
 def send_command(command):
-    # print(f"sending {repr(command)}")
+    assert ("\n" not in command)
+    print(f"sending {repr(command)}")
     ser.write((command+"\n").encode())
+    commands_sent.append(command)
+    if len(commands_sent) > 5:
+        commands_sent.popleft()
 
 def stdio_thread_fn():
     while True:
@@ -33,50 +40,64 @@ def stdio_thread_fn():
 stdio_thread = threading.Thread(target = stdio_thread_fn)
 stdio_thread.start()
 
-ser = serial.Serial("COM3", 115200, timeout=1)
+ser = serial.Serial("COM3", 115200, timeout=1, xonxoff=False)
 time.sleep(1)
 send_command("M155 S1") # auto report temperature every 1s
-joystick_induced_velocity = np.zeros(2)
-joystick_target_velocity = np.zeros(2)
-assumed_max_mm_ss = 400
+queue_command("G91")
+joystick_induced_velocity = np.zeros(2, dtype=np.float64)
+joystick_target_velocity = np.zeros(2, dtype=np.float64)
+assumed_max_mm_ss = 450
 max_mm_s = 25
-lookahead_duration = max_mm_s/assumed_max_mm_ss + 0.02
+min_lookahead_duration = max_mm_s/assumed_max_mm_ss + 0.02 + 0.5
+max_lookahead_duration = min_lookahead_duration #+ 0.02
 joystick_movement_planned_through = time.time()
+
+def move_in_duration(dp, t):
+    if np.linalg.norm(dp) < 0.01:
+        return
+    feedrate_mm_s = np.linalg.norm(dp)/t
+    queue_command(f"G0 X{dp[0]:.5f} Y{dp[1]:.5f} F{feedrate_mm_s*60:.5f}")
+
 
 def plan_joystick_movement():
     now = time.time()
     global joystick_movement_planned_through, joystick_induced_velocity, joystick_target_velocity
     joystick_movement_planned_through = max(joystick_movement_planned_through, now)
-    time_to_plan = now + lookahead_duration - joystick_movement_planned_through
-    if time_to_plan > 0 and (np.any(joystick_induced_velocity) or np.any(joystick_target_velocity)):
-        dv = joystick_target_velocity - joystick_induced_velocity
-        norm = np.linalg.norm(dv, np.inf)
-        speedup_time = min(norm / assumed_max_mm_ss, time_to_plan)
-        if norm != 0:
-            acceleration = dv/norm
-        else:
-            acceleration = 0
-        dp_while_accelerating = joystick_induced_velocity * speedup_time + acceleration*speedup_time/2
-        dp_after = (time_to_plan - speedup_time) * joystick_target_velocity
-        dp = dp_while_accelerating + dp_after
-        feedrate_mm_s = np.linalg.norm(dp, np.inf)/time_to_plan
+    current_lookahead = joystick_movement_planned_through - now
+    if current_lookahead < min_lookahead_duration and (np.any(joystick_induced_velocity) or np.any(joystick_target_velocity)):
+        time_to_plan = max_lookahead_duration - current_lookahead
         joystick_movement_planned_through += time_to_plan
-        joystick_induced_velocity += acceleration*speedup_time
-        if speedup_time == time_to_plan:
+        dv = joystick_target_velocity - joystick_induced_velocity
+        norm = np.linalg.norm(dv)
+        acceleration = 0
+        speedup_time = 0
+        if norm != 0:
+            speedup_time = min(norm / assumed_max_mm_ss, time_to_plan)
+            acceleration = dv/norm * assumed_max_mm_ss
+            joystick_induced_velocity += acceleration*speedup_time
+            dp_while_accelerating = joystick_induced_velocity * speedup_time + acceleration*speedup_time*speedup_time/2
+            move_in_duration(dp_while_accelerating, speedup_time)
+        print (speedup_time, time_to_plan, joystick_target_velocity, joystick_induced_velocity, acceleration)
+        if speedup_time < time_to_plan:
             joystick_induced_velocity = joystick_target_velocity
-        queue_command("G91")
-        queue_command(f"G1 X{dp[0]:.5f} Y{dp[1]:.5f} F{feedrate_mm_s*60:.5f}")
+            if np.any(joystick_target_velocity):
+                plateau_time = time_to_plan - speedup_time
+                dp_after = plateau_time * joystick_target_velocity
+                move_in_duration(dp_after, plateau_time)
 
 
 
 latest_serial_responses = ""
 def handle_line_from_printer(line):
     if line.startswith("ok"):
+        print(line)
         printer_busy = False
     elif line.startswith("echo:busy:"):
         printer_busy = True
     else:
         print("unhandled input from printer:", line)
+        if line.startswith("echo:Unknown command:"):
+            print(commands_sent)
 
 while True:
     if ser.in_waiting > 0:
@@ -106,7 +127,13 @@ while True:
         #     parts.append(f"F{600*dist:.5f}")
         #     queue_command("G91")
         #     queue_command(" ".join(parts))
-        joystick_target_velocity = np.array([np.sign(v) * max(0, abs(v) - 0.1) * max_mm_s for v in axes[:2]])
+        def ax_fn(ax):
+            deadzone = 0.1
+            mag = (abs(ax) - deadzone) / (1.0 - deadzone)
+            if mag < 0.0:
+                return 0
+            return np.sign(ax)*mag*mag*max_mm_s
+        joystick_target_velocity = np.array([ax_fn(axes[0]), ax_fn(-axes[1])], dtype=np.float64)
     if not printer_busy:
         for _ in range(5):
             if command_queue.empty():
