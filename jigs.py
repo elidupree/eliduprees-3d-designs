@@ -41,4 +41,45 @@ def arms_bolt_hexer_jig():
     # export("arms_bolt_hexer_jig.stl", "arms_bolt_hexer_jig_1.stl")
     return housing_enclosure
     # cuts =
-preview(arms_bolt_hexer_jig)
+
+@run_if_changed
+def washers_sharpening_jig():
+    rise = 1
+    run = 2
+    inner_diameter = 6.35 #6.55
+    outer_diameter = 12.78
+    inner_profile = Face(Circle(Axes(Origin, Up), inner_diameter/2))
+    outer_profile = Face(Circle(Axes(Origin, Up), outer_diameter/2))
+    chunk = Compound(
+        inner_profile.extrude(Up*0.5, centered=True),
+        Intersection(inner_profile, inner_profile @ Translate(Left*run)).extrude(Down*rise)
+    )
+    one_step = Vector(run, 0, rise)
+    chunks = Compound(chunk @ Translate(one_step*i) for i in range(5))
+    
+    z_plane_cuts = [
+        HalfSpace(Origin+s*inner_diameter/2/math.sqrt(2), s) for s in [Front, Back]
+    ]
+    # build_plate_cut = HalfSpace(Origin+Back*inner_diameter/2/math.sqrt(2), Back)
+
+    along = Direction(run, 0, rise)
+    along_profile = Face(Circle(Axes(Origin, along), inner_diameter/2)).cut(z_plane_cuts).extrude(along*100, centered=True)
+    
+    stop = Compound(
+        Face(Circle(Axes(Origin, Up), inner_diameter/2 + 1)).extrude(Down*rise*0.5, Down*rise*1.5),
+        inner_profile.extrude(Down*rise*0.5)
+    ).cut(z_plane_cuts)
+
+    shaft = Compound(Intersection(chunks, along_profile), stop)
+    # save_STL("washers_sharpening_shaft", shaft)
+    # export("washers_sharpening_shaft.stl", "washers_sharpening_shaft_1.stl")
+
+    towards_sander = along @ Rotate(Front, Degrees(90))
+    wand_cut_chunk = outer_profile.extrude(Up*rise, centered=True)
+    wand = Vertex(Origin).extrude(-one_step, one_step*7).extrude(towards_sander*-30).extrude(Back*(outer_diameter/math.sqrt(2)), centered=True).cut([wand_cut_chunk @ Translate(one_step*i) for i in range(5)]).cut(stop)
+    save_STL("washers_sharpening_wand", wand)
+    export("washers_sharpening_wand.stl", "washers_sharpening_wand_1.stl")
+
+    return Compound(shaft, wand)
+
+preview(washers_sharpening_jig)
