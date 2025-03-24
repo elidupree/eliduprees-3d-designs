@@ -38,9 +38,13 @@ def led_strip_prototype():
     bottom_part = block.cut([component_cuts, wire_cuts, over_wires])
     top_part = Compound(block.intersection(wire_cuts), block.intersection(over_wires))
 
+    middle_part = bottom_part.intersection(HalfSpace(Origin+Up*0.1, Up))
+
     save_STL("led_strip_prototype_bottom", bottom_part)
     export("led_strip_prototype_bottom.stl", "led_strip_prototype_bottom_1.stl")
+    save_STL("led_strip_prototype_middle", middle_part)
+    export("led_strip_prototype_middle.stl", "led_strip_prototype_middle_1.stl")
     save_STL("led_strip_prototype_top", top_part)
     export("led_strip_prototype_top.stl", "led_strip_prototype_top_1.stl")
 
-    preview(bottom_part, top_part @ Translate(Right*8))
+    preview(bottom_part.cut(HalfSpace(Origin+Up*0.1, Up)) @ Translate(Left*8), middle_part, top_part @ Translate(Right*8))
