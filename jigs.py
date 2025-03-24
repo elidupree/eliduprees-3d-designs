@@ -50,12 +50,14 @@ def washers_sharpening_jig():
     outer_diameter = 12.78
     inner_profile = Face(Circle(Axes(Origin, Up), inner_diameter/2))
     outer_profile = Face(Circle(Axes(Origin, Up), outer_diameter/2))
+    chunk_joiner_profile = Intersection(inner_profile, inner_profile @ Translate(Left*run))
+    chunk_joiner = chunk_joiner_profile.extrude(Down*rise)
     chunk = Compound(
         inner_profile.extrude(Up*0.5, centered=True),
-        Intersection(inner_profile, inner_profile @ Translate(Left*run)).extrude(Down*rise)
+        chunk_joiner,
     )
     one_step = Vector(run, 0, rise)
-    chunks = Compound(chunk @ Translate(one_step*i) for i in range(5))
+    chunks = Compound(chunk @ Translate(one_step*i) for i in range(10))
     
     z_plane_cuts = [
         HalfSpace(Origin+s*inner_diameter/2/math.sqrt(2), s) for s in [Front, Back]
@@ -64,22 +66,28 @@ def washers_sharpening_jig():
 
     along = Direction(run, 0, rise)
     along_profile = Face(Circle(Axes(Origin, along), inner_diameter/2)).cut(z_plane_cuts).extrude(along*100, centered=True)
+    towards_sander = along @ Rotate(Front, Degrees(90))
     
     stop = Compound(
         Face(Circle(Axes(Origin, Up), inner_diameter/2 + 1)).extrude(Down*rise*0.5, Down*rise*1.5),
         inner_profile.extrude(Down*rise*0.5)
     ).cut(z_plane_cuts)
+    
+    shaft_handle = chunk_joiner_profile.extrude(towards_sander*-50).cut(z_plane_cuts) @ Translate(one_step*10)
 
-    shaft = Compound(Intersection(chunks, along_profile), stop)
-    # save_STL("washers_sharpening_shaft", shaft)
-    # export("washers_sharpening_shaft.stl", "washers_sharpening_shaft_1.stl")
+    shaft = Compound(Intersection(chunks, along_profile), stop, shaft_handle)
+    save_STL("washers_sharpening_shaft", shaft)
+    export("washers_sharpening_shaft.stl", "washers_sharpening_shaft_2.stl")
 
-    towards_sander = along @ Rotate(Front, Degrees(90))
     wand_cut_chunk = outer_profile.extrude(Up*rise, centered=True)
-    wand = Vertex(Origin).extrude(-one_step, one_step*7).extrude(towards_sander*-30).extrude(Back*(outer_diameter/math.sqrt(2)), centered=True).cut([wand_cut_chunk @ Translate(one_step*i) for i in range(5)]).cut(stop)
+    wand = Vertex(Origin+towards_sander*1).extrude(-one_step*4, one_step*7).extrude(towards_sander*-30).extrude(Back*(outer_diameter/math.sqrt(2)), centered=True).cut([wand_cut_chunk @ Translate(one_step*i) for i in range(5)]).cut(stop)
+    descender = min(wand.faces(), key=lambda f: f.bounds().max()[1]).extrude(Front*1.5)
+    # preview(descender, wand.wires())
+    wand = Compound(wand, descender)
     save_STL("washers_sharpening_wand", wand)
-    export("washers_sharpening_wand.stl", "washers_sharpening_wand_1.stl")
+    export("washers_sharpening_wand.stl", "washers_sharpening_wand_2.stl")
 
+    preview(shaft)
     return Compound(shaft, wand)
 
 preview(washers_sharpening_jig)
