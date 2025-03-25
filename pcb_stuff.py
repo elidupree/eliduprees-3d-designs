@@ -73,3 +73,28 @@ def wall_thickness_test():
                 commands.append(g1(x=x, f_mm_s=speed, eplus_cross_sectional_mm2=layer_height*line_width))
 
     export_string(wrap_gcode("\n".join(commands)), "wall_thickness_test_1.gcode")
+
+
+@run_if_changed
+def constant_extrusion_rate_test():
+    commands = [zero_extrusion_reference(), fastmove(-50,-50, 0.1)]
+    extrusion_rate = 0.5 # mm^3/s
+    z = 0
+    for i in range(50):
+        layer_height = 0.1 + i*0.2/50
+        z += layer_height
+        commands.append(g1(z=z, f_mm_s=1000))
+        for k in range(2):
+            y = -50 + k * 3
+            line_width = 0.4 + k*0.2
+            cross_section_area = layer_height*line_width
+            commands.append(g1(y=y, f_mm_s=1000))
+            js = range(100)
+            if k % 2 == 1:
+                js = reversed(js)
+            for j in js:
+                x = j - 50
+                commands.append(f"M106 F{math.floor(j/20)*math.floor(255/4)}")
+                commands.append(g1(x=x, f_mm_s=extrusion_rate/cross_section_area, eplus_cross_sectional_mm2=cross_section_area))
+
+    export_string(wrap_gcode("\n".join(commands)), "constant_extrusion_rate_test_1.gcode")

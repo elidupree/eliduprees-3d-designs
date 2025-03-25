@@ -71,7 +71,8 @@ M106 S0 ;Turn-off fan
 ; G90 ;Absolute positioning
 ; G1 X0 F10 ; ...then very slowly
 
-M84 X Y E ;Disable all steppers but Z
+; M84 X Y E ;Disable all steppers but Z
+M84 ;Disable all steppers
     '''
 
 def wrap_gcode(gcode, **kwargs):
