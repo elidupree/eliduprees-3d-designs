@@ -1,6 +1,7 @@
 import math
 
 from pyocct_system import *
+from gcode_stuff.gcode_utils import *
 
 initialize_pyocct_system()
 
@@ -48,3 +49,27 @@ def led_strip_prototype():
     export("led_strip_prototype_top.stl", "led_strip_prototype_top_1.stl")
 
     preview(bottom_part.cut(HalfSpace(Origin+Up*0.1, Up)) @ Translate(Left*8), middle_part, top_part @ Translate(Right*8))
+
+
+@run_if_changed
+def wall_thickness_test():
+    commands = [zero_extrusion_reference(), fastmove(-50,-50, 0.1)]
+    z = 0
+    for i in range(50):
+        layer_height = 0.1 + i*0.2/50
+        z += layer_height
+        commands.append(g1(z=z, f_mm_s=1000))
+        for k in range(4):
+            y = -50 + k * 3
+            line_width = 0.3 + k*0.1
+            commands.append(g1(y=y, f_mm_s=1000))
+            js = range(100)
+            if k % 2 == 1:
+                js = reversed(js)
+            for j in js:
+                x = j - 50
+                speed = (math.floor(j / 5) + 1)*2.5
+                # speed = j+1
+                commands.append(g1(x=x, f_mm_s=speed, eplus_cross_sectional_mm2=layer_height*line_width))
+
+    export_string(wrap_gcode("\n".join(commands)), "wall_thickness_test_1.gcode")
