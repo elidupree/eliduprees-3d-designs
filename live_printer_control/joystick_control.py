@@ -48,7 +48,7 @@ class JoystickControl(Scene):
     _target_velocity: np.array
     _planned_moves: List[PlannedMove]
 
-    def __init__(self, max_speed=50, max_acceleration=500, step_duration=0.01):
+    def __init__(self, max_speed=50, max_acceleration=500, step_duration=0.02):
         self._max_speed = max_speed
         self._max_acceleration = max_acceleration
         self._step_duration = step_duration

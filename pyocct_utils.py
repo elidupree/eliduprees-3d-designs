@@ -15,15 +15,21 @@ def wallify(rows, thickness, *, loop):
     other_rows = [
         [
             surface.position(parameter=(u,v)) + (surface.normal(parameter=(u,v))*1).projected_perpendicular (Up).normalized()*thickness
-            for u in surface.UKnots()
+            for v in surface.VKnots()
         ]
-        for v in surface.VKnots()
+        for u in surface.UKnots()
     ]
 
+    # preview(surface,
+    #         # [BSplineCurve(row, BSplineDimension (periodic = loop)) for row in rows],
+    #         [BSplineCurve(row, BSplineDimension (periodic = loop)) for row in other_rows])
     other_surface = BSplineSurface(
         other_rows,
         v = BSplineDimension (periodic = loop)
     )
+    # preview(surface, other_surface,
+    #         # [BSplineCurve(row, BSplineDimension (periodic = loop)) for row in rows],
+    #         [BSplineCurve(row, BSplineDimension (periodic = loop)) for row in other_rows], other_rows)
     if loop:
         joiner = [
             Face(BSplineSurface([rows[0], other_rows[0]], BSplineDimension(degree=1), BSplineDimension (periodic = loop))),
