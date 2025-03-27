@@ -219,4 +219,23 @@ def springy_led_strip_prototype():
     ]
     save_STL("springy_led_strip_prototype", Compound(component_holders))
     export("springy_led_strip_prototype.stl", "springy_led_strip_prototype_1.stl")
+
+    security_extrusion_height = 0.1+component_vertical_leeway
+    security_stroke_commands = [zero_extrusion_reference(), fastmove(z=security_extrusion_height+led_thickness+component_lip_thickness)]
+    security_line_width = 0.5
+    yoffs = ((resistor_width/2)+wall_thickness+component_chamfer)
+    security_stroke_commands.extend([
+        fastmove(x=-led_offset, y=resistor_center[1]+yoffs),
+        g1(x=-led_offset, y=resistor_center[1]-yoffs, eplus_cross_sectional_mm2=security_extrusion_height*security_line_width, f_mm_s=1),
+    ])
+    for i in range(3):
+        x = led_offset*(i-1)
+        dir = 1 if i % 2 == 0 else -1
+        y = ((led_width/2)+wall_thickness+component_chamfer)*dir
+        security_stroke_commands.extend([
+            fastmove(x=x, y=y),
+            g1(x=x, y=-y, eplus_cross_sectional_mm2=security_extrusion_height*security_line_width, f_mm_s=1),
+        ])
+    export_string(wrap_gcode("\n".join(security_stroke_commands)), "springy_led_strip_security_strokes.gcode")
+
     preview(component_holders)
