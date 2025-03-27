@@ -4,4 +4,5 @@ resolver = "2"
 members = [
     "eliduprees_3d_designs_lib",
     "truck_experiments",
+    "stl_to_depthmap",
 ]

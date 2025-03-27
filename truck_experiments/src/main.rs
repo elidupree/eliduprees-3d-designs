@@ -153,6 +153,7 @@ impl App for MyApp {
                 println!("doing...");
                 let face = bss_to_face(bss);
                 println!("done face...");
+                #[allow(unused_variables)]
                 let shell = Shell::from([face]);
                 println!("done shell...");
                 // let triangulation = shell.triangulation(10.9);

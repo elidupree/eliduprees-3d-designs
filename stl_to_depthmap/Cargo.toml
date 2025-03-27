@@ -1,0 +1,12 @@
+[package]
+name = "stl_to_depthmap"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.34", features = ["derive"] }
+truck-polymesh = "0.6.0"
+eliduprees_3d_designs_lib = { path="../eliduprees_3d_designs_lib" }
+ordered-float = "5.0.0"
+exr = "1.73.0"
+
