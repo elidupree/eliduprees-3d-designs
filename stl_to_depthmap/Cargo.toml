@@ -10,3 +10,6 @@ eliduprees_3d_designs_lib = { path="../eliduprees_3d_designs_lib" }
 ordered-float = "5.0.0"
 exr = "1.73.0"
 
+[profile.dev]
+opt-level = 3
+
