@@ -5,6 +5,7 @@ from depthmap import Depthmap, normal_of_depthmap_sampler
 front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 149)
 left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 5)
 right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150, invalid_depths = lambda d: d > 5)
+wax_nose_depthmap = Depthmap("private/wax_nose_mold_edited_front_depthmap.exr", pixels_per_unit = 1/0.3, px_at_zero = (300-1)/2, py_at_zero = (300-1)/2, min_depth = 20, max_depth = -20, invalid_depths = lambda d: d > 19)
 
 
 def front_depthmap_sample_y(x, z=None, radius = 2):
@@ -79,3 +80,18 @@ def resample_point_frac(p, sideness):
     if sideness == 1:
         return side_depthmap_sample_point(p)
     return Between(front_depthmap_sample_point(p), side_depthmap_sample_point(p), sideness)
+
+
+def wax_nose_sample_y(x, z=None, radius = 1):
+    # I'm pretty confident of the accuracy of the wax mold+scan, and I think the asymmetry is real and important in this case.
+    if z is None: x,z = x[0],x[2]
+    return wax_nose_depthmap.depth_smoothed(-x, -z, radius)
+
+
+def wax_nose_sample_point(x, z=None, radius = 2):
+    if z is None: x,z = x[0],x[2]
+    y = wax_nose_sample_y(x, z, radius)
+    if y is None: return None
+    return Point(x, y, z)
+
+print(front_depthmap_sample_y(0,0), wax_nose_sample_y(0,0))

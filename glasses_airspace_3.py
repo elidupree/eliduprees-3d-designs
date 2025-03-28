@@ -65,7 +65,7 @@ The prototype largely worked for its intent, but:
 import math
 
 from pyocct_system import *
-from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, front_depthmap_normal, side_depthmap_sample_point, side_depthmap_sample_x, resample_curve_front, resample_curve_side, resample_point_frac
+from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, front_depthmap_normal, side_depthmap_sample_point, side_depthmap_sample_x, resample_curve_front, resample_curve_side, resample_point_frac, wax_nose_sample_point
 from svg_utils import load_Inkscape_BSplineCurve
 from unroll import UnrolledSurface, unroll_quad_strip
 
@@ -1254,10 +1254,13 @@ def frame_3d_printable():
 
 @run_if_changed
 def nose_support():
-    front_curve = front_curve_from_layout_file("nose_support")
+    front_curve = front_curve_from_layout_file("nose_support") @ Translate(Front*10)
     upish = Left.cross(gframe_assumed_plane.normal())
-    relevant_face_surface = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
-    front_ref = Point(0,0,3.6).projected(onto=gframe_assumed_plane, by=Front)
+    relevant_face_surface = BSplineSurface([[wax_nose_sample_point(x,z) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
+    # relevant_face_surface_old = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
+    # preview(relevant_face_surface, relevant_face_surface_old)
+    gframe_offset = Vector(0,-4,-5)
+    front_ref = Point(0,0,3.6).projected(onto=gframe_assumed_plane, by=Front) @ Translate(gframe_offset)
 
     contact_surface = Intersection(Face(Wire(front_curve, front_curve.reversed() @ Mirror(Left))).extrude(Back*100), Face(relevant_face_surface))
     contact_plate = Compound(
@@ -1266,20 +1269,20 @@ def nose_support():
         Intersection(contact_surface, HalfSpace(Origin, Right)).extrude(Front*2 + Right*1),
     )
     
-    front_surface = Vertex(front_ref).extrude(Left*18, centered=True).extrude(upish*5, centered=True)
-    gframe_exclusion = Face(Wire(gframe_exclusion_curve, loop=True))
+    front_surface = Vertex(front_ref).extrude(Left*18, centered=True).extrude(upish*2.5, -upish*3)
+    gframe_exclusion = Face(Wire(gframe_exclusion_curve @ Translate(gframe_offset), loop=True))
     gframe_exclusion = Compound(gframe_exclusion, gframe_exclusion @ Mirror(Left))
     gframe_exclusion = Compound(gframe_exclusion @ Translate(upish*0.1), gframe_exclusion @ Translate(-upish*0.1))
     front_surface = front_surface.cut(gframe_exclusion)
-    front_surface = front_surface.cut(Vertex(front_ref).extrude(Left*2.5, centered=True).extrude(upish*5, centered=True))
+    front_surface = front_surface.cut(Vertex(front_ref).extrude(Left*2.5, centered=True).extrude(upish*10, centered=True))
     block = front_surface.extrude(Back*100)
     block = Intersection(block, contact_surface.extrude(Front*100))
     
     result=Compound(contact_plate, block)
     save_STL("nose_support", result)
-    export("nose_support.stl", "nose_support_2.stl")
+    export("nose_support.stl", "nose_support_3.stl")
 
-    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block, gframe_exclusion_curve)
+    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block, gframe_exclusion_curve @ Translate(gframe_offset))
 
 @run_if_changed
 def blue_light_layout_scratchpad():
