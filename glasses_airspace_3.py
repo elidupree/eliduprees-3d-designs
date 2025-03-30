@@ -65,7 +65,7 @@ The prototype largely worked for its intent, but:
 import math
 
 from pyocct_system import *
-from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, front_depthmap_normal, side_depthmap_sample_point, side_depthmap_sample_x, resample_curve_front, resample_curve_side, resample_point_frac, wax_nose_sample_point
+from face_depthmap_loader import front_depthmap_sample_point, front_depthmap_sample_y, front_depthmap_normal, side_depthmap_sample_point, side_depthmap_sample_x, resample_curve_front, resample_curve_side, resample_point_frac, nose_grip_2_sample_point
 from svg_utils import load_Inkscape_BSplineCurve
 from unroll import UnrolledSurface, unroll_quad_strip
 
@@ -1256,7 +1256,7 @@ def frame_3d_printable():
 def nose_support():
     front_curve = front_curve_from_layout_file("nose_support") @ Translate(Front*10)
     upish = Left.cross(gframe_assumed_plane.normal())
-    relevant_face_surface = BSplineSurface([[wax_nose_sample_point(x,z) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
+    relevant_face_surface = BSplineSurface([[nose_grip_2_sample_point(x,z) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
     # relevant_face_surface_old = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
     # preview(relevant_face_surface, relevant_face_surface_old)
     gframe_offset = Vector(0,-4,-5)
