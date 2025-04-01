@@ -53,14 +53,14 @@ impl Conversion {
     fn min_pixel_x_after(&self, image_space_x: f64) -> usize {
         image_space_x.ceil().max(0.0) as usize
     }
-    fn max_pixel_x_before(&self, image_space_x: f64) -> usize {
-        image_space_x.floor().min((self.image_size[0] - 1) as f64) as usize
+    fn one_over_max_pixel_x_before(&self, image_space_x: f64) -> usize {
+        (image_space_x.floor() + 1.0).clamp(0.0, self.image_size[0] as f64) as usize
     }
     fn min_pixel_y_after(&self, image_space_y: f64) -> usize {
         image_space_y.ceil().max(0.0) as usize
     }
-    fn max_pixel_y_before(&self, image_space_y: f64) -> usize {
-        image_space_y.floor().min((self.image_size[1] - 1) as f64) as usize
+    fn one_over_max_pixel_y_before(&self, image_space_y: f64) -> usize {
+        (image_space_y.floor() + 1.0).clamp(0.0, self.image_size[1] as f64) as usize
     }
 
     fn add_triangle(&mut self, vertices: [StandardVertex; 3]) {
@@ -79,7 +79,8 @@ impl Conversion {
             others.sort_by_key(|v| OrderedFloat(v[0] / v[1]));
             let dx_per_dy = others.map(|v| (v[0] / v[1]));
             let dz_per_dy = others.map(|v| (v[2] / v[1]));
-            for y in self.min_pixel_y_after(v0[1])..=self.max_pixel_y_before(vertices[1][1]) {
+            for y in self.min_pixel_y_after(v0[1])..self.one_over_max_pixel_y_before(vertices[1][1])
+            {
                 let dy = y as f64 - v0[1];
                 assert!(dy > 0.0);
                 let dx = dx_per_dy.map(|d| d * dy);
@@ -93,7 +94,7 @@ impl Conversion {
                 assert!(vertices
                     .iter()
                     .any(|v| right <= v[0] + self.tolerance + 0.000001));
-                for x in self.min_pixel_x_after(left)..=self.max_pixel_x_before(right) {
+                for x in self.min_pixel_x_after(left)..self.one_over_max_pixel_x_before(right) {
                     let xfrac = (x as f64 - left) / (right - left);
                     assert!(xfrac >= 0.0);
                     assert!(xfrac <= 1.0);
@@ -110,7 +111,8 @@ impl Conversion {
             others.sort_by_key(|v| OrderedFloat(-v[0] / v[1]));
             let dx_per_dy = others.map(|v| (v[0] / v[1]));
             let dz_per_dy = others.map(|v| (v[2] / v[1]));
-            for y in self.min_pixel_y_after(vertices[1][1])..=self.max_pixel_y_before(v2[1]) {
+            for y in self.min_pixel_y_after(vertices[1][1])..self.one_over_max_pixel_y_before(v2[1])
+            {
                 let dy = y as f64 - v2[1];
                 assert!(dy < 0.0);
                 let dx = dx_per_dy.map(|d| d * dy);
@@ -124,7 +126,7 @@ impl Conversion {
                 assert!(vertices
                     .iter()
                     .any(|v| right <= v[0] + self.tolerance + 0.000001));
-                for x in self.min_pixel_x_after(left)..=self.max_pixel_x_before(right) {
+                for x in self.min_pixel_x_after(left)..self.one_over_max_pixel_x_before(right) {
                     let xfrac = (x as f64 - left) / (right - left);
                     assert!(xfrac >= 0.0);
                     assert!(xfrac <= 1.0);

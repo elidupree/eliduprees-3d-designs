@@ -6,7 +6,7 @@ front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_ran
 left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 5)
 right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150, invalid_depths = lambda d: d > 5)
 wax_nose_depthmap = Depthmap("private/wax_nose_mold_edited_front_depthmap.exr", pixels_per_unit = 1/0.3, px_at_zero = (300-1)/2, py_at_zero = (300-1)/2, min_depth = 20, max_depth = -20, invalid_depths = lambda d: d > 19)
-nose_grip_2_depthmap = Depthmap("private/nose_grip_2_depthmap.exr", pixels_per_unit = 1/0.3, px_at_zero = (300-1)/2, py_at_zero = (300-1)/2, min_depth = 20, max_depth = -20, invalid_depths = lambda d: d > 19)
+nose_grip_2_depthmap = Depthmap("private/nose_grip_2_adjusted_after_print_depthmap.exr", pixels_per_unit = 1/0.3, px_at_zero = (300-1)/2, py_at_zero = (300-1)/2, min_depth = 20, max_depth = -20, invalid_depths = lambda d: d > 50)
 
 
 def front_depthmap_sample_y(x, z=None, radius = 2):

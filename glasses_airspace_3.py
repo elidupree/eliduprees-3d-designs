@@ -1256,9 +1256,16 @@ def frame_3d_printable():
 def nose_support():
     front_curve = front_curve_from_layout_file("nose_support") @ Translate(Front*10)
     upish = Left.cross(gframe_assumed_plane.normal())
-    relevant_face_surface = BSplineSurface([[nose_grip_2_sample_point(x,z) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
+    def f(x,z):
+        n =nose_grip_2_sample_point(x,z)
+        if n is None:
+          return Point(x, -20,  z)
+        return n
+    relevant_face_surface = BSplineSurface([[f(x,z) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
+    # preview(relevant_face_surface)
     # relevant_face_surface_old = BSplineSurface([[front_depthmap_sample_point(x,z,1) for z in subdivisions(-15, 15, max_length=0.5)] for x in subdivisions(-22, 22, max_length=0.5)])
     # preview(relevant_face_surface, relevant_face_surface_old)
+    # preview(relevant_face_surface, approx_face_surface)
     gframe_offset = Vector(0,-4,-5)
     front_ref = Point(0,0,3.6).projected(onto=gframe_assumed_plane, by=Front) @ Translate(gframe_offset)
 
@@ -1280,9 +1287,9 @@ def nose_support():
     
     result=Compound(contact_plate, block)
     save_STL("nose_support", result)
-    export("nose_support.stl", "nose_support_3.stl")
+    export("nose_support.stl", "nose_support_4.stl")
 
-    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block, gframe_exclusion_curve @ Translate(gframe_offset))
+    preview(relevant_face_surface, front_curve, resample_curve_front(front_curve, max_length=0.2), front_ref, contact_plate, block, gframe_exclusion_curve @ Translate(gframe_offset), approx_face_surface @ Translate(Back*2))
 
 @run_if_changed
 def blue_light_layout_scratchpad():
