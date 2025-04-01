@@ -1005,8 +1005,8 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
     return classmethod(derived)
   override_attribute(Edge, "__new__", make_Edge)
   
-  def make_Wire(original, fill_jumps_beyond_tolerance = 0.00001):
-    def derived(cls, *inputs, loop = False):
+  def make_Wire(original):
+    def derived(cls, *inputs, loop = False, fill_jumps = True):
       inputs = recursive_flatten(inputs)
       builder = BRepBuilderAPI.BRepBuilderAPI_MakeWire()
       first_vertex = None
@@ -1023,16 +1023,17 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
             builder.Add (Edge (last_vertex, item))
           last_vertex = item
         else:
-          if last_vertex is not None and fill_jumps_beyond_tolerance is not None:
+          if last_vertex is not None and fill_jumps:
             item_first_vertex = item.edges()[0].vertices()[0]
-            if last_vertex.point().distance(item_first_vertex.point()) > fill_jumps_beyond_tolerance:
+            if last_vertex.point().distance(item_first_vertex.point()) > 0:
               builder.add(Edge(last_vertex, item_first_vertex))
           builder.Add (item)
           # for some reason, this doesn't work (gets "vertex hasn't gp_Pnt" errors)
           #last_vertex = builder.Vertex()
           last_vertex = item.edges()[-1].vertices()[-1]
       if loop:
-        builder.Add (Edge (last_vertex, first_vertex))
+        if last_vertex.point().distance(first_vertex.point()) > 0:
+          builder.Add (Edge (last_vertex, first_vertex))
       if not builder.IsDone():
         raise RuntimeError(f"Invalid wire (detected by builder): {inputs} => {builder.Error()}")
       result = builder.Wire()
