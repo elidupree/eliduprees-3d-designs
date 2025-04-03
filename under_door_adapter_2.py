@@ -1,6 +1,7 @@
 import math
 
 from pyocct_system import *
+from pyocct_utils import two_BSplineSurfaces_to_solid
 initialize_pyocct_system()
 
 hose_od = 46
@@ -13,36 +14,62 @@ hose_rib_period = 6
 wall_thickness=1.0
 
 @run_if_changed
+def threaded_hose_grip():
+    thread_turns = 2.5
+    threads_length = thread_turns*hose_rib_period
+    def thread_inner_radius(turns, z):
+        rib_radius = hose_rib_thickness/2
+        axial_distance_from_thread_outermost_point = abs(((z + hose_rib_period*(1.5+turns)) % hose_rib_period) - hose_rib_period/2)
+        arc_distance = min(rib_radius/math.sqrt(2), axial_distance_from_thread_outermost_point)
+        capped_distance = axial_distance_from_thread_outermost_point-arc_distance
+        d = hose_od/2-rib_radius + math.sqrt(rib_radius**2 - arc_distance**2) - capped_distance
+        flare = (z/threads_length)**3 * (bearing_od-hose_od)/2
+        d += flare
+        assert (d >= hose_without_ribs_od/2)
+        return d
+    def thread_outer_radius(turns, z):
+        return bearing_od/2+wall_thickness
+    def thread_surface(radius_fn):
+        return BSplineSurface([[Point(radius_fn(turns, z), 0, z) @ Rotate(Up, Turns(turns)) for turns in subdivisions(0,1,amount=120)[::-1]] for z in subdivisions(0, threads_length, max_length=0.5)], v=BSplineDimension(periodic=True))
+
+    return two_BSplineSurfaces_to_solid(
+        thread_surface(thread_outer_radius),
+        thread_surface(thread_inner_radius),
+    )
+# preview(threaded_hose_grip)
+
+@run_if_changed
 def hose_to_bearing():
-    thread_turns = 2
 
     result = Face(Circle(Axes(Origin, Up), bearing_od/2+wall_thickness)).extrude(Up*(bearing_thickness
                                                                                      #+hose_rib_period*thread_turns
                                                                                      ))
 
     result = result.cut(Face(Circle(Axes(Origin, Up), bearing_od/2)).extrude(Up*(bearing_thickness)))
-    result = result.cut(Face(Circle(Axes(Origin, Up), hose_without_ribs_od/2)).extrude(Up*100))
-
+    # result = result.cut(Face(Circle(Axes(Origin, Up), hose_without_ribs_od/2)).extrude(Up*100))
     # thread_hoop = Face(Circle(Axes(Point(hose_od/2 - hose_rib_thickness/2, 0, 0), Back), hose_rib_thickness/2)).extrude(Left*10)
-    points = [
-        Point(hose_od/2, 0, 0),
-        Point(hose_od/2, 0, hose_rib_thickness/4),
-        Point(hose_od/2 - hose_rib_thickness/4, 0, hose_rib_thickness/2),
-        Point(hose_od/2 - hose_rib_thickness/4 - (hose_rib_period-hose_rib_thickness)/2, 0, hose_rib_period/2),
-    ]
-    thread_hoop = Wire([
-                           BSplineCurve([p @ Mirror(Up) for p in points[1:][::-1]] + points) @ Translate(Up*(turns*hose_rib_period))
-                           for turns in range(thread_turns+1)
-                       ]
+    # thread_profile_points = [
+    #     Point(hose_od/2, 0, 0),
+    #     Point(hose_od/2, 0, hose_rib_thickness/4),
+    #     Point(hose_od/2 - hose_rib_thickness/4, 0, hose_rib_thickness/2),
+    #     Point(hose_od/2 - hose_rib_thickness/4 - (hose_rib_period-hose_rib_thickness)/2, 0, hose_rib_period/2),
+    # ]
+    # thread_profile = BSplineCurve([p @ Mirror(Up) for p in points[1:][::-1]] + points)
+    # thread_hoop = Wire([
+    #                        thread_profile @ Translate(Up*(turns*hose_rib_period))
+    #                        for turns in range(thread_turns+1)
+    #                    ]
+    #
+    #                    + [Point(bearing_od/2+wall_thickness, 0, hose_rib_period * (thread_turns + 0.5)), Point(bearing_od/2+wall_thickness, 0, -hose_rib_period*0.5)], loop=True)
+    # thread_hoops = [thread_hoop @ Rotate(Up, Turns(-turns)) @ Translate(Up*(bearing_thickness + (turns-0.5)*hose_rib_period)) for turns in subdivisions(0, 1, max_length=1/120)]
+    # thread = Loft(thread_hoops, solid=True, ruled=True)
+    # # preview(result, thread)
+    # thread = thread.cut([
+    #     HalfSpace(Point(0, 0, bearing_thickness), Down),
+    #     HalfSpace(Point(0, 0, bearing_thickness+hose_rib_period*thread_turns), Up),
+    # ])
 
-                       + [Point(bearing_od/2+wall_thickness, 0, hose_rib_period * (thread_turns + 0.5)), Point(bearing_od/2+wall_thickness, 0, -hose_rib_period*0.5)], loop=True)
-    thread_hoops = [thread_hoop @ Rotate(Up, Turns(-turns)) @ Translate(Up*(bearing_thickness + (turns-0.5)*hose_rib_period)) for turns in subdivisions(0, 1, max_length=1/120)]
-    thread = Loft(thread_hoops, solid=True, ruled=True)
-    # preview(result, thread)
-    thread = thread.cut([
-        HalfSpace(Point(0, 0, bearing_thickness), Down),
-        HalfSpace(Point(0, 0, bearing_thickness+hose_rib_period*thread_turns), Up),
-    ])
+
     # def thread(start_turns, stop_turns):
     #     thread_hoops = [thread_hoop @ Rotate(Up, Turns(turns)) @ Translate(Up*(bearing_thickness + turns*hose_rib_period)) for turns in subdivisions(start_turns, stop_turns, max_length=1/100)]
     #     return Loft(thread_hoops, solid=True, ruled=True)
@@ -54,10 +81,31 @@ def hose_to_bearing():
     #     HalfSpace(Point(0, 0, bearing_thickness+hose_rib_period*thread_turns), Up),
     # ])
 
-    result = Compound(result, thread)
+    result = Compound(result, threaded_hose_grip @ Translate(Up*bearing_thickness))
 
     save_STL("hose_to_bearing", result, linear_deflection=0.02)
-    export("hose_to_bearing.stl", "hose_to_bearing_1.stl")
+    export("hose_to_bearing.stl", "hose_to_bearing_2.stl")
+    preview(result)
+
+@run_if_changed
+def hose_to_bearing_id():
+    overhang = hose_od/2 - (bearing_id/2-wall_thickness)
+    overhang_height = overhang*0.7
+    profile=Wire([
+        Point(bearing_id/2-wall_thickness, 0, 0),
+        Point(bearing_id/2, 0, 0),
+        Point(bearing_id/2, 0, bearing_thickness),
+        Point(bearing_od/2+wall_thickness, 0, bearing_thickness),
+        Point(bearing_od/2+wall_thickness, 0, bearing_thickness+overhang_height),
+        Point(bearing_id/2+overhang-wall_thickness, 0, bearing_thickness+overhang_height),
+        Point(bearing_id/2-wall_thickness, 0, bearing_thickness),
+    ], loop=True)
+
+    result = profile.revolve(Up)
+    # preview(result)
+    result = Compound(result, threaded_hose_grip @ Translate(Up*(bearing_thickness+overhang_height)))
+    save_STL("hose_to_bearing_id", result, linear_deflection=0.02)
+    export("hose_to_bearing_id.stl", "hose_to_bearing_id_1.stl")
     preview(result)
 
 

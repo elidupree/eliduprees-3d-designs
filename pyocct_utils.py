@@ -103,3 +103,28 @@ def stitch_unordered_edges_to_wire(edges):
             break
         rest = new_rest
     return Wire(result)
+
+
+def two_BSplineSurfaces_to_solid(a, b):
+    ar = a.copy()
+    ar.UReverse()
+    param_bounds = [[[getattr(s, f"{d}Knot")(getattr(s,param_idx_fn.format(d))()) for d in ["U", "V"]] for param_idx_fn in ["First{}KnotIndex", "Last{}KnotIndex"]] for s in [a,b]]
+    pointing_inwards = a.normal(param_bounds[0][0]).dot(Direction(a.position(param_bounds[0][0]), b.position(param_bounds[1][0]))) < 0
+    if pointing_inwards:
+        ar.UReverse()
+    faces = [Face(ar), Face(b)]
+    assert a.IsUPeriodic() == b.IsUPeriodic()
+    assert a.IsVPeriodic() == b.IsVPeriodic()
+    if not a.IsUPeriodic():
+        faces.extend([
+            f
+            for fn in ["FirstUKnotIndex", "LastUKnotIndex"]
+            for f in Loft([Wire(s.UIso(s.UKnot(getattr(s, fn)()))) for s in [a,b]], ruled=True).faces()
+        ])
+    if not a.IsVPeriodic():
+        faces.extend([
+            f
+            for fn in ["FirstVKnotIndex", "LastVKnotIndex"]
+            for f in Loft([Wire(s.VIso(s.VKnot(getattr(s, fn)()))) for s in [a,b]], ruled=True).faces()
+        ])
+    return Solid(Shell(faces))

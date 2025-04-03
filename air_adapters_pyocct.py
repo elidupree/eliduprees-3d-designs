@@ -42,6 +42,7 @@ def make_hepa_to_4in():
   
 @run_if_changed
 def make_hepa_to_nothing():
+  return
   wall_thickness = 0.6
   plate_thickness = 3
   sections = [
@@ -276,3 +277,4 @@ def make_sander_dustport_to_shopvac1_adapter():
   preview(result)
   save_STL("sander_dustport_to_shopvac1_adapter", result)
   # export("sander_dustport_to_shopvac1_adapter.stl", "sander_dustport_to_shopvac1_adapter_1.stl")
+
