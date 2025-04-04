@@ -4,7 +4,7 @@ from pyocct_system import *
 initialize_pyocct_system()
 
 filter_max_length = 151.9
-filter_width = 101
+filter_max_width = 101
 filter_rim_inset = 5
 filter_insertion_depth = 18.5
 filter_squished_depth = 17
@@ -12,22 +12,25 @@ filter_squish_distance = filter_insertion_depth-filter_squished_depth
 
 
 wall_thickness = 1.0
-frame_thickness = 7
-rod_radius = 2
+frame_height = 10
+frame_thickness = 5
+rod_radius = 1.7
 cam_max_diameter = filter_rim_inset + 10
 cam_max_radius = cam_max_diameter/2
 cam_overshoot_distance = 0.5
 cam_min_radius = cam_max_radius - cam_overshoot_distance - filter_squish_distance
 handle_thickness = 2
-handle_length = (frame_thickness*2 + filter_squished_depth)*0.8
+handle_length = (frame_thickness + filter_squished_depth)*0.8
 handle_fillet_width = 1
 cam_contact_pad_width = 2*(cam_max_radius - handle_thickness - handle_fillet_width)
 
 max_overhang_slope = 2
+cam_overshoot_distance_with_leeway = cam_overshoot_distance + 0.2
+filter_overshot_squished_depth_with_leeway = filter_squished_depth - cam_overshoot_distance_with_leeway
 
 # origin = (center of rod, center of filter, top edge of filter) I guess?
 # fillet_turns = asin((cam_contact_pad_width/2 + handle_fillet_distance)/cam_max_radius).turns
-cam_center = Point(0, 0, cam_max_radius + frame_thickness)
+cam_center = Point(0, 0, cam_max_radius + frame_height-3)
 
 frame_length = filter_max_length+wall_thickness*2
 
@@ -62,8 +65,8 @@ def cam_axial_profile():
         Point(-cam_max_radius, 0, -handle_length),
         Point(-cam_max_radius+handle_thickness, 0, -handle_length),
         Point(-cam_max_radius+handle_thickness, 0, -handle_length+2),
-        Point(-cam_max_radius+handle_thickness, 0, frame_thickness),
-        Point(-cam_max_radius+handle_thickness, 0, frame_thickness+1),
+        Point(-cam_max_radius+handle_thickness, 0, frame_height-3),
+        Point(-cam_max_radius+handle_thickness, 0, frame_height-2),
     ], BSplineDimension(periodic=True))))
 
 
@@ -86,7 +89,7 @@ def cam():
     result = result.cut([cutaway_for_strut @ Translate(Back*y) for y in strut_center_ys])
     return result
 
-strut_width = (cam_max_radius - handle_thickness - wall_thickness - 0.4)*2
+strut_width = (rod_radius+wall_thickness)*2
 @run_if_changed
 def strut():
     profile = Union(
@@ -108,14 +111,98 @@ def struts():
 #
 #
 
+filter_left_rim_inner_x = max(cam_max_radius+wall_thickness, strut_width/2 +  filter_rim_inset)
+print(cam_max_radius+wall_thickness, strut_width/2 + filter_rim_inset, filter_left_rim_inner_x)
+frame_left_inner_x = filter_left_rim_inner_x - filter_rim_inset
+filter_center_top = Point(frame_left_inner_x + filter_max_width / 2, 0, 0)
+
+@run_if_changed
+def spring_hole():
+    standard_compressed_length = 4.8
+    return Face(Circle(Axes(Origin + Down*cam_overshoot_distance_with_leeway/2, Up), 1.3)).extrude(Down*standard_compressed_length, centered=True)
+
+@run_if_changed
+def spring_holes():
+    return [spring_hole @ Translate(Back*d*(frame_length - (frame_thickness+wall_thickness))/2) for d in [1,-1]]
+
+
+# @run_if_changed
+# def spring_peg_holes():
+#     hole =
+
 @run_if_changed
 def top_part_long_edge():
-    profile = Vertex(Origin).extrude(Left*(cam_max_radius - handle_thickness - 0.2), Right*(cam_max_radius+wall_thickness)).extrude(Up*(frame_thickness+3))
+    profile = Vertex(Origin).extrude(Left*(cam_max_radius - handle_thickness - 0.2), Right*filter_left_rim_inner_x).extrude(Up*frame_height)
     profile = profile.cut(cam_axial_profile)
     result = profile.extrude(Front*frame_length, centered=True)
     strut_hole = Vertex(cam_center).extrude(Right*(strut_width+0.4), centered=True).extrude(Down*100, centered=True).extrude(Back*(strut_thickness+0.4), centered=True)
-    result = result.cut([strut_hole @ Translate(Back*y) for y in strut_center_ys])
+    result = result.cut([strut_hole @ Translate(Back*y) for y in strut_center_ys] + spring_holes)
+    # end_stop_profile = Union(
+    #     Face(Circle(Axes(cam_center, Front), cam_min_radius)),
+    #     Vertex(cam_center).extrude(Right*cam_min_radius*2, centered=True).extrude(Down*(cam_center[2])),
+    # )
+    # end_stop = end_stop_profile.extrude(Front*frame_length, Front*(frame_length - strut_thickness))
+    # result = Compound(result, )
+    return result
+
+@run_if_changed
+def top_part_short_edge():
+    outer_corner = filter_center_top + Front*frame_length/2 + Up*frame_height
+    return Vertex(outer_corner).extrude(Back*(wall_thickness+filter_rim_inset)).extrude(Down*frame_height).extrude(Left*(filter_max_width - filter_rim_inset*2), centered=True)
+
+@run_if_changed
+def bottom_part_long_edge():
+    outer_corner = Origin + Down*(filter_squished_depth+frame_height)
+    profile = Union(
+        Vertex(outer_corner).extrude(Left*(strut_width/2),  Right*frame_left_inner_x).extrude(Up*(filter_overshot_squished_depth_with_leeway+frame_height)),
+        Vertex(outer_corner).extrude(Left*(strut_width/2), Right*filter_left_rim_inner_x).extrude(Up*frame_height),
+    )
+    result = profile.extrude(Front*frame_length, centered=True)
+    result = result.cut([HalfSpace(outer_corner, Direction(-1, 0, -1))] + spring_holes)
+    result = Compound(result, struts)
+    return result
+
+@run_if_changed
+def bottom_part_short_edge():
+    outer_corner = filter_center_top + Front*frame_length/2 + Down*(filter_squished_depth+frame_height)
+    result = Vertex(outer_corner).extrude(Back*(wall_thickness+filter_rim_inset)).extrude(Up*frame_height).extrude(Left*(filter_max_width - filter_rim_inset*2), centered=True)
+
+    # result = result.cut(HalfSpace(outer_corner + Vector(0, 2, 2), Direction(0, -1, -1)))
     return result
 
 
-preview(cam, struts, top_part_long_edge)
+@run_if_changed
+def top_part():
+    half = Compound(top_part_long_edge, top_part_short_edge)
+    # outer_corner = filter_center_top + Front*frame_length/2 + Down*(filter_squished_depth+frame_height)
+    return Compound(
+        half,
+        half @ Rotate(Axis(filter_center_top, Up), Degrees(180)),
+        # Vertex(outer_corner).extrude(Back*(wall_thickness)).extrude(Up*(frame_height + filter_squished_depth - filter_squish_distance - 0.2)).extrude(Left*filter_max_width, centered=True)
+    )
+
+@run_if_changed
+def bottom_part():
+    half = Compound(bottom_part_long_edge, bottom_part_short_edge)
+    return Compound(half, half @ Rotate(Axis(filter_center_top, Up), Degrees(180)))
+
+test_region = Vertex(0, 45, 0).extrude(Left*20, Right*20).extrude(Back*50).extrude(Up*30, Down*40)
+
+
+# save_STL("bottom_part_test", bottom_part.intersection(test_region))
+# export("bottom_part_test.stl", "bottom_part_test_2.stl")
+# save_STL("top_part_test", top_part.intersection(test_region))
+# export("top_part_test.stl", "top_part_test_2.stl")
+# save_STL("cam_test", cam.intersection(test_region))
+# export("cam_test.stl", "cam_test_2.stl")
+
+
+# save_STL("bottom_part", bottom_part)
+# export("bottom_part.stl", "bottom_part_1.stl")
+# save_STL("top_part", top_part)
+# export("top_part.stl", "top_part_1.stl")
+# save_STL("cam", cam)
+# export("cam.stl", "cam_1.stl")
+
+
+preview(cam, top_part, bottom_part, test_region.wires())
