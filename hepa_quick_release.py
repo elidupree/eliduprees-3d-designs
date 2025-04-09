@@ -24,7 +24,7 @@ handle_length = (frame_thickness + filter_squished_depth)*0.8
 handle_fillet_width = 1
 cam_contact_pad_width = 2*(cam_max_radius - handle_thickness - handle_fillet_width)
 
-max_overhang_slope = 2
+max_overhang_slope = 1
 cam_overshoot_distance_with_leeway = cam_overshoot_distance + 0.2
 filter_overshot_squished_depth_with_leeway = filter_squished_depth - cam_overshoot_distance_with_leeway
 
@@ -72,7 +72,7 @@ def cam_axial_profile():
 
 cutaway_slant_length = (cam_max_radius*2 - handle_thickness)/max_overhang_slope
 strut_thickness=5
-d = frame_length/2 - strut_thickness*2.5 - cutaway_slant_length
+d = frame_length/2 - strut_thickness*2.5 - cutaway_slant_length/2
 strut_center_ys = subdivisions(-d, d, amount=4)
 
 @run_if_changed
@@ -201,8 +201,8 @@ test_region = Vertex(0, 45, 0).extrude(Left*20, Right*20).extrude(Back*50).extru
 # export("bottom_part.stl", "bottom_part_1.stl")
 # save_STL("top_part", top_part)
 # export("top_part.stl", "top_part_1.stl")
-# save_STL("cam", cam)
-# export("cam.stl", "cam_1.stl")
+save_STL("cam", cam)
+export("cam.stl", "cam_1.stl")
 
 
 preview(cam, top_part, bottom_part, test_region.wires())

@@ -105,6 +105,17 @@ def stitch_unordered_edges_to_wire(edges):
     return Wire(result)
 
 
+
+def flat_ended_tube_BSplineSurface_to_solid(surface):
+    if surface.IsVPeriodic():
+        faces = [Face(surface)] + [Face(Wire(surface.UIso(surface.UKnot(i)))) for i in [surface.FirstUKnotIndex(), surface.LastUKnotIndex()]]
+    if surface.IsUPeriodic():
+        faces = [Face(surface)] + [Face(Wire(surface.VIso(surface.VKnot(i)))) for i in [surface.FirstVKnotIndex(), surface.LastVKnotIndex()]]
+
+    return Solid(Shell(faces))
+
+
+
 def two_BSplineSurfaces_to_solid(a, b):
     ar = a.copy()
     ar.UReverse()

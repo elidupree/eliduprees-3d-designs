@@ -2,7 +2,7 @@ import math
 from pyocct_system import *
 
 class InvoluteGear(SerializeAsVars):
-    def __init__(self, num_teeth, pitch_radius= None, base_radius = None, base_pitch = None, pressure_angle= Degrees(20)):
+    def __init__(self, num_teeth, pitch_radius= None, base_radius = None, base_pitch = None, pressure_angle= Degrees(20), skip_teeth = 1):
         def get_unfilled():
             return [a is None for a in [pitch_radius, base_radius, pressure_angle, base_pitch]]
         unfilled = get_unfilled()
@@ -22,6 +22,7 @@ class InvoluteGear(SerializeAsVars):
             unfilled = get_unfilled()
 
         self.num_teeth = num_teeth
+        self.skip_teeth = skip_teeth
         self.base_pitch = base_pitch
         self.base_radius = base_radius
         self.pitch_radius = pitch_radius
@@ -43,23 +44,28 @@ class InvoluteGear(SerializeAsVars):
             v = Vector(0, -unroll_distance, 0) @ Rotate(Up, Radians(a))
             p = bp + v
             a2 = math.atan2(p[1], p[0])
-            if a2/math.tau > (1/self.num_teeth) / 4:
+            if a2/math.tau > (1/(self.num_teeth / skip_teeth)) / 4:
                 break
             # i = Segment(points[-1], p).intersections(Circle(Axes(Origin, Up), self.pitch_radius))
             # if i.points():
             #     pitch_point = i.points()[0]
             if Origin.distance(p) < self.pitch_radius:
                 pitch_point = p
-            points.append(p)
-            unroll_distance += 1
+            if points[-1].distance(p) > 0.1:
+                points.append(p)
+            unroll_distance += 0.1
+            
+        pitch_point_radians = math.atan2(pitch_point[1], pitch_point[0])
+        radian_span = math.tau / (self.num_teeth / skip_teeth) / 2
+        print(pitch_point_radians, radian_span)
+        points = [p @ Rotate(Up, Radians(-radian_span/2 - pitch_point_radians)) for p in points]
 
-        tooth_points = points + [p @ Mirror(Back @ Rotate(Up, Radians(math.atan2(pitch_point[1], pitch_point[0]) + math.tau / self.num_teeth / 4))) for p in points[::-1]]
-        shape = Face(Wire(
-            BSplineCurve(
-            [p @ Rotate(Up, Turns(i / num_teeth))
-            for i in range(num_teeth) for p in tooth_points],
+        tooth_points = points + [p @ Mirror(Back) for p in points[::-1]]
+        self.curve =  BSplineCurve(
+            [p @ Rotate(Up, Turns(i / (num_teeth / skip_teeth)))
+             for i in range(num_teeth // skip_teeth) for p in tooth_points],
             BSplineDimension(periodic=True, degree=2))
-        ))
+        shape = Face(Wire(self.curve))
         shape = shape.intersection(Face(Circle(Axes(Origin, Up), self.outside_radius)))
         self.shape = shape
         # preview(gear, Circle(Axes(Origin, Up), base_radius), Circle(Axes(Origin, Up), pitch_radius))
