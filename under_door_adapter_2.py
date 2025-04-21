@@ -302,16 +302,18 @@ def threaded_hose_snap_holder():
         arc_distance = min(rib_radius/math.sqrt(2), abs(t.z_offset_from_nearest_crest))
         capped_distance = abs(t.z_offset_from_nearest_crest)-arc_distance
         d = hose_od/2-rib_radius + math.sqrt(rib_radius**2 - arc_distance**2) - capped_distance
-        flare = max(0, 3*t.frac_along_length - 2, 1 - 3*t.frac_along_length)**2 * 3
+        flare = max(0, 5*t.frac_along_length - 4, 1 - 5*t.frac_along_length)**2 * 3
         d += flare
-        d += smootherstep(t.angle_direction[0], 0.3, 0.9) * 15
+        d += smootherstep(t.angle_direction[0], 0.48, 0.8) * 15
         return d
     def holder_inner_radius(t: ThreadPosition):
+        result = thread_hosegrip_radius(t)
+
         # hack: pinch to near-zero on one side so Cura will delete it,
         # rather than risking a boolean op to cut
-        result = thread_hosegrip_radius(t)
-        if t.angle_direction[0] > 0.6:
-            result += holder_thickness - 0.1
+        # if t.angle_direction[0] > 0.6:
+        #     result += holder_thickness - 0.1
+
         return result
     def holder_outer_radius(t: ThreadPosition):
         result = thread_hosegrip_radius(t) + holder_thickness
@@ -329,7 +331,7 @@ def threaded_hose_snap_holder():
         ScrewThreadSurface(length = threads_length, pitch=hose_rib_period, radius_fn=holder_inner_radius).generate(),
         ScrewThreadSurface(length = threads_length, pitch=hose_rib_period, radius_fn=holder_outer_radius).generate(),
     )
-    result = result.cut(screw_holes + [HalfSpace(Origin+Right*17, Right)])
-    # save_STL("threaded_hose_snap_holder", result, linear_deflection=0.02)
-    # export("threaded_hose_snap_holder.stl", "threaded_hose_snap_holder_2.stl")
+    result = result.cut(screw_holes + [HalfSpace(Origin+Right*19, Right)])
+    save_STL("threaded_hose_snap_holder", result, linear_deflection=0.02)
+    export("threaded_hose_snap_holder.stl", "threaded_hose_snap_holder_2.stl")
     preview(result)
