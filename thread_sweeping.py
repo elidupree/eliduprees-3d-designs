@@ -28,6 +28,19 @@ class ScrewThreadSurface:
         return BSplineSurface([[Point(self.radius_fn(ThreadPosition(self, z, angle)), 0, z) @ Rotate(Up, angle) for z in subdivisions(0, self.length, max_length=z_max_sample_distance)] for angle in angles], u=BSplineDimension(periodic=True))
 
 class ThreadPosition:
+    z: float
+    angle: Angle
+    angle_direction: Direction
+    threads_so_far: float
+    threads_offset_from_last_crest: float
+    threads_offset_from_nearest_crest: float
+    frac_from_crest_to_trough: float
+    z_offset_from_last_crest: float
+    z_offset_from_nearest_crest: float
+    frac_along_length: float
+    # frac_from_nearest_end: float
+    # z_distance_from_nearest_end: float
+
     def __init__(self, surface: ScrewThreadSurface, z: float, angle: Angle):
         self.z = z
         self.angle = angle
@@ -40,3 +53,7 @@ class ThreadPosition:
         self.frac_from_crest_to_trough = self.threads_offset_from_nearest_crest*2
         self.z_offset_from_last_crest = self.threads_offset_from_last_crest * surface.pitch
         self.z_offset_from_nearest_crest = self.threads_offset_from_nearest_crest * surface.pitch
+        self.frac_along_length = self.z/surface.length
+        # self.frac_from_nearest_end = min(self.frac_along_length, 1-self.frac_along_length)
+        # self.z_distance_from_nearest_end = min(self.z, surface.length - self.z)
+

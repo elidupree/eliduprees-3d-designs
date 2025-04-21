@@ -1,6 +1,7 @@
 import math
 
 from pyocct_system import *
+from pyocct_utils import circleish_rect_points, two_BSplineSurfaces_to_solid, flat_ended_tube_BSplineSurface_to_solid
 initialize_pyocct_system()
 
 filter_max_length = 151.9
@@ -186,6 +187,44 @@ def bottom_part():
     half = Compound(bottom_part_long_edge, bottom_part_short_edge)
     return Compound(half, half @ Rotate(Axis(filter_center_top, Up), Degrees(180)))
 
+
+def top_part_to_small_circle(cir_max_ir, join_len, taper):
+    # related to under_door_adapter_pyocct.small_hose_spout
+    rect_width = (filter_max_width - filter_rim_inset*2)
+    rect_length = (filter_max_length - filter_rim_inset*2)
+    target_slope = 1.5
+    cir_height = (rect_length/2 - cir_max_ir) * target_slope
+    wslope = cir_height / (rect_width/2 - cir_max_ir)
+    # def cir(p):
+    #     return Wire (Edge (Circle (Axes (filter_center_top + Up*p[2], Up), p[0])))
+    # def solid(outset_from_airspace):
+    #     hoops = [Vertex(filter_center_top + Up*z).extrude(Left*(rect_width + (outset_from_airspace - z/wslope)*2), centered=True).extrude(Back*(rect_length + (outset_from_airspace - z/target_slope)*2), centered=True).outer_wire() for z in subdivisions(0, cir_height/3, amount=7)] + [cir(p) @ Translate(Up*cir_height) for p in subdivisions(Point(25+outset_from_airspace, 0, 0), Point((cir_max_rad - taper)+outset_from_airspace, 0, join_len), amount=7)]
+    #     # preview(hoops)
+    #     return Loft (
+    #         hoops
+    #         , solid=True
+    #     )
+    # return solid(wall_thickness).cut(solid(0))
+    def surface(outset_from_airspace):
+        rows = [circleish_rect_points(width = rect_width + (outset_from_airspace - z/wslope)*2, length = rect_length + (outset_from_airspace - z/target_slope)*2, amount=30, center=filter_center_top + Up*z, corner_copies = 2) for z in subdivisions(0, cir_height/3, amount=2)] + [Circle (Axes (filter_center_top + Up*(cir_height + p[2]), Up), p[0]).subdivisions(amount=30) for p in subdivisions(Point(25+outset_from_airspace, 0, 0), Point((cir_max_ir - taper)+outset_from_airspace, 0, join_len), amount=5)]
+        return BSplineSurface(rows, v = BSplineDimension(periodic=True))
+    outer_surface = surface(wall_thickness)
+    inner_surface = surface(0)
+    outer_surface.VReverse()
+    outer_solid = flat_ended_tube_BSplineSurface_to_solid(outer_surface)
+    support = Vertex(filter_center_top).extrude(Left*rect_width, centered=True).extrude(Back*rect_length, centered=True).extrude(Up*frame_height)
+    # preview(outer_solid, support)
+    support = support.cut(outer_solid @ Translate(Down*0.01))
+    # preview(support)
+    tube = two_BSplineSurfaces_to_solid(outer_surface, inner_surface)
+    return Compound(support, tube)
+
+@run_if_changed
+def top_part_to_air_heater():
+    return Compound(top_part, top_part_to_small_circle(25-wall_thickness, 40, 1))
+
+
+
 test_region = Vertex(0, 45, 0).extrude(Left*20, Right*20).extrude(Back*50).extrude(Up*30, Down*40)
 
 
@@ -201,8 +240,10 @@ test_region = Vertex(0, 45, 0).extrude(Left*20, Right*20).extrude(Back*50).extru
 # export("bottom_part.stl", "bottom_part_1.stl")
 # save_STL("top_part", top_part)
 # export("top_part.stl", "top_part_1.stl")
-save_STL("cam", cam)
-export("cam.stl", "cam_1.stl")
+# save_STL("cam", cam)
+# export("cam.stl", "cam_1.stl")
 
+save_STL("top_part_to_air_heater", top_part_to_air_heater)
+export("top_part_to_air_heater.stl", "top_part_to_air_heater_1.stl")
 
-preview(cam, top_part, bottom_part, test_region.wires())
+preview(cam, top_part, bottom_part, test_region.wires(), top_part_to_air_heater)

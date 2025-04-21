@@ -769,7 +769,7 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
 
   
   # def subdivisions (start, end, *, amount = None, max_length = None, require_parity = None):
-  def curve_subdivisions(curve, start_distance = None, end_distance = None, *, wrap = None, output = "positions", **kwargs):
+  def curve_subdivisions(curve, start_distance = None, end_distance = None, *, wrap = None, output = "positions", duplicate_endpoints = False, **kwargs):
     start_args = {}
     end_args = {}
     subdivisions_args = {}
@@ -814,7 +814,13 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
         pass
       else:
         raise RuntimeError(f"unknown wrapping behavior `{wrap}`")
+      epsilon = 0.000001
+      deduplicate = duplicate_endpoints == False and curve.IsPeriodic() and ((end_distance-start_distance + epsilon) % length) < 2*epsilon
+      if deduplicate and "amount" in subdivisions_args:
+        subdivisions_args["amount"] += 1
       distances = [d % length for d in subdivisions(start_distance, end_distance, **subdivisions_args)]
+      if deduplicate:
+        distances = distances[:-1]
 
     if output == "positions":
       return [curve.position(distance = d) for d in distances]
@@ -1208,6 +1214,8 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
       return math.cos(self.radians)
     def sin(self):
       return math.sin(self.radians)
+    def tan(self):
+      return math.tan(self.radians)
     def __mul__(self, other):
       return Radians(self.radians * other)
     __rmul__ = __mul__

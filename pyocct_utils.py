@@ -139,3 +139,25 @@ def two_BSplineSurfaces_to_solid(a, b):
             for f in Loft([Wire(s.VIso(s.VKnot(getattr(s, fn)()))) for s in [a,b]], ruled=True).faces()
         ])
     return Solid(Shell(faces))
+
+
+def turn_subdivisions(amount):
+    return [Turns(t) for t in subdivisions(0, 1, amount=amount)[::-1]]
+
+def circleish_rect_points(*, length, width, amount, center = Point(0,0,0), start_angle = Turns(0), corner_copies = 1):
+    a = atan2(length, width)
+    turnses = [a.turns, -a.turns, 0.5-a.turns, 0.5+a.turns]*corner_copies + subdivisions(0, 1, amount=amount-(corner_copies*4) + 1)[:-1]
+    turnses = sorted((t - start_angle.turns) % 1 for t in turnses)
+    # print(len(turnses), amount)
+    assert(len(turnses) == amount)
+    def v(t):
+        if t <= a.turns or t >= 1-a.turns:
+            return Vector(width/2, Turns(t).tan()*width/2)
+        elif 0.5-a.turns <= t <= 0.5+a.turns:
+            return Vector(-width/2, Turns(t-0.5).tan()*-width/2)
+        elif t < 0.5:
+            return Vector(Turns(t-0.25).tan()*-length/2, length/2)
+        else:
+            return Vector(Turns(t-0.75).tan()*length/2, -length/2)
+
+    return [center + v(t) for t in turnses]

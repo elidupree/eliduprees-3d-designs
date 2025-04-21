@@ -90,6 +90,7 @@ def symmetric_smaller_hose_version():
 
 @run_if_changed
 def small_hose_spout():
+  # related to its replacement in hepa_quick_release
   join_len = 40
   def cir(z, radius):
     return Wire (Edge (Circle (Axes (Origin + Up*z, Up), radius)))

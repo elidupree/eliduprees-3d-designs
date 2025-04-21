@@ -1,7 +1,9 @@
 import math
 
+from gcode_stuff.gcode_utils import square_jump, wrap_gcode
 from pyocct_system import *
 from gears import InvoluteGear
+from spiral_printing import make_spiral
 
 initialize_pyocct_system()
 
@@ -360,5 +362,36 @@ def bit_holder_1_8():
     result = bit_holder_row(bit_diameter=inch*1/8, depth=7, separation=10,num_slots=5)
     save_STL("bit_holder_1_8", result)
     return result
+
+
+@run_if_changed
+def trim_screw_holder():
+    # print with standard settings (0.4mm nozzle, 0.5mm lines, 0.3mm layers) and "Surface" mode and "Spiralize outer contour")
+    screwhead_diameter = 6.85
+    holder_diameter = 11.09
+
+    def curvefn(v):
+        z = v*38
+        return Circle(Axes(Point(-50,-50,z), Up), Between(holder_diameter+0.5, screwhead_diameter+0.2, smootherstep(z, 26, 33))/2 + 0.25 + max(0, z-37) + max(0, 0.5-z) + max(0, 2-abs(z-10)))
+    # preview(curvefn(v) for v in subdivisions(0,1,amount=20))
+    # spiral_start, spiral_points, spiral_commands = make_spiral(
+    #     v_to_cross_section_curve=curvefn,
+    #     max_overhang=0.15,
+    #     line_width=0.5,
+    #     max_layer_height=0.3,
+    #     starting_downfill=0.1,
+    #     f=900,
+    # )
+    # commands = (square_jump(coords=spiral_start, min_transit_z=0.2) +
+    #             spiral_commands)
+    # gcode = wrap_gcode("\n".join(commands))
+    #
+    # export_string(gcode, "trim_screw_holder.gcode")
+
+    solid = Loft([Wire(curvefn(v)) for v in subdivisions(0, 1, amount=200)], solid=True)
+    save_STL("trim_screw_holder", solid)
+    export("trim_screw_holder.stl", "trim_screw_holder_1.stl")
+    preview(solid)
+    
 
 preview(bit_holder_3_32, (bit_holder_1_8 @ Translate(Back * 20)).wires())
