@@ -23,8 +23,6 @@ class ScrewThreadSurface:
         if z_max_sample_distance is None:
             z_max_sample_distance = self.pitch / 10
         angles = [Turns(turns) for turns in subdivisions(0,1,amount=angle_samples+1)[:-1]]
-        if self.left_handed:
-            angles = angles[::-1]
         return BSplineSurface([[Point(self.radius_fn(ThreadPosition(self, z, angle)), 0, z) @ Rotate(Up, angle) for z in subdivisions(0, self.length, max_length=z_max_sample_distance)] for angle in angles], u=BSplineDimension(periodic=True))
 
 class ThreadPosition:
@@ -46,7 +44,10 @@ class ThreadPosition:
         self.angle = angle
         self.angle_direction = Right @ Rotate(Up, angle)
         self.threads_so_far = z / surface.pitch
-        self.threads_offset_from_last_crest = (self.threads_so_far - angle.turns + 1) % 1
+        handed_turns = angle.turns
+        if surface.left_handed:
+            handed_turns *= -1
+        self.threads_offset_from_last_crest = (self.threads_so_far - handed_turns + 1) % 1
         self.threads_offset_from_nearest_crest = self.threads_offset_from_last_crest
         if self.threads_offset_from_last_crest > 0.5:
             self.threads_offset_from_nearest_crest -= 1

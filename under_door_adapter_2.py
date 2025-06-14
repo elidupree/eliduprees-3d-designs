@@ -2,7 +2,7 @@ import math
 import token
 
 from pyocct_system import *
-from pyocct_utils import two_BSplineSurfaces_to_solid, inch, turn_subdivisions
+from pyocct_utils import flat_ended_tube_BSplineSurface_to_solid, two_BSplineSurfaces_to_solid, inch, turn_subdivisions
 from thread_sweeping import ScrewThreadSurface, ThreadPosition
 
 initialize_pyocct_system()
@@ -18,6 +18,7 @@ wall_thickness=1.0
 
 @run_if_changed
 def threaded_hose_grip():
+    # TODO reduce duplicate code ID 354h24k
     thread_turns = 2.5
     threads_length = thread_turns*hose_rib_period
     def thread_inner_radius(turns, z):
@@ -294,7 +295,8 @@ def through_wall_flange():
 
 @run_if_changed
 def threaded_hose_snap_holder():
-    threads_length = 30
+    # TODO reduce duplicate code ID 354h24k
+    threads_length = 40
     holder_thickness = 3
     flat_plane = Plane(Origin + Left*(hose_od/2 + holder_thickness), Left)
     def thread_hosegrip_radius(t: ThreadPosition):
@@ -302,9 +304,9 @@ def threaded_hose_snap_holder():
         arc_distance = min(rib_radius/math.sqrt(2), abs(t.z_offset_from_nearest_crest))
         capped_distance = abs(t.z_offset_from_nearest_crest)-arc_distance
         d = hose_od/2-rib_radius + math.sqrt(rib_radius**2 - arc_distance**2) - capped_distance
-        flare = max(0, 5*t.frac_along_length - 4, 1 - 5*t.frac_along_length)**2 * 3
+        flare = max(0, 4*t.frac_along_length - 3, 1 - 4*t.frac_along_length)**2 * 3
         d += flare
-        d += smootherstep(t.angle_direction[0], 0.48, 0.8) * 15
+        d += smootherstep(t.angle_direction[0], 0.55, 0.9) * 15
         return d
     def holder_inner_radius(t: ThreadPosition):
         result = thread_hosegrip_radius(t)
@@ -328,10 +330,34 @@ def threaded_hose_snap_holder():
     screw_holes = [screw_hole @ Translate(Up*threads_length/2)]
 
     result = two_BSplineSurfaces_to_solid(
+        # note: I forgot to set left_handed=True but the right-handed threads worked to grip the hose in practice, and now the grip strength is calibrated for that grip so it's not a trivial fix
         ScrewThreadSurface(length = threads_length, pitch=hose_rib_period, radius_fn=holder_inner_radius).generate(),
         ScrewThreadSurface(length = threads_length, pitch=hose_rib_period, radius_fn=holder_outer_radius).generate(),
     )
-    result = result.cut(screw_holes + [HalfSpace(Origin+Right*19, Right)])
+    result = result.cut(screw_holes + [HalfSpace(Origin+Right*22, Right)])
     save_STL("threaded_hose_snap_holder", result, linear_deflection=0.02)
-    export("threaded_hose_snap_holder.stl", "threaded_hose_snap_holder_2.stl")
+    export("threaded_hose_snap_holder.stl", "threaded_hose_snap_holder_3.stl")
+    preview(result)
+
+
+
+@run_if_changed
+def threaded_hose_straight_connector():
+    # TODO reduce duplicate code ID 354h24k
+    threads_length = 40
+    holder_thickness = 1
+    def holder_inner_radius(t: ThreadPosition):
+        rib_radius = hose_rib_thickness/2
+        arc_distance = min(rib_radius/math.sqrt(2), abs(t.z_offset_from_nearest_crest))
+        capped_distance = abs(t.z_offset_from_nearest_crest)-arc_distance
+        d = hose_od/2-rib_radius + math.sqrt(rib_radius**2 - arc_distance**2) - capped_distance
+        flare = max(0, 4*t.frac_along_length - 3, 1 - 4*t.frac_along_length)**2 * 3
+        d += flare
+        return d
+    def holder_outer_radius(t: ThreadPosition):
+        return holder_inner_radius(t) + holder_thickness
+
+    result = flat_ended_tube_BSplineSurface_to_solid(ScrewThreadSurface(length = threads_length, pitch=hose_rib_period, radius_fn=holder_outer_radius, left_handed=True).generate())
+    save_STL("threaded_hose_straight_connector_solid", result, linear_deflection=0.02)
+    export("threaded_hose_straight_connector_solid.stl", "threaded_hose_straight_connector_solid_1.stl")
     preview(result)

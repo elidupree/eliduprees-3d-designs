@@ -127,66 +127,6 @@ def make_hepa_to_nothing_clips():
   
   # preview(solid)
 
-  
-@run_if_changed
-def make_flat_wall_to_cpaps():
-  wall_thickness = 0.8
-  plate_thickness = 1.2
-  flat_wall_thickness = 3 # approximate - cardboard thicker than this can be jammed in, sheets thinner than this can be padded with hot glue
-  CPAP_inner_radius = CPAP_outer_radius - wall_thickness
-  CPAP_smooth_length = 22
-  CPAP_diagonal_length = plate_thickness*2 + flat_wall_thickness + 3
-  CPAP_diagonal_spread = 3
-  
-  oa = Point(CPAP_outer_radius + CPAP_diagonal_spread, 0, 0)
-  ob = Point(CPAP_outer_radius, 0, CPAP_diagonal_length)
-  oc = Point(CPAP_outer_radius, 0, CPAP_diagonal_length+CPAP_smooth_length)
-  od = Point(0, 0, CPAP_diagonal_length+CPAP_smooth_length)
-  oe = Origin
-  outer_wire = Wire(Edge(BSplineCurve(
-    [oa, Between(oa, ob), ob, Between(ob, oc, 0.2), oc]
-  )), od, oe, loop=True)
-  ia = oa + Left*wall_thickness + Down*0.001
-  ib = ob + Left*wall_thickness
-  ic = oc + Left*wall_thickness + Up*0.001
-  id = od + Up*0.001
-  ie = oe + Down*0.001
-  inner_wire = Wire(Edge(BSplineCurve(
-    [ia, Between(ia, ib), ib, Between(ib, ic, 0.2), ic]
-  )), id, ie, loop=True)
-  outer_solid = Face(outer_wire).revolve(Axis(Origin, Up))
-  inner_solid = Face(inner_wire).revolve(Axis(Origin, Up))
-  cpap = outer_solid.cut(inner_solid)
-  
-  cpap_separation = 32
-  cpap_total_width = CPAP_outer_radius*2 + CPAP_diagonal_spread*2
-  cpap_total_length = cpap_total_width + cpap_separation
-  
-  plate_glue_tab_length = 8
-  plate_length = cpap_total_length + plate_glue_tab_length * 4
-  cross_plate_width = cpap_total_width + plate_glue_tab_length * 2
-  
-  plate = Vertex(Origin).extrude(Left*plate_length, centered = True).extrude (Back*cpap_total_width, centered = True).extrude (Up*plate_thickness)
-  cross_plate = Vertex(Origin).extrude(Left*cpap_total_length, centered = True).extrude (Back*cross_plate_width, centered = True).extrude (Up*plate_thickness) @ Translate(Up*(plate_thickness+ flat_wall_thickness))
-  
-  block = Vertex(Origin).extrude(Left*cpap_total_length, centered = True).extrude (Back*cpap_total_width, centered = True).extrude (Up*(plate_thickness*2 + flat_wall_thickness))
-  
-  cuts = Compound(
-    inner_solid @ Translate(Left*(cpap_separation/2)),
-    inner_solid @ Translate(Right*(cpap_separation/2)),
-    )
-  
-  adapter = Compound(
-    cpap @ Translate(Left*(cpap_separation/2)),
-    cpap @ Translate(Right*(cpap_separation/2)),
-    plate.cut(cuts),
-    cross_plate.cut(cuts),
-    block.cut(cuts),
-    )
-
-  save_STL ("flat_wall_to_cpaps", adapter)
-  
-  # preview(adapter)
 
 
 class CircleSizing:
@@ -217,7 +157,21 @@ class Taper:
     self.connected_end = connected_end
     self.length = length
 
+  def inner_solid(self, exiting_direction, opening_center=None, connected_end_center=None):
+    # TODO reduce duplicate code ID 1728406
+    if opening_center is None:
+      opening_center = connected_end_center + exiting_direction*self.length
+    if connected_end_center is None:
+      connected_end_center = opening_center - exiting_direction*self.length
+
+    wires = [
+      self.opening.wires(Axes(opening_center, exiting_direction))[0],
+      self.connected_end.wires(Axes(connected_end_center, exiting_direction))[0],
+    ]
+    return Loft(wires[0], wires[1], solid=True, ruled=True)
+
   def solid(self, exiting_direction, opening_center=None, connected_end_center=None):
+    # TODO reduce duplicate code ID 1728406
     if opening_center is None:
       opening_center = connected_end_center + exiting_direction*self.length
     if connected_end_center is None:
@@ -274,7 +228,82 @@ def make_sander_dustport_to_shopvac1_adapter():
     joiner_length=50,
     joiner_radius = 100
   )
-  preview(result)
+  # preview(result)
   save_STL("sander_dustport_to_shopvac1_adapter", result)
   # export("sander_dustport_to_shopvac1_adapter.stl", "sander_dustport_to_shopvac1_adapter_1.stl")
 
+
+
+@run_if_changed
+def make_flat_wall_to_cpaps():
+  wall_thickness = 1.0
+  plate_thickness = 1.2
+  flat_wall_thickness = 3 # approximate - cardboard thicker than this can be jammed in, sheets thinner than this can be padded with hot glue
+  # CPAP_inner_radius = CPAP_outer_radius - wall_thickness
+  CPAP_smooth_length = 22
+  CPAP_diagonal_length = plate_thickness*2 + flat_wall_thickness + 3
+  CPAP_diagonal_spread = 3
+
+  CPAP_tapers = [
+      Taper(opening=CircleSizing(od = 2*CPAP_outer_radius + 2*CPAP_diagonal_spread, wall_thickness=2), connected_end=CircleSizing(od = 2*CPAP_outer_radius, wall_thickness=wall_thickness), length=CPAP_diagonal_length),
+      Taper(opening=CircleSizing(od=2*CPAP_outer_radius, wall_thickness=wall_thickness), connected_end=CircleSizing(od=2*CPAP_outer_radius, wall_thickness=wall_thickness), length=CPAP_smooth_length),
+  ]
+  rot = Rotate(Up, Degrees(90)) @ Translate(Up*CPAP_diagonal_length)
+  CPAP_walls = round_adapter(CPAP_tapers,
+    joiner_length = 16,
+    joiner_radius = 18
+  ) @ rot
+  CPAP_inner_solid = CPAP_tapers[0].inner_solid(Down, connected_end_center=Origin) @ rot
+  # o0 = Point(CPAP_outer_radius + CPAP_diagonal_spread, 0, -CPAP_diagonal_length)
+  # oa = Point(CPAP_outer_radius + CPAP_diagonal_spread, 0, 0)
+  # ob = Point(CPAP_outer_radius, 0, CPAP_diagonal_length)
+  # oc = Point(CPAP_outer_radius, 0, CPAP_diagonal_length+CPAP_smooth_length)
+  # od = Point(0, 0, CPAP_diagonal_length+CPAP_smooth_length)
+  # oe = Origin
+  # outer_wire = Wire(Edge(BSplineCurve(
+  #   [o0, oa, Between(oa, ob), ob, Between(ob, oc, 0.2), oc]
+  # )), od, oe, loop=True)
+  # ia = oa + Left*wall_thickness + Down*0.001
+  # ib = ob + Left*wall_thickness
+  # ic = oc + Left*wall_thickness + Up*0.001
+  # id = od + Up*0.001
+  # ie = oe + Down*0.001
+  # inner_wire = Wire(Edge(BSplineCurve(
+  #   [ia, Between(ia, ib), ib, Between(ib, ic, 0.2), ic]
+  # )), id, ie, loop=True)
+  # rot = Translate(Up*4) @ Rotate(Left, Degrees(20))
+  # outer_solid = Face(outer_wire).revolve(Axis(Origin, Up)) @ rot
+  # inner_solid = Face(inner_wire).revolve(Axis(Origin, Up)) @ rot
+  # cpap = outer_solid.cut(inner_solid)
+
+  cpap_separation = 32
+  cpap_total_width = CPAP_outer_radius*2 + CPAP_diagonal_spread*2
+  cpap_total_length = cpap_total_width + cpap_separation
+
+  plate_glue_tab_length = 8
+  plate_length = cpap_total_length + plate_glue_tab_length * 4
+  cross_plate_width = cpap_total_width + plate_glue_tab_length * 2
+
+  plate = Vertex(Origin).extrude(Left*plate_length, centered = True).extrude (Back*cpap_total_width, centered = True).extrude (Up*plate_thickness)
+  cross_plate = Vertex(Origin).extrude(Left*cpap_total_length, centered = True).extrude (Back*cross_plate_width, centered = True).extrude (Up*plate_thickness) @ Translate(Up*(plate_thickness+ flat_wall_thickness))
+
+  block = Vertex(Origin).extrude(Left*cpap_total_length, centered = True).extrude (Back*cpap_total_width, centered = True).extrude (Up*(plate_thickness*2 + flat_wall_thickness))
+
+  cuts = Compound(
+    CPAP_inner_solid @ Translate(Left*(cpap_separation/2)),
+    CPAP_inner_solid @ Translate(Right*(cpap_separation/2)),
+    )
+  # preview(plate, CPAP_inner_solid)
+
+  adapter = Compound(
+    CPAP_walls @ Translate(Left*(cpap_separation/2)),
+    CPAP_walls @ Translate(Right*(cpap_separation/2)),
+    plate.cut(cuts),
+    cross_plate.cut(cuts),
+    block.cut(cuts),
+    )
+
+  save_STL ("flat_wall_to_cpaps", adapter)
+  export("flat_wall_to_cpaps.stl", "flat_wall_to_cpaps_2.stl")
+
+  preview(adapter)

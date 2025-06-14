@@ -889,8 +889,8 @@ def preview(*preview_shapes, width=2000, height=1500):
   else:
     caller = traceback.extract_stack()[-2]
     print (f"Previewing ({os.path.basename(caller.filename)}:{caller.lineno}): {preview_shapes}")
-    from OCCT.Visualization.QtViewer import ViewerQt
-    v = ViewerQt(width=width, height=height)
+    from OCCT.Visualization.QtViewer import ShapeViewerQt
+    v = ShapeViewerQt(width=width, height=height)
     for shape in recursive_flatten (preview_shapes):
       if isinstance (shape, Point):
         shape = Vertex (shape)
