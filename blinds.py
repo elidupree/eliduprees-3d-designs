@@ -90,7 +90,7 @@ def blinds_hinge_2():
     base_thickness = 1.2
 
     pillar_radius = 3/2
-    cord_space = cord_radius*2
+    cord_space = 3.5
 
     pillar_stop_top = base_thickness+cord_space+base_thickness
     pillar = Face(Wire([BSplineCurve([
@@ -136,12 +136,37 @@ def blinds_hinge_2():
     direct_base = Compound(ring_uncut, direct_base_connector).cut(ring_cut).extrude(Up*base_thickness)
     direct_part = Compound(direct_base, [(pillar @ Translate(v + Down*(cord_space + base_thickness))).cut(HalfSpace(Origin, Down)) for v in [a,b]])
 
+    retainer_grip_profile = BSplineCurve([
+        Point(ring_or-1, 0, 0),
+        Point(ring_or, 0, base_thickness + cord_space - 1),
+        Point(ring_or - 0.7, 0, base_thickness + cord_space - 1),
+        Point(ring_or - 0.7, 0, base_thickness + cord_space),
+        Point(ring_or, 0, base_thickness + cord_space),
+        Point(ring_or+0.3, 0, base_thickness + cord_space),
+        Point(ring_or+0.3, 0, base_thickness + cord_space + base_thickness-0.3),
+        Point(ring_or, 0, base_thickness + cord_space + base_thickness),
+        Point(ring_or - 0.7, 0, base_thickness + cord_space + base_thickness+0.9),
+        Point(ring_or - 0.7, 0, base_thickness + cord_space + base_thickness + base_thickness),
+        Point(ring_or, 0, base_thickness + cord_space + base_thickness + base_thickness),
+        Point(ring_or+2.3, 0, base_thickness + cord_space + base_thickness + base_thickness),
+        Point(ring_or+2.3, 0, base_thickness + cord_space + base_thickness),
+        Point(ring_or+1, 0, 0),
+    ])
+    retainer_grip = Face(Wire(retainer_grip_profile, loop=True)).revolve(Up, Degrees(40))
+    retainer_base = Face(Circle(Axes(Origin, Up), ring_or+1)).cut(ring_cut).extrude(Up*base_thickness, Down*2)
+    retainer_grip_part = Compound([retainer_base, retainer_grip, retainer_grip @ Rotate(Up, Turns(0.5))])
 
     save_STL("blinds_hinge_cantilever_part", cantilever_part)
     export("blinds_hinge_cantilever_part.stl", "blinds_hinge_cantilever_part.stl")
     save_STL("blinds_hinge_direct_part", direct_part)
     export("blinds_hinge_direct_part.stl", "blinds_hinge_direct_part.stl")
-    preview(direct_part @ Translate(Up*(cord_space + base_thickness)), cantilever_part)
+    save_STL("blinds_hinge_retainer_grip_part", retainer_grip_part)
+    export("blinds_hinge_retainer_grip_part.stl", "blinds_hinge_retainer_grip_part.stl")
+    preview(
+        direct_part @ Translate(Up*(cord_space + base_thickness)),
+        retainer_grip_part,
+        #cantilever_part
+            )
 
 # @run_if_changed
 def vacuum_pleat_roller():
