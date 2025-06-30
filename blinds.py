@@ -81,13 +81,15 @@ def blinds_hinge():
 
 @run_if_changed
 def blinds_hinge_2():
-    ring_or = cordlock_radius+1
+    base_thickness = 2.4
+    ring_thickness = 1.5
+
+    ring_or = cordlock_radius+ring_thickness
     ring_cut = Face(Circle(Axes(Origin, Up), cordlock_radius))
     ring_uncut = Face(Circle(Axes(Origin, Up), ring_or))
 
     flute_distance = 4.08
-
-    base_thickness = 1.2
+    slat_thickness = 4
 
     pillar_radius = 3/2
     cord_space = 3.5
@@ -109,7 +111,7 @@ def blinds_hinge_2():
 
 
     def pillar_offset(num_flutes):
-        return Vector(flute_distance*num_flutes, pillar_radius+cordlock_radius, 0)
+        return Vector(flute_distance*num_flutes, cordlock_radius + slat_thickness*0.6, 0)
 
 
     a = pillar_offset(3)
@@ -127,33 +129,40 @@ def blinds_hinge_2():
 
     a = pillar_offset(-1)
     b = pillar_offset(1)
-    direct_base_connector=Face(Wire([
-                                            Point(0, pillar_radius, 0) @ Translate(v) for v in [a,b]
-                                        ] + [
-                                            Point(ring_or, 0),
-                                            Point(-ring_or, 0),
-                                            ], loop=True))
+    direct_base_connector=Face(Wire(
+        [
+            Point(0, pillar_radius, 0) @ Translate(v) for v in [a,b]
+        ] + [
+            Point(0, -cordlock_radius, 0) @ Translate(v) for v in [b,a]
+        ], loop=True))
     direct_base = Compound(ring_uncut, direct_base_connector).cut(ring_cut).extrude(Up*base_thickness)
-    direct_part = Compound(direct_base, [(pillar @ Translate(v + Down*(cord_space + base_thickness))).cut(HalfSpace(Origin, Down)) for v in [a,b]])
+
+    retainer_guide_wall_1 = Vertex(Origin).extrude(Back*1.0, centered=True).extrude(Left*(ring_or+2)*2, centered=True).cut(ring_cut).extrude(Up*(base_thickness+2.5))
+    retainer_guide_wall_1 = Chamfer(retainer_guide_wall_1, [(e, 0.2) for e in retainer_guide_wall_1.edges()])
+    retainer_guide_wall_2 = (retainer_guide_wall_1 @ Rotate(Up, Degrees(50))).cut(HalfSpace(Origin+Back*cordlock_radius, Back))
+
+    direct_part = Compound(direct_base, retainer_guide_wall_1, retainer_guide_wall_2, retainer_guide_wall_2 @ Mirror(Right), [(pillar @ Translate(v + Down*(cord_space + base_thickness))).cut(HalfSpace(Origin, Down)) for v in [a,b]])
 
     retainer_grip_profile = BSplineCurve([
-        Point(ring_or-1, 0, 0),
-        Point(ring_or, 0, base_thickness + cord_space - 1),
-        Point(ring_or - 0.7, 0, base_thickness + cord_space - 1),
-        Point(ring_or - 0.7, 0, base_thickness + cord_space),
+        Point(ring_or - ring_thickness*0.7, 0, 0),
+        Point(ring_or - ring_thickness*0.7, 0, base_thickness + cord_space - 1),
+        Point(ring_or - ring_thickness*0.7, 0, base_thickness + cord_space - 1),
+        Point(ring_or - ring_thickness*0.7, 0, base_thickness + cord_space),
         Point(ring_or, 0, base_thickness + cord_space),
         Point(ring_or+0.3, 0, base_thickness + cord_space),
         Point(ring_or+0.3, 0, base_thickness + cord_space + base_thickness-0.3),
         Point(ring_or, 0, base_thickness + cord_space + base_thickness),
-        Point(ring_or - 0.7, 0, base_thickness + cord_space + base_thickness+0.9),
-        Point(ring_or - 0.7, 0, base_thickness + cord_space + base_thickness + base_thickness),
-        Point(ring_or, 0, base_thickness + cord_space + base_thickness + base_thickness),
-        Point(ring_or+2.3, 0, base_thickness + cord_space + base_thickness + base_thickness),
-        Point(ring_or+2.3, 0, base_thickness + cord_space + base_thickness),
-        Point(ring_or+1, 0, 0),
+        Point(ring_or - ring_thickness*0.7, 0, base_thickness + cord_space + base_thickness+0.9),
+        Point(ring_or - ring_thickness*0.7, 0, base_thickness + cord_space + base_thickness + 1.3),
+        Point(ring_or, 0, base_thickness + cord_space + base_thickness + 2),
+        Point(ring_or+1, 0, base_thickness + cord_space + base_thickness + 2.5),
+        Point(ring_or+2.1, 0, base_thickness + cord_space + base_thickness + 1.3),
+        Point(ring_or+2.1, 0, base_thickness + cord_space + base_thickness),
+        Point(ring_or+2.1, 0, base_thickness + cord_space),
+        Point(ring_or, 0, 0),
     ])
     retainer_grip = Face(Wire(retainer_grip_profile, loop=True)).revolve(Up, Degrees(40))
-    retainer_base = Face(Circle(Axes(Origin, Up), ring_or+1)).cut(ring_cut).extrude(Up*base_thickness, Down*2)
+    retainer_base = Face(Circle(Axes(Origin, Up), ring_or+0.5)).cut(ring_cut).extrude(Up*base_thickness, Down*1.2)
     retainer_grip_part = Compound([retainer_base, retainer_grip, retainer_grip @ Rotate(Up, Turns(0.5))])
 
     save_STL("blinds_hinge_cantilever_part", cantilever_part)
@@ -164,7 +173,7 @@ def blinds_hinge_2():
     export("blinds_hinge_retainer_grip_part.stl", "blinds_hinge_retainer_grip_part.stl")
     preview(
         direct_part @ Translate(Up*(cord_space + base_thickness)),
-        retainer_grip_part,
+        retainer_grip_part @ Rotate(Up, Degrees(5)),
         #cantilever_part
             )
 
