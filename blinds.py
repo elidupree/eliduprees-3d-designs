@@ -81,6 +81,7 @@ def blinds_hinge():
 
 @run_if_changed
 def blinds_hinge_2():
+    # note for future Eli: this function is currently messy because I built and discarded several different ideas in it
     base_thickness = 2.4
     ring_thickness = 1.5
 
@@ -161,16 +162,17 @@ def blinds_hinge_2():
     # retainer_guide_ring = Face(Circle(Axes(Origin, Up), ring_or+2)).extrude(Up*(base_thickness + 2.5)).cut(retainer_grip_cut)
     retainer_guide_wall_section = Face(Wire([
         Point(cordlock_radius,0,0),
-        Point(ring_or-0.5,0,0),
-        Point(ring_or+2,0,2.5),
-        Point(ring_or+2,0,base_thickness+retainer_guide_extra_height-1),
-        Point(ring_or+1,0,base_thickness+retainer_guide_extra_height),
-        Point(cordlock_radius+1,0,base_thickness+retainer_guide_extra_height),
-        Point(cordlock_radius,0,base_thickness+retainer_guide_extra_height/2),
+        Point(ring_or-0.1,0,0),
+        Point(ring_or-0.1+base_thickness,0,base_thickness),
+        # Point(ring_or+2,0,base_thickness+retainer_guide_extra_height-1),
+        # Point(ring_or+1,0,base_thickness+retainer_guide_extra_height),
+        # Point(cordlock_radius+1,0,base_thickness+retainer_guide_extra_height),
+        # Point(cordlock_radius,0,base_thickness+retainer_guide_extra_height/2),
+        Point(cordlock_radius,0,base_thickness),
     ], loop=True))
 
-    retainer_guide_wall_cord_pass_degrees = 30
-    retainer_prong_degrees = 20
+    retainer_guide_wall_cord_pass_degrees = 34
+    retainer_prong_degrees = 16
 
     retainer_guide_wall_back_start_degrees = retainer_guide_wall_cord_pass_degrees/2+retainer_prong_degrees+1
     retainer_guide_wall_back = retainer_guide_wall_section.revolve(Up, Degrees(9)) @ Rotate(Up, Degrees(retainer_guide_wall_back_start_degrees))
@@ -196,15 +198,44 @@ def blinds_hinge_2():
     retainer_base = Face(Circle(Axes(Origin, Up), ring_or+0.5)).cut(ring_cut).extrude(Up*base_thickness, Down*1.2)
     retainer_grip_part = Compound([retainer_base, retainer_grip, retainer_grip @ Rotate(Up, Turns(0.5))])
 
+
+    retainer_staple_contact_leeway = 0.3
+    # retainer_staple_noncontact_leeway = 0.5
+    retainer_staple_avoid_cordlock = cordlock_radius #+0.5  # (can afford to do exactly cordlock_radius because in-fact the printing imprecisions force a higher distance)
+    retainer_staple_avoid_cordlock_harder = cordlock_radius+2
+    retainer_staple_width = 2.4
+    retainer_staple_point_length = 3
+    retainer_staple_point_z = -11.7
+    retainer_staple_points = [
+        Point(0, 0, retainer_staple_point_z),
+        Point(5, 0, retainer_staple_point_z - retainer_staple_point_length),
+        Point(retainer_staple_avoid_cordlock_harder, 0, retainer_staple_point_z - retainer_staple_point_length),
+        Point(retainer_staple_avoid_cordlock_harder, 0, -retainer_staple_contact_leeway - 1),
+        Point(retainer_staple_avoid_cordlock, 0, -retainer_staple_contact_leeway - 1),
+        Point(retainer_staple_avoid_cordlock, 0, -retainer_staple_contact_leeway),
+        Point(ring_or, 0, -retainer_staple_contact_leeway),
+        Point(ring_or, 0, base_thickness + retainer_staple_contact_leeway),
+        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway),
+        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway + 1),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, base_thickness + retainer_staple_contact_leeway + 1),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width),
+    ]
+    # preview(Wire(retainer_staple_points[::-1] + [a @ Mirror(Right) for a in retainer_staple_points[1:]], loop=True))
+    retainer_staple = Face(Wire(retainer_staple_points[::-1] + [a @ Mirror(Right) for a in retainer_staple_points[1:]], loop=True)).extrude(Back*1.8, centered=True)
+    # preview(retainer_staple_points)
+
     save_STL("blinds_hinge_cantilever_part", cantilever_part)
     export("blinds_hinge_cantilever_part.stl", "blinds_hinge_cantilever_part.stl")
     save_STL("blinds_hinge_direct_part", direct_part)
     export("blinds_hinge_direct_part.stl", "blinds_hinge_direct_part.stl")
     save_STL("blinds_hinge_retainer_grip_part", retainer_grip_part)
     export("blinds_hinge_retainer_grip_part.stl", "blinds_hinge_retainer_grip_part.stl")
+    save_STL("blinds_hinge_retainer_staple", retainer_staple @ Rotate(Left, Degrees(90)))
+    export("blinds_hinge_retainer_staple.stl", "blinds_hinge_retainer_staple.stl")
     preview(
-        direct_part @ Translate(Up*(cord_space + base_thickness)),
-        retainer_grip_part @ Rotate(Up, Degrees(retainer_guide_wall_cord_pass_degrees/2 + 1)),
+        direct_part, # @ Translate(Up*(cord_space + base_thickness)),
+        #retainer_grip_part @ Rotate(Up, Degrees(retainer_guide_wall_cord_pass_degrees/2 + 1)),
+        retainer_staple @ Rotate(Up, Degrees(retainer_guide_wall_cord_pass_degrees/2 + retainer_prong_degrees/2)),
         # retainer_grip_cut
         #cantilever_part
             )
