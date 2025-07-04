@@ -302,33 +302,36 @@ def blinds_hinge_3():
     prong_cut = Intersection(prong_uncut @ Translate(Back*prong_edge_thickness), prong_uncut @ Translate(Front*prong_edge_thickness))
     # preview(prong_uncut.cut(face_cuts).cut(prong_cut))
     axle_radius = (spear_thickness/2)*math.sqrt(2) + 0.3
-    axle_length = 8
+    axle_length = 6
+    axle_snapin_dist = 4
+    axle_snapin_x = -crossguard_width - axle_snapin_dist
+    axle_end_x = -crossguard_width - axle_length
     axle_profile = Circle(Axes(Origin,Left), axle_radius)
     axle_uncut = Face(axle_profile).extrude(Left*crossguard_width/2, Left*(axle_length + crossguard_width))
 
     axle_snapin_length = 1
-    axle_snapin_spring_length = axle_length-2
     axle_snapin_point_length = 0.9
     axle_edge_profile = Wire(axle_profile).cut(face_cuts).cut(HalfSpace(Origin, Back))
     pointy_surface = Edge(Origin, Origin + Direction(1,1,0) * 3).revolve(Front) @ Translate(Front*(axle_radius + axle_snapin_point_length) + Back*0.01)
-    axle_snapin_other_surface = axle_edge_profile.extrude(Left*axle_snapin_spring_length, centered=True).cut(pointy_surface.extrude(Back*10))
+    axle_snapin_other_surface = axle_edge_profile.extrude(Left*(axle_length - axle_snapin_dist), Right*(axle_snapin_dist+crossguard_width/2)) #.cut(pointy_surface.extrude(Back*10))
     pointy_surface = pointy_surface.cut(face_cuts).cut(axle_uncut @ Translate(Right*axle_length/2))
     # axle_snapin = axle_snapin_profile.extrude(Front*0.5, Left*(axle_snapin_length/2))
     # axle_snapin = Compound(axle_snapin, axle_snapin @ Mirror(Left))
     # preview(pointy_surface, axle_snapin_other_surface, axle_uncut)
-    axle_snapin = Compound(pointy_surface, axle_snapin_other_surface).extrude(Back*1.05)
-    axle_snapin = Compound(axle_snapin, axle_snapin @ Mirror(Back))
+    # axle_snapin = Compound(pointy_surface.extrude(Back*1.2), axle_snapin_other_surface.extrude(Back*1.1))
+    axle_snapin = Compound(pointy_surface.extrude(Back*1.2).cut(axle_snapin_other_surface.extrude(Back*1.0,Back*5)), axle_snapin_other_surface.extrude(Back*1.0).cut(pointy_surface.extrude(Back*1.2, Back*5)))
+    axle = Compound(axle_snapin, axle_snapin @ Mirror(Back)) @ Translate(Vector(axle_snapin_x, 0, 0))
 
     crossguard = Vertex(Origin).extrude(Left*crossguard_width).extrude(Front*crossguard_length, centered=True).extrude(Up*spear_thickness, centered=True)
     crossguard = Chamfer(crossguard, [(e, 0.3) for e in crossguard.edges()])
 
     prong = prong_uncut.cut(face_cuts).cut(prong_cut)
     # prong = prong.cut([HalfSpace(Point(-1.5,-1.5*d,0), Direction(-1,-1*d,0)) for d in [-1,1]])
-    axle = axle_uncut.cut(face_cuts)
-    cut_for_snapin = Vertex(Origin + Left*(crossguard_width + axle_length/2)).extrude(Left*axle_snapin_spring_length, centered=True).extrude(Up*10, centered=True).extrude(Back*10, centered=True)
-    axle = axle.cut(cut_for_snapin)
+    # axle = axle_uncut.cut(face_cuts)
+    # cut_for_snapin = Vertex(Origin).extrude(Left*axle_snapin_spring_length, centered=True).extrude(Up*10, centered=True).extrude(Back*10, centered=True)
+    # axle = axle.cut(cut_for_snapin)
     # preview(axle)
-    axle = Compound(axle, axle_snapin @ Translate(Left*(crossguard_width + axle_length/2)))
+    # axle = Compound(axle, axle_snapin @ Translate(Left*(crossguard_width + axle_length/2)))
     
     spear = Compound(axle, crossguard, prong,
                     # prong @ Translate(Front*prong_span)
@@ -338,9 +341,9 @@ def blinds_hinge_3():
     jam_hole_flare = 1.5
     jam_hole_profile_1 = [
         Point(-axle_length-0.4, jam_hole_radius, 0),
-        Point(-axle_length/2 - axle_snapin_point_length, jam_hole_radius, 0),
-        Point(-axle_length/2, jam_hole_radius + axle_snapin_point_length, 0),
-        Point(-axle_length/2 + axle_snapin_point_length, jam_hole_radius, 0),
+        Point(-axle_snapin_dist - axle_snapin_point_length, jam_hole_radius, 0),
+        Point(-axle_snapin_dist, jam_hole_radius + axle_snapin_point_length, 0),
+        Point(-axle_snapin_dist + axle_snapin_point_length, jam_hole_radius, 0),
         Point(-2, jam_hole_radius, 0),
         Point(0, jam_hole_radius+jam_hole_flare, 0),
     ]
@@ -362,7 +365,7 @@ def blinds_hinge_3():
     # # preview(jam_hole_profile_2, jam_hole_fdm_accommodation)
     # preview(Union([jam_hole_profile_2.revolve(Right), jam_hole_fdm_accommodation]))
     #
-    jam_socket_radius = jam_hole_radius+jam_hole_flare
+    jam_socket_radius = jam_hole_radius+jam_hole_flare+0.5
     jam_socket_profile = Wire([
         Point(0, 0, -jam_socket_radius*math.sqrt(2)),
         TrimmedCurve(Circle(Axes(Origin, Right, Down), jam_socket_radius), math.tau/8, math.tau*7/8)
@@ -398,7 +401,7 @@ def blinds_hinge_3():
     jam_v_thickness = 1.1
     jam_v_side = Face(jam_v_profile_2).extrude(Right*jam_v_thickness) @ Translate(Back*(jam_socket_radius))
     jam_v_outer = Wire(jam_v_profile_1) @ Translate(Right*(jam_v_thickness - 0.5))
-    jam_axle_positioning = Translate(Left*(axle_length/2))
+    jam_axle_positioning = Translate(Left*axle_snapin_dist)
     jam_vs = Compound(
         jam_v_side,
         jam_v_side @ Mirror(Right),
