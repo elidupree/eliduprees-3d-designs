@@ -1,7 +1,7 @@
 import math
 
 from pyocct_system import *
-from pyocct_utils import turn_subdivisions
+from pyocct_utils import turn_subdivisions, inch
 
 initialize_pyocct_system()
 
@@ -204,24 +204,52 @@ def blinds_hinge_2():
     retainer_staple_avoid_cordlock = cordlock_radius #+0.5  # (can afford to do exactly cordlock_radius because in-fact the printing imprecisions force a higher distance)
     retainer_staple_avoid_cordlock_harder = cordlock_radius+2
     retainer_staple_width = 2.4
-    retainer_staple_point_length = 3
+    retainer_staple_point_length = 2
     retainer_staple_point_z = -11.7
-    retainer_staple_points = [
+    curve1_half = [
         Point(0, 0, retainer_staple_point_z),
+        Point(3, 0, retainer_staple_point_z - retainer_staple_point_length),
         Point(5, 0, retainer_staple_point_z - retainer_staple_point_length),
+        # Point(retainer_staple_avoid_cordlock_harder-3, 0, retainer_staple_point_z - retainer_staple_point_length),
         Point(retainer_staple_avoid_cordlock_harder, 0, retainer_staple_point_z - retainer_staple_point_length),
-        Point(retainer_staple_avoid_cordlock_harder, 0, -retainer_staple_contact_leeway - 1),
+        Point(retainer_staple_avoid_cordlock_harder, 0, retainer_staple_point_z - retainer_staple_point_length + 3),
+        Point(retainer_staple_avoid_cordlock_harder, 0, -retainer_staple_contact_leeway - 1.5),
         Point(retainer_staple_avoid_cordlock, 0, -retainer_staple_contact_leeway - 1),
+        Point(retainer_staple_avoid_cordlock, 0, -retainer_staple_contact_leeway - 0.5),
         Point(retainer_staple_avoid_cordlock, 0, -retainer_staple_contact_leeway),
+    ]
+    curve2_half = [
+        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway),
+        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway + 0.5),
+        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway + 1),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width - 2, 0, base_thickness + retainer_staple_contact_leeway + 1),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, base_thickness + retainer_staple_contact_leeway + 1),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, base_thickness + retainer_staple_contact_leeway + 1 - 3),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width + 6),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width + 2),
+        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width - 2, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width),
+        Point(cordlock_radius/2, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width),
+        Point(0, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width),
+    ]
+    retainer_staple_half_edges = [
+        BSplineCurve(curve1_half),
+
         Point(ring_or, 0, -retainer_staple_contact_leeway),
         Point(ring_or, 0, base_thickness + retainer_staple_contact_leeway),
-        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway),
-        Point(retainer_staple_avoid_cordlock, 0, base_thickness + retainer_staple_contact_leeway + 1),
-        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, base_thickness + retainer_staple_contact_leeway + 1),
-        Point(retainer_staple_avoid_cordlock_harder + retainer_staple_width, 0, retainer_staple_point_z - retainer_staple_point_length - retainer_staple_width),
+
+        BSplineCurve(curve2_half),
     ]
+    def reversed(obj):
+        if hasattr(obj, "reversed"):
+            return obj.reversed()
+        return obj
+    # retainer_staple_half_wire = Wire(retainer_staple_half_edges)
+    # preview(Wire(retainer_staple_half_edges, [reversed(a) @ Mirror(Right) for a in retainer_staple_half_edges[::-1]]))
     # preview(Wire(retainer_staple_points[::-1] + [a @ Mirror(Right) for a in retainer_staple_points[1:]], loop=True))
-    retainer_staple = Face(Wire(retainer_staple_points[::-1] + [a @ Mirror(Right) for a in retainer_staple_points[1:]], loop=True)).extrude(Back*1.8, centered=True)
+    retainer_staple_thickness = 1.8
+    retainer_staple = Face(Wire(retainer_staple_half_edges, [reversed(a) @ Mirror(Right) for a in retainer_staple_half_edges[::-1]])).extrude(Back*retainer_staple_thickness, centered=True)
+    point_sharpener = Vertex(0, 0, retainer_staple_point_z).extrude(Left*5, centered=True).extrude(Up*5).extrude(Vector(0, -10, -10), centered=True)
+    retainer_staple = retainer_staple.cut([point_sharpener, point_sharpener @ Mirror(Back)])
     # preview(retainer_staple_points)
 
     save_STL("blinds_hinge_cantilever_part", cantilever_part)
@@ -239,6 +267,116 @@ def blinds_hinge_2():
         # retainer_grip_cut
         #cantilever_part
             )
+
+@run_if_changed
+def blinds_hinge_3():
+    fork_thickness = 1.8
+    prong_max_halfwidth = 2.2
+    prong_mid_halfwidth = 1.8
+    connector_width = 2.4
+    prong_span = inch
+    prong_uncut = Face(Wire([BSplineCurve([
+        Point(-connector_width, prong_max_halfwidth-0.5),
+        Point(0, prong_max_halfwidth-0.5),
+        Point(10, prong_max_halfwidth-0.5),
+        Point(10, prong_max_halfwidth),
+        Point(11, prong_max_halfwidth),
+        Point(11, prong_max_halfwidth-0.5),
+        Point(20, prong_mid_halfwidth-0.5),
+        Point(20, prong_mid_halfwidth),
+        Point(21, prong_mid_halfwidth),
+        Point(21, prong_mid_halfwidth-0.5),
+        Point(25, 1),
+        Point(26, 0),
+    ]), Point(-connector_width,0,0)], loop=True)).revolve(Right)
+
+    axle_radius = (fork_thickness/2)*math.sqrt(2)
+    axle_length = 15
+    axle_uncut = Face(Circle(Axes(Origin,Left), axle_radius)).extrude(Left*(axle_length + connector_width))
+
+    connector = Vertex(Origin).extrude(Left*connector_width).extrude(Front*prong_span).extrude(Up*fork_thickness, centered=True)
+
+    face_cuts = [HalfSpace(Origin + d*fork_thickness/2, d) for d in [Up, Down]]
+    prong = prong_uncut.cut(face_cuts)
+    prong = prong.cut([HalfSpace(Point(-1.5,-1.5*d,0), Direction(-1,-1*d,0)) for d in [-1,1]])
+    axle = axle_uncut.cut(face_cuts)
+    
+    fork = Compound(axle, connector, prong, prong @ Translate(Front*prong_span))
+
+    jam_hole_radius = axle_radius + 0.5
+    jam_hole_profile_1 = [
+        Point(-axle_length, jam_hole_radius, 0),
+        Point(-3, jam_hole_radius, 0),
+        Point(-1, jam_hole_radius+1.5, 0),
+    ]
+    jam_hole_sections = [Wire([
+        Point(0, 0, p[1]*math.sqrt(2)),
+        TrimmedCurve(Circle(Axes(Origin, Right, Up), p[1]), math.tau/8, math.tau*7/8)
+    ], loop=True) @ Translate(Right*p[0]) for p in jam_hole_profile_1]
+    # preview(jam_hole_sections)
+    jam_hole = Loft(jam_hole_sections, solid=True, ruled=True)
+    # preview(jam_hole)
+
+    # jam_hole_profile_2 = Face(Wire([jam_hole_profile_1, Point(-1, 0, 0), Point(-axle_length, 0, 0),], loop=True))
+    # # preview(fork, jam_hole_profile)
+    # jam_hole_fdm_accommodation_pieces = [Edge(jam_hole_profile_1).extrude(Front*10).extrude(Up*10, centered=True).cut(HalfSpace(Origin, Front)) @ Rotate(Right, Degrees(90+45*d)) for d in [-1,1]]
+    # preview(jam_hole_fdm_accommodation_pieces)
+    # jam_hole_fdm_accommodation = Intersection(
+    #     *jam_hole_fdm_accommodation_pieces) @ Translate(Down*0.01)
+    # preview(jam_hole_fdm_accommodation)
+    # # preview(jam_hole_profile_2, jam_hole_fdm_accommodation)
+    # preview(Union([jam_hole_profile_2.revolve(Right), jam_hole_fdm_accommodation]))
+    #
+    jam_socket_radius = jam_hole_radius+1.2
+    jam_socket_profile = Wire([
+        Point(0, 0, -jam_socket_radius*math.sqrt(2)),
+        TrimmedCurve(Circle(Axes(Origin, Right, Down), jam_socket_radius), math.tau/8, math.tau*7/8)
+    ], loop=True)
+    jam_socket = Face(jam_socket_profile).extrude(Left*1.01, Left*(axle_length+2)).cut(HalfSpace(Origin + Down*jam_socket_radius, Down))
+    # jam_socket = jam_socket.cut([jam_hole_profile_2.revolve(Right), jam_hole_fdm_accommodation])
+    jam_socket = jam_socket.cut(jam_hole)
+    # jam_hole_profile_2 =
+    # jam =
+
+    jam_v_tight = 3/2
+    jam_v_leeway = 1
+    jam_v_loose = jam_v_tight + jam_v_leeway
+    jam_v_profile_1 = BSplineCurve([point + Up*v_z for v_z in [d*(jam_socket_radius-jam_v_leeway) for d in [-1,1]] for point in [
+        # Point(jam_v_loose, 0, -jam_v_leeway*2),
+        Point(jam_v_loose, 0, -jam_v_leeway),
+        Point(jam_v_tight, 0, 0),
+        Point(jam_v_tight, 0, 0),
+        Point(jam_v_tight, 0, 0),
+        Point(jam_v_loose, 0, jam_v_leeway),
+        # Point(jam_v_loose, 0, jam_v_leeway*2),
+    ]])
+    jam_v_profile_2 = jam_v_profile_1.cartesian_product(BSplineCurve([
+        Point(-0.5, 0, 0),
+        Point(0, 4, 0),
+        Point(-0.5, 8, 0),
+        Point(-0.5, 10, 0),
+        Point(1, 11, 0),
+        Point(2, 12, 0),
+    ]))
+    # preview(jam_v_profile_2)
+    jam_v_thickness = 1.0
+    jam_v_side = Face(jam_v_profile_2).extrude(Right*jam_v_thickness) @ Translate(Back*(jam_socket_radius))
+    jam_v_outer = Wire(jam_v_profile_1) @ Translate(Right*(jam_v_thickness - 0.5))
+    jam_axle_positioning = Translate(Left*(axle_length/2))
+    jam_vs = Compound(
+        jam_v_side,
+        jam_v_side @ Mirror(Right),
+        # Face(jam_v_profile_1.extrude(Right*0.6) @ Translate(Left*0.5)).revolve(Down, Turns(0.5)) @ Translate(Back*jam_v_loose)
+    ) @ jam_axle_positioning
+    jam_connector = (Loft([jam_v_outer, jam_v_outer @ Mirror(Right)], ruled=True).extrude(Back*(jam_socket_radius)) @ jam_axle_positioning).cut(jam_hole)
+    jam = Compound(jam_socket, jam_vs, jam_connector)
+
+    save_STL("blinds_hinge_fork", fork)
+    export("blinds_hinge_fork.stl", "blinds_hinge_fork.stl")
+    save_STL("blinds_hinge_jam", jam)
+    export("blinds_hinge_jam.stl", "blinds_hinge_jam.stl")
+    preview(fork, jam @ Translate(Left*connector_width))
+
 
 # @run_if_changed
 def vacuum_pleat_roller():
