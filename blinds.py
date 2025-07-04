@@ -270,44 +270,79 @@ def blinds_hinge_2():
 
 @run_if_changed
 def blinds_hinge_3():
-    fork_thickness = 1.8
-    prong_max_halfwidth = 2.2
+    spear_thickness = 1.8
+    prong_max_halfwidth = 2.5
     prong_mid_halfwidth = 1.8
-    connector_width = 2.4
-    prong_span = inch
+    crossguard_width = 1.1
+    crossguard_length = 8
+    face_cuts = [HalfSpace(Origin + d*spear_thickness/2, d) for d in [Up, Down]]
     prong_uncut = Face(Wire([BSplineCurve([
-        Point(-connector_width, prong_max_halfwidth-0.5),
-        Point(0, prong_max_halfwidth-0.5),
-        Point(10, prong_max_halfwidth-0.5),
-        Point(10, prong_max_halfwidth),
-        Point(11, prong_max_halfwidth),
-        Point(11, prong_max_halfwidth-0.5),
+        Point(-crossguard_width/2, prong_mid_halfwidth-0.5),
+        Point(0, prong_mid_halfwidth-0.5),
+        Point(3, prong_max_halfwidth-0.5),
+        Point(6, prong_max_halfwidth-0.5),
+        Point(6, prong_max_halfwidth),
+        Point(7, prong_max_halfwidth),
+        Point(7, prong_max_halfwidth-0.5),
+        # Point(10, 1.2),
+        # Point(11, 1.2),
+        Point(14, prong_max_halfwidth-0.5),
+        Point(14, prong_max_halfwidth),
+        Point(15, prong_max_halfwidth),
+        Point(15, prong_max_halfwidth-0.5),
         Point(20, prong_mid_halfwidth-0.5),
         Point(20, prong_mid_halfwidth),
         Point(21, prong_mid_halfwidth),
         Point(21, prong_mid_halfwidth-0.5),
         Point(25, 1),
         Point(26, 0),
-    ]), Point(-connector_width,0,0)], loop=True)).revolve(Right)
+    ]), Point(-crossguard_width/2,0,0)], loop=True)).revolve(Right)
 
-    axle_radius = (fork_thickness/2)*math.sqrt(2)
-    axle_length = 15
-    axle_uncut = Face(Circle(Axes(Origin,Left), axle_radius)).extrude(Left*(axle_length + connector_width))
+    prong_edge_thickness = 1.1
+    prong_cut = Intersection(prong_uncut @ Translate(Back*prong_edge_thickness), prong_uncut @ Translate(Front*prong_edge_thickness))
+    # preview(prong_uncut.cut(face_cuts).cut(prong_cut))
+    axle_radius = (spear_thickness/2)*math.sqrt(2) + 0.3
+    axle_length = 8
+    axle_profile = Circle(Axes(Origin,Left), axle_radius)
+    axle_uncut = Face(axle_profile).extrude(Left*crossguard_width/2, Left*(axle_length + crossguard_width))
 
-    connector = Vertex(Origin).extrude(Left*connector_width).extrude(Front*prong_span).extrude(Up*fork_thickness, centered=True)
+    axle_snapin_length = 1
+    axle_snapin_spring_length = axle_length-2
+    axle_snapin_point_length = 0.9
+    axle_edge_profile = Wire(axle_profile).cut(face_cuts).cut(HalfSpace(Origin, Back))
+    pointy_surface = Edge(Origin, Origin + Direction(1,1,0) * 3).revolve(Front) @ Translate(Front*(axle_radius + axle_snapin_point_length) + Back*0.01)
+    axle_snapin_other_surface = axle_edge_profile.extrude(Left*axle_snapin_spring_length, centered=True).cut(pointy_surface.extrude(Back*10))
+    pointy_surface = pointy_surface.cut(face_cuts).cut(axle_uncut @ Translate(Right*axle_length/2))
+    # axle_snapin = axle_snapin_profile.extrude(Front*0.5, Left*(axle_snapin_length/2))
+    # axle_snapin = Compound(axle_snapin, axle_snapin @ Mirror(Left))
+    # preview(pointy_surface, axle_snapin_other_surface, axle_uncut)
+    axle_snapin = Compound(pointy_surface, axle_snapin_other_surface).extrude(Back*1.05)
+    axle_snapin = Compound(axle_snapin, axle_snapin @ Mirror(Back))
 
-    face_cuts = [HalfSpace(Origin + d*fork_thickness/2, d) for d in [Up, Down]]
-    prong = prong_uncut.cut(face_cuts)
-    prong = prong.cut([HalfSpace(Point(-1.5,-1.5*d,0), Direction(-1,-1*d,0)) for d in [-1,1]])
+    crossguard = Vertex(Origin).extrude(Left*crossguard_width).extrude(Front*crossguard_length, centered=True).extrude(Up*spear_thickness, centered=True)
+    crossguard = Chamfer(crossguard, [(e, 0.3) for e in crossguard.edges()])
+
+    prong = prong_uncut.cut(face_cuts).cut(prong_cut)
+    # prong = prong.cut([HalfSpace(Point(-1.5,-1.5*d,0), Direction(-1,-1*d,0)) for d in [-1,1]])
     axle = axle_uncut.cut(face_cuts)
+    cut_for_snapin = Vertex(Origin + Left*(crossguard_width + axle_length/2)).extrude(Left*axle_snapin_spring_length, centered=True).extrude(Up*10, centered=True).extrude(Back*10, centered=True)
+    axle = axle.cut(cut_for_snapin)
+    # preview(axle)
+    axle = Compound(axle, axle_snapin @ Translate(Left*(crossguard_width + axle_length/2)))
     
-    fork = Compound(axle, connector, prong, prong @ Translate(Front*prong_span))
+    spear = Compound(axle, crossguard, prong,
+                    # prong @ Translate(Front*prong_span)
+                    )
 
-    jam_hole_radius = axle_radius + 0.5
+    jam_hole_radius = axle_radius + 0.4
+    jam_hole_flare = 1.5
     jam_hole_profile_1 = [
-        Point(-axle_length, jam_hole_radius, 0),
-        Point(-3, jam_hole_radius, 0),
-        Point(-1, jam_hole_radius+1.5, 0),
+        Point(-axle_length-0.4, jam_hole_radius, 0),
+        Point(-axle_length/2 - axle_snapin_point_length, jam_hole_radius, 0),
+        Point(-axle_length/2, jam_hole_radius + axle_snapin_point_length, 0),
+        Point(-axle_length/2 + axle_snapin_point_length, jam_hole_radius, 0),
+        Point(-2, jam_hole_radius, 0),
+        Point(0, jam_hole_radius+jam_hole_flare, 0),
     ]
     jam_hole_sections = [Wire([
         Point(0, 0, p[1]*math.sqrt(2)),
@@ -318,7 +353,7 @@ def blinds_hinge_3():
     # preview(jam_hole)
 
     # jam_hole_profile_2 = Face(Wire([jam_hole_profile_1, Point(-1, 0, 0), Point(-axle_length, 0, 0),], loop=True))
-    # # preview(fork, jam_hole_profile)
+    # # preview(spear, jam_hole_profile)
     # jam_hole_fdm_accommodation_pieces = [Edge(jam_hole_profile_1).extrude(Front*10).extrude(Up*10, centered=True).cut(HalfSpace(Origin, Front)) @ Rotate(Right, Degrees(90+45*d)) for d in [-1,1]]
     # preview(jam_hole_fdm_accommodation_pieces)
     # jam_hole_fdm_accommodation = Intersection(
@@ -327,12 +362,12 @@ def blinds_hinge_3():
     # # preview(jam_hole_profile_2, jam_hole_fdm_accommodation)
     # preview(Union([jam_hole_profile_2.revolve(Right), jam_hole_fdm_accommodation]))
     #
-    jam_socket_radius = jam_hole_radius+1.2
+    jam_socket_radius = jam_hole_radius+jam_hole_flare
     jam_socket_profile = Wire([
         Point(0, 0, -jam_socket_radius*math.sqrt(2)),
         TrimmedCurve(Circle(Axes(Origin, Right, Down), jam_socket_radius), math.tau/8, math.tau*7/8)
     ], loop=True)
-    jam_socket = Face(jam_socket_profile).extrude(Left*1.01, Left*(axle_length+2)).cut(HalfSpace(Origin + Down*jam_socket_radius, Down))
+    jam_socket = Face(jam_socket_profile).extrude(Left*(0.4+0.3), Left*(axle_length+1.4)).cut(HalfSpace(Origin + Down*jam_socket_radius, Down))
     # jam_socket = jam_socket.cut([jam_hole_profile_2.revolve(Right), jam_hole_fdm_accommodation])
     jam_socket = jam_socket.cut(jam_hole)
     # jam_hole_profile_2 =
@@ -352,14 +387,15 @@ def blinds_hinge_3():
     ]])
     jam_v_profile_2 = jam_v_profile_1.cartesian_product(BSplineCurve([
         Point(-0.5, 0, 0),
-        Point(0, 4, 0),
-        Point(-0.5, 8, 0),
-        Point(-0.5, 10, 0),
-        Point(1, 11, 0),
-        Point(2, 12, 0),
+        Point(0, 1, 0),
+        Point(0, 2, 0),
+        Point(-0.5, 3.5, 0),
+        Point(-1.3, 4.5, 0),
+        Point(1, 7, 0),
+        Point(2, 8, 0),
     ]))
     # preview(jam_v_profile_2)
-    jam_v_thickness = 1.0
+    jam_v_thickness = 1.1
     jam_v_side = Face(jam_v_profile_2).extrude(Right*jam_v_thickness) @ Translate(Back*(jam_socket_radius))
     jam_v_outer = Wire(jam_v_profile_1) @ Translate(Right*(jam_v_thickness - 0.5))
     jam_axle_positioning = Translate(Left*(axle_length/2))
@@ -371,11 +407,19 @@ def blinds_hinge_3():
     jam_connector = (Loft([jam_v_outer, jam_v_outer @ Mirror(Right)], ruled=True).extrude(Back*(jam_socket_radius)) @ jam_axle_positioning).cut(jam_hole)
     jam = Compound(jam_socket, jam_vs, jam_connector)
 
-    save_STL("blinds_hinge_fork", fork)
-    export("blinds_hinge_fork.stl", "blinds_hinge_fork.stl")
+    many_parts = Compound(
+        [spear @ Translate(Vector(j*40, -(crossguard_length+0.5)*(i + 1.5))) for i in range(12) for j in range(1)] +
+        [jam @ Translate(Vector(i*15,j*20,0)) for i in range(3) for j in range(4)]
+    )
+
+    save_STL("blinds_hinge_spear", spear)
+    export("blinds_hinge_spear.stl", "blinds_hinge_spear.stl")
     save_STL("blinds_hinge_jam", jam)
     export("blinds_hinge_jam.stl", "blinds_hinge_jam.stl")
-    preview(fork, jam @ Translate(Left*connector_width))
+    # save_STL("blinds_hinge_many", many_parts)
+    # export("blinds_hinge_many.stl", "blinds_hinge_many.stl")
+    preview(many_parts)
+    preview(spear, jam @ Translate(Left*crossguard_width))
 
 
 # @run_if_changed
