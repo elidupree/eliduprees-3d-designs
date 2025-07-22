@@ -411,16 +411,16 @@ def blinds_hinge_3():
     jam = Compound(jam_socket, jam_vs, jam_connector)
 
     many_parts = Compound(
-        [spear @ Translate(Vector(j*40, -(crossguard_length+0.5)*(i + 1.5))) for i in range(12) for j in range(1)] +
-        [jam @ Translate(Vector(i*15,j*20,0)) for i in range(3) for j in range(4)]
+        [spear @ Translate(Vector(j*40, -(crossguard_length+0.5)*(i + 1.5), spear_thickness/2)) for i in range(12) for j in range(1)] +
+        [jam @ Translate(Vector(i*15,j*20,jam_socket_radius)) for i in range(3) for j in range(4)]
     )
 
     save_STL("blinds_hinge_spear", spear)
     export("blinds_hinge_spear.stl", "blinds_hinge_spear.stl")
     save_STL("blinds_hinge_jam", jam)
     export("blinds_hinge_jam.stl", "blinds_hinge_jam.stl")
-    # save_STL("blinds_hinge_many", many_parts)
-    # export("blinds_hinge_many.stl", "blinds_hinge_many.stl")
+    save_STL("blinds_hinge_many", many_parts, linear_deflection=0.05)
+    export("blinds_hinge_many.stl", "blinds_hinge_many.stl")
     preview(many_parts)
     preview(spear, jam @ Translate(Left*crossguard_width))
 
