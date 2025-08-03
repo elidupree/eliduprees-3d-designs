@@ -29,6 +29,6 @@ def premade_connector_representation():
     return Compound(body, lip, pins)
 
 def rounded_90deg_corner_wire(points):
-    
+
 
 preview(premade_connector_representation)
