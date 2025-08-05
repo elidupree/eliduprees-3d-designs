@@ -25,19 +25,12 @@ import json
 import os
 import re
 import sqlite3
-import typing
 from pathlib import Path
+from weakref import WeakValueDictionary
 
 from siphash import siphash_128
 from base64 import b64encode
 siphash_key = bytes.fromhex("78ca81054e1df045447cd7d48958de7d")
-
-_database_file = Path(os.environ["EPYOCCT_CACHE_DIR"])/"data.db"
-_stored_database_connection = None
-def _database_connection():
-    global _stored_database_connection
-    if _stored_database_connection is None:
-        _stored_database_connection = sqlite3.connect(_database_file)
 
 _raw_reference_length = 21
 _serialized_reference_length = _raw_reference_length + 2
@@ -76,7 +69,7 @@ class Serializable:
         return self._cached_serializable_usage
 
     def id(self):
-        assert self.needs_indirection(self), "shouldn't be calling Serializable.id() unless the object needs indirection"
+        assert self.needs_indirection(), "shouldn't be calling Serializable.id() unless the object needs indirection"
         return self.serializable_usage()
 
     def serialized_usage(self):
@@ -116,7 +109,7 @@ class SerializableList(Serializable, list):
         return iter(self)
 
 for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse"):
-    setattr(SerializableList, method, forbidden_mutating_operation)
+    setattr(SerializableList, method[0], forbidden_mutating_operation)
 
 
 class SerializableDict(Serializable, dict):
@@ -135,10 +128,13 @@ class SerializableDict(Serializable, dict):
         yield from self.values()
 
 for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault"):
-    setattr(SerializableDict, method, forbidden_mutating_operation)
+    setattr(SerializableDict, method[0], forbidden_mutating_operation)
 
 
-_object_cache = {}
+_object_cache = WeakValueDictionary()
+
+def _needs_indirection(x):
+    return isinstance(x, Serializable) and x.needs_indirection()
 
 def make_serializable(x):
     if type(x) in [type(None), bool, int, float] or isinstance(x, Serializable):
@@ -152,20 +148,17 @@ def make_serializable(x):
     else:
         raise RuntimeError("tried to make unrecognized type serializable")
 
-    if isinstance(s, Serializable):
-        s = _object_cache.setdefault(s.serialized_usage(), s)
+    if _needs_indirection(s):
+        s = _object_cache.setdefault(s.id(), s)
 
     return s
 
 
-def _serialized_usage(x):
-    if isinstance(x, Serializable):
-        return x.serialized_usage()
+def _serializable_usage(x):
+    if _needs_indirection(x):
+        return x.id()
     else:
-        return json.dumps(x)
-
-def _needs_indirection(x):
-    return isinstance(x, Serializable) and x.needs_indirection()
+        return x
 
 
 def _store_referents_of_usage(cursor: sqlite3.Cursor, x: Serializable):
@@ -173,7 +166,7 @@ def _store_referents_of_usage(cursor: sqlite3.Cursor, x: Serializable):
         _store_value(x)
 
 def _store_value(cursor: sqlite3.Cursor, x: Serializable):
-    cursor.execute("UPDATE values SET reference_count = reference_count + 1 WHERE id = ?;", [id])
+    cursor.execute("UPDATE values_by_id SET reference_count = reference_count + 1 WHERE id = ?;", [id])
     results = cursor.fetchall()
     assert (len(results) <= 1), "ids are supposed to be unique"
     if len(results) == 0:
@@ -181,20 +174,25 @@ def _store_value(cursor: sqlite3.Cursor, x: Serializable):
         for y in x.serializable_subobjects():
             _store_referents_of_usage(cursor, y)
         # now create the main object … though hypothetically we could have raced with another store that also created it. In that case we also need to increase the reference count, so use an upsert here.
-        try:
-            cursor.execute("INSERT INTO values (id, value, reference_count) VALUES (:id, :value, 1) ON CONFLICT(id) DO UPDATE SET reference_count = reference_count + 1;", {"id":x.id(), "value":json.dumps(x)})
-            results = cursor.fetchall()
-            assert (len(results) == 1), "we created/updated exactly 1 value"
+        cursor.execute("INSERT INTO values_by_id (id, value, reference_count) VALUES (:id, :value, 1) ON CONFLICT(id) DO UPDATE SET reference_count = reference_count + 1;", {"id":x.id(), "value":json.dumps(x)})
+        results = cursor.fetchall()
+        assert (len(results) == 1), "we created/updated exactly 1 value"
 
 
 
 def _load_by_id(cursor: sqlite3.Cursor, id: str):
-    cursor.execute("SELECT value FROM values WHERE id = ?;", [id])
+    try:
+        return _object_cache[id]
+    except KeyError:
+        pass
+
+    cursor.execute("SELECT value FROM values_by_id WHERE id = ?;", [id])
     results = cursor.fetchall()
     assert (len(results) <= 1), "ids are supposed to be unique"
     assert (len(results) == 1), "any caller of _load_by_id is supposed to have seen a reference that keeps the target alive, so it's an error for the target to be missing. Atomicity of SQLite read-transactions guarantees that there won't be any problems with racing with a deletion. (We expect that _load_by_id isn't called during any write-transactions; unfortunately I don't see the sqlite3 module providing a way to assert that here.)"
-    serialized_value, = results[0]
-    return _load_value(cursor, json.loads(serialized_value))
+    serialized_value_string, = results[0]
+    # `_load_value` takes care of making an entry in the object cache, via `make_serializable`
+    return _load_value(json.loads(serialized_value_string))
 
 def _load_usage(cursor: sqlite3.Cursor, x):
     if type(x) is str and len(x) >= _raw_reference_length:
@@ -207,18 +205,18 @@ def _load_value(cursor: sqlite3.Cursor, x):
     if type(x) is list:
         x = [_load_usage(cursor, e) for e in x]
     if type(x) is dict:
-        x = {_load_usage(cursor, json.loads(k)): _load_usage(cursor, v)} for k,v in x.items()}
+        x = {_load_usage(cursor, json.loads(k)): _load_usage(cursor, v) for k,v in x.items()}
     return make_serializable(x)
 
 
 def _drop_reference_to_id(cursor: sqlite3.Cursor, id):
-    cursor.execute("UPDATE values SET reference_count = reference_count - 1 WHERE id = ? RETURNING reference_count;", [id])
+    cursor.execute("UPDATE values_by_id SET reference_count = reference_count - 1 WHERE id = ? RETURNING reference_count;", [id])
     results = cursor.fetchall()
     assert (len(results) <= 1), "ids are supposed to be unique"
     assert (len(results) == 1), "at the time we call _drop_reference_to_id, the reference we are removing is supposed to be holding the target alive, so it's an error for the target to be missing."
     reference_count, = results[0]
     if reference_count == 0:
-        cursor.execute("DELETE values WHERE reference_count = 0 AND id = ? RETURNING value;", [id])
+        cursor.execute("DELETE values_by_id WHERE reference_count = 0 AND id = ? RETURNING value;", [id])
         results = cursor.fetchall()
 
         assert (len(results) <= 1), "ids are supposed to be unique"
@@ -254,25 +252,61 @@ def _drop_references_in_value(cursor: sqlite3.Cursor, x):
 #                 raise
 #     raise RuntimeError("DB op failed 100 times, there's probably a bug")
 
-def _delete_key(key):
-    cursor = _database_connection().cursor(isolation_level="DEFERRED")
-    key_usage = _serialized_usage(key)
-    cursor.execute("DELETE key_value_entries WHERE key = ? RETURNING value;", [json.dumps(key_usage)])
-    results = cursor.fetchall()
-    assert (len(results) <= 1), "ids are supposed to be unique"
-    if len(results) >= 1:
-        value_usage_string, = results[0]
-        _drop_references_in_usage(key_usage)
-        _drop_references_in_usage(json.loads(value_usage_string))
-    cursor.commit()
-
 # def _delete_key(key):
 #     until_not_rolled_back(lambda cursor: _delete_key_optimistic(cursor, key))
 
-def _set_key_value(cursor: sqlite3.Cursor, key, value):
-    # store the key-value entry itself, _serialized_usage(key) _serialized_usage(value)
-    key_usage = _serialized_usage(key)
-    value_usage = _serialized_usage(key)
-    _store_referents_of_usage(cursor, key_usage)
-    _store_referents_of_usage(cursor, value_usage)
-    cursor.execute("INSERT OR REPLACE INTO key_value_entries (key, value) VALUES (?, ?);", [json.dumps(key_usage), json.dumps(value_usage)])
+class KeyValueStore:
+    def __init__(self, database_file):
+        self._database_connection = None
+        self._database_file = database_file
+
+    def _connection(self):
+        if self._database_connection is None:
+            self._database_connection = sqlite3.connect(self._database_file)
+            cursor = self._database_connection.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS values_by_id (id TEXT PRIMARY KEY, value TEXT);")
+            cursor.execute("CREATE TABLE IF NOT EXISTS key_value_entries (key TEXT PRIMARY KEY, value TEXT);")
+        return self._database_connection
+
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __getitem__(self, key):
+        cursor = self._connection().cursor()
+        cursor.execute("SELECT value FROM key_value_entries WHERE key = ?;", [json.dumps(_serializable_usage(key))])
+        results = cursor.fetchall()
+        assert (len(results) <= 1), "keys are supposed to be unique"
+        if len(results) == 0:
+            raise KeyError(key)
+        value_usage_string, = results[0]
+        return _load_usage(cursor, json.loads(value_usage_string))
+
+    def __delitem__(self, key):
+        cursor = self._connection().cursor()
+        key_usage = _serializable_usage(key)
+        cursor.execute("DELETE key_value_entries WHERE key = ? RETURNING value;", [json.dumps(key_usage)])
+        results = cursor.fetchall()
+        assert (len(results) <= 1), "keys are supposed to be unique"
+        if len(results) == 1:
+            value_usage_string, = results[0]
+            _drop_references_in_usage(key_usage)
+            _drop_references_in_usage(json.loads(value_usage_string))
+        self._connection().commit()
+
+    def __setitem__(self, key, value):
+        cursor = self._connection().cursor()
+        key_usage = _serializable_usage(key)
+        value_usage = _serializable_usage(value)
+        _store_referents_of_usage(cursor, key_usage)
+        _store_referents_of_usage(cursor, value_usage)
+        cursor.execute("INSERT OR REPLACE INTO key_value_entries (key, value) VALUES (?, ?);", [json.dumps(key_usage), json.dumps(value_usage)])
+        self._connection().commit()
+
+
+_default_database_file = Path(os.environ["EPYOCCT_CACHE_DIR"])/"data.db"
+store = KeyValueStore(_default_database_file)
+
