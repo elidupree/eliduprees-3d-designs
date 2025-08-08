@@ -35,7 +35,8 @@ siphash_key = bytes.fromhex("78ca81054e1df045447cd7d48958de7d")
 _raw_reference_length = 21
 _serialized_reference_length = _raw_reference_length + 2
 
-class Serializable:
+# CA for ContentAddressable
+class CA:
     def __init__(self, *args, **kwargs):
         self._cached_serializable_usage = None
         self._cached_serializable_value = None
@@ -69,7 +70,7 @@ class Serializable:
         return self._cached_serializable_usage
 
     def id(self):
-        assert self.needs_indirection(), "shouldn't be calling Serializable.id() unless the object needs indirection"
+        assert self.needs_indirection(), "shouldn't be calling CA.id() unless the object needs indirection"
         return self.serializable_usage()
 
     def serialized_usage(self):
@@ -86,19 +87,19 @@ class Serializable:
 
 
 def forbidden_mutating_operation(*args, **kwargs):
-    raise RuntimeError("Mutating an immutable (Serializable) collection")
+    raise RuntimeError("Mutating an immutable (CA) collection")
 
 
-class SerializableStr(Serializable, str):
+class CAStr(CA, str):
     pass
 
 
-class SerializableList(Serializable, list):
+class CAList(CA, list):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for i,e in enumerate(self):
             self[i] = make_serializable(e)
-    # def __init__(self, items: typing.List[Serializable]):
+    # def __init__(self, items: typing.List[CA]):
     #     super().__init__(self)
     #     self.items = items
 
@@ -109,10 +110,10 @@ class SerializableList(Serializable, list):
         return iter(self)
 
 for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse"):
-    setattr(SerializableList, method[0], forbidden_mutating_operation)
+    setattr(CAList, method[0], forbidden_mutating_operation)
 
 
-class SerializableDict(Serializable, dict):
+class CADict(CA, dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         items = list(self.items())
@@ -128,23 +129,23 @@ class SerializableDict(Serializable, dict):
         yield from self.values()
 
 for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault"):
-    setattr(SerializableDict, method[0], forbidden_mutating_operation)
+    setattr(CADict, method[0], forbidden_mutating_operation)
 
 
 _object_cache = WeakValueDictionary()
 
 def _needs_indirection(x):
-    return isinstance(x, Serializable) and x.needs_indirection()
+    return isinstance(x, CA) and x.needs_indirection()
 
 def make_serializable(x):
-    if type(x) in [type(None), bool, int, float] or isinstance(x, Serializable):
+    if type(x) in [type(None), bool, int, float] or isinstance(x, CA):
         s = x
     elif type(x) is str:
-        s = SerializableStr(x)
+        s = CAStr(x)
     elif type(x) is list:
-        s = SerializableList(x)
+        s = CAList(x)
     elif type(x) is dict:
-        s = SerializableDict(x)
+        s = CADict(x)
     else:
         raise RuntimeError("tried to make unrecognized type serializable")
 
@@ -161,11 +162,11 @@ def _serializable_usage(x):
         return x
 
 
-def _store_referents_of_usage(cursor: sqlite3.Cursor, x: Serializable):
+def _store_referents_of_usage(cursor: sqlite3.Cursor, x):
     if _needs_indirection(x):
         _store_value(x)
 
-def _store_value(cursor: sqlite3.Cursor, x: Serializable):
+def _store_value(cursor: sqlite3.Cursor, x):
     cursor.execute("UPDATE values_by_id SET reference_count = reference_count + 1 WHERE id = ?;", [id])
     results = cursor.fetchall()
     assert (len(results) <= 1), "ids are supposed to be unique"
