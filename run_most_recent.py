@@ -3,7 +3,7 @@ import subprocess
 import time
 
 candidates = []
-exclusions = [os.path.basename(__file__), "pyocct_system.py", "pyocct_api_wrappers.py", "pyocct_utils.py", "face_depthmap_loader.py", "gcode_stuff/gcode_utils.py", "single_wall_layer_optimizer.py", "svg_utils.py", "unroll.py", "depthmap.py", "gcode_utils.py", "spiral_printing.py", "code_generation.py", "gears.py", "thread_sweeping.py", "t_slots.py", "serialization.py"]
+exclusions = [os.path.basename(__file__), "pyocct_system.py", "pyocct_api_wrappers.py", "pyocct_utils.py", "face_depthmap_loader.py", "gcode_stuff/gcode_utils.py", "single_wall_layer_optimizer.py", "svg_utils.py", "unroll.py", "depthmap.py", "gcode_utils.py", "spiral_printing.py", "code_generation.py", "gears.py", "thread_sweeping.py", "t_slots.py", "serialization.py", "storage_api.py", "sqlite_store.py"]
 # suppressions = ["gcode_direct_test.py"]
 for root, dirs, files in os.walk("."):
     for file in files:
