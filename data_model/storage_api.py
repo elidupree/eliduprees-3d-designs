@@ -29,7 +29,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, Any, Dict, Mapping, Union, Iterable
 from weakref import WeakValueDictionary
 
-import bencode_rs
+from bencodepy import bencode
 from siphash import siphash_128
 
 hash_id_byte_length = 16
@@ -39,9 +39,24 @@ hash_id_bencode_byte_length = hash_id_byte_length + len(f"{hash_id_byte_length}:
 siphash_key = bytes.fromhex("78ca81054e1df045447cd7d48958de7d")
 
 
+def serialized_id_is_reference(serialized_id: bytes):
+    assert len(serialized_id) <= hash_id_bencode_byte_length
+    return len(serialized_id) >= hash_id_bencode_byte_length
+
+
+BencodeValue = Union[bytes, list, dict]
+
+
+def deserialized_id_is_reference(deserialized_id: BencodeValue):
+    if type(deserialized_id) is bytes:
+        return len(deserialized_id) >= hash_id_byte_length
+    else:
+        return False
+
+
 class CA(ABC):
     _id_cache: Optional["CA"]
-    raw_form: Union[bytes, list, dict]
+    raw_form: BencodeValue
     serialized: bytes
 
     def __init__(self):
@@ -69,14 +84,17 @@ class CA(ABC):
         return hash(self.id().serialized)
 
 
-def forbidden_mutating_operation(*args, **kwargs):
-    raise RuntimeError("Mutating an immutable (CA) collection")
+def forbidden_mutating_operation(name):
+    def f(*args, **kwargs):
+        raise RuntimeError(f"using {name} to mutate an immutable (CA) collection")
+    f.__name__ = name
+    return f
 
 
 class CAByteString(CA):
     def __init__(self, *args, **kwargs):
         self.raw_form = bytes(*args,**kwargs)
-        self.serialized = bencode_rs.bencode(self.raw_form)
+        self.serialized = bencode(self.raw_form)
         CA.__init__(self)
 
     def children(self):
@@ -86,41 +104,50 @@ class CAByteString(CA):
         return self.raw_form.item
 
 
+forbidden_list_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse")}
+
 
 class CAList(CA, list):
     def __init__(self, *args, **kwargs):
-        list.__init__(self,*args,**kwargs)
-        for e in self:
+        self.data = list(*args, **kwargs)
+        for e in self.data:
             assert isinstance(e, CA)
-        self.raw_form = [e.raw_form for e in self]
-        self.serialized = bencode_rs.bencode([e.id().raw_form for e in self])
+        self.raw_form = [e.raw_form for e in self.data]
+        self.serialized = bencode([e.id().raw_form for e in self.data])
         CA.__init__(self)
 
     def children(self):
-        yield from self
+        yield from self.data
+
+    def __getattr__(self, item):
+        if item in forbidden_list_mutating_methods:
+            raise RuntimeError(f"using {item} to mutate an immutable (CA) collection")
+        return self.data[item]
 
 
-for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse"):
-    setattr(CAList, method[0], forbidden_mutating_operation)
+forbidden_dict_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault")}
 
 
 class CADict(CA, dict):
     def __init__(self, *args, **kwargs):
-        dict.__init__(self,*args,**kwargs)
-        for k,v in self.items():
+        self.data = dict(*args, **kwargs)
+        for k,v in self.data.items():
             assert isinstance(k, CA)
             assert isinstance(v, CA)
-        self.raw_form = {k: v for k,v in self.items()}
-        self.serialized = bencode_rs.bencode({k.id().raw_form: v.id().raw_form for k,v in self.items()})
+        self.raw_form = {k.raw_form: v.raw_form for k,v in self.data.items()}
+        # print({k.id().raw_form: v.id().raw_form for k, v in self.data.items()})
+        self.serialized = bencode({k.id().raw_form: v.id().raw_form for k, v in self.data.items()})
+        # print("ok")
         CA.__init__(self)
 
     def children(self):
         yield from self.keys()
         yield from self.values()
 
-
-for method in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault"):
-    setattr(CADict, method[0], forbidden_mutating_operation)
+    def __getattr__(self, item):
+        if item in forbidden_dict_mutating_methods:
+            raise RuntimeError(f"using {item} to mutate an immutable (CA) collection")
+        return self.data[item]
 
 
 _object_cache = WeakValueDictionary()
@@ -130,7 +157,7 @@ def interned_ca(x: CA):
     return _object_cache.setdefault(x.id(), x)
 
 
-def already_interned_ca_by_id(id: CA) -> CA:
+def already_available_ca_by_id(id: CA) -> CA:
     return _object_cache[id]
 
 
