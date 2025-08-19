@@ -1,7 +1,7 @@
 """
 
 
-Our underlying storage format is basically just deduplicated bencode, because anything else would be scope creep. (Actually a subset of bencode – we don't even care about integers.) Conceptually, the only "values" are
+Our underlying storage format is basically just deduplicated bencode, because anything else would be scope creep. (Actually a sidegrade of bencode – we don't care about integers, and we do support using lists/maps as keys of maps, by giving their serialized forms to bencode when they're used as keys.) Conceptually, the only "values" are
 * Arbitrary byte-strings
 * Lists of values
 * Unordered maps of value -> value
@@ -107,7 +107,7 @@ class CAByteString(CA):
 forbidden_list_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse")}
 
 
-class CAList(CA, list):
+class CAList(CA):
     def __init__(self, *args, **kwargs):
         self.data = list(*args, **kwargs)
         for e in self.data:
@@ -128,21 +128,21 @@ class CAList(CA, list):
 forbidden_dict_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault")}
 
 
-class CADict(CA, dict):
+class CADict(CA):
     def __init__(self, *args, **kwargs):
         self.data = dict(*args, **kwargs)
         for k,v in self.data.items():
             assert isinstance(k, CA)
             assert isinstance(v, CA)
-        self.raw_form = {k.raw_form: v.raw_form for k,v in self.data.items()}
+        self.raw_form = {k.serialized: v.raw_form for k,v in self.data.items()}
         # print({k.id().raw_form: v.id().raw_form for k, v in self.data.items()})
-        self.serialized = bencode({k.id().raw_form: v.id().raw_form for k, v in self.data.items()})
+        self.serialized = bencode({k.id().serialized: v.id().raw_form for k, v in self.data.items()})
         # print("ok")
         CA.__init__(self)
 
     def children(self):
-        yield from self.keys()
-        yield from self.values()
+        yield from self.data.keys()
+        yield from self.data.values()
 
     def __getattr__(self, item):
         if item in forbidden_dict_mutating_methods:

@@ -1,3 +1,4 @@
+import cProfile
 import os
 import traceback
 from typing import List
@@ -22,7 +23,7 @@ def test(fn):
 
     store = sqlite_store.SqliteStore(db_file)
     try:
-        fn(store)
+        cProfile.runctx("fn(store)", globals(), locals())
     except:
         global failures
         failures += 1
@@ -62,41 +63,47 @@ def t3(store: KeyValueStore):
         assert (store[aaa] is bbb), f"failed at pass 2, length {l}"
 
 
-def various_values(depth) -> List[CA]:
-    results = []
-    for l in [5, 20]:
-        results.append(make_ca(b"a"*l))
-    if depth > 0:
-        lists = [[]]
-        for l in range(0, 3):
-            old_lists = lists
-            lists = lists.copy()
-            for l in old_lists:
-                for v in various_values(depth - 1):
-                    lists.append(l + [v])
-        dicts = [{}]
-        for l in range(0, 2):
-            old_dicts = dicts
-            dicts = dicts.copy()
-            for d in old_dicts:
-                for k in various_values(depth - 1):
-                    for v in various_values(depth - 1):
-                        if k not in d:
-                            new = d.copy()
-                            new[k] = v
-                            dicts.append(new)
-        results.extend(make_ca(x) for x in lists + dicts)
-    return results
+various_values = [[make_ca(b"a"*l) for l in [5,20]]]
+for depth in range(2):
+    lists = [[]]
+    for l in range(0, 2):
+        old_lists = lists
+        lists = lists.copy()
+        for l in old_lists:
+            for v in various_values[-1]:
+                lists.append(l + [v])
+    dicts = [{}]
+    for l in range(0, 1):
+        old_dicts = dicts
+        dicts = dicts.copy()
+        for d in old_dicts:
+            for k in various_values[-1]:
+                for v in various_values[-1]:
+                    if k not in d:
+                        new = d.copy()
+                        new[k] = v
+                        dicts.append(new)
+    various_values.append(various_values[-1] + [make_ca(x) for x in lists + dicts])
+print([len(v) for v in various_values])
+
+@test
+def tOneTransaction(store: KeyValueStore):
+    value = make_ca(various_values[2])
+    store[value] = value
+    assert (store[value] is value)
+
 
 @test
 def t4(store: KeyValueStore):
-    keys = various_values(2)
+    keys = various_values[2]
     values = keys
     for k,v in zip(keys,values):
         store[k] = v
         assert (store[k] is v), f"failed at pass 1, {k} = {v}"
+    print("  done with pass 1")
     for k,v in zip(keys,values):
         assert (store[k] is v), f"failed at pass 2, {k} = {v}"
+    print("  done with pass 2")
     for k,v in zip(keys,values):
         del store[k]
         try:
@@ -104,11 +111,13 @@ def t4(store: KeyValueStore):
             raise RuntimeError("should fail")
         except KeyError:
             pass
+    print("  done with pass 3")
     values = keys[1:]+keys[:1]
     for k,v in zip(keys,values):
         store[k] = v
         assert (store[k] is v), f"failed at pass 3, {k} = {v}"
         assert (store[k] is not k), f"failed at pass 3.2, {k} = {v}"
+    print("  done with pass 4")
 
 
 if failures > 0:

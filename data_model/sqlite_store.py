@@ -47,7 +47,7 @@ def _load_by_deserialized_id(cursor: Optional[sqlite3.Cursor], deserialized_id: 
     elif type(deserialized) is list:
         result = CAList(_load_by_deserialized_id(cursor, e) for e in deserialized)
     elif type(deserialized) is dict:
-        result = CADict((_load_by_deserialized_id(cursor, k), _load_by_deserialized_id(cursor, v)) for k, v in deserialized.items())
+        result = CADict((_load_by_deserialized_id(cursor, bdecode(k)), _load_by_deserialized_id(cursor, v)) for k, v in deserialized.items())
     else:
         raise RuntimeError("bdecode returned wrong type when loading bencode value (somehow there was an integer in the database?)")
 
