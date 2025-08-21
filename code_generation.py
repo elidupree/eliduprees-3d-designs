@@ -5,14 +5,19 @@ Lots of boilerplate is needed, and I don't want to write it manually. My previou
 
 This is only for top-level library code, so the design is as follows:
 
-* When you want to inject code, you write `inject_code` as its own line in a module, and pass a string (which you generated however you want).
-* The goal is to make it so that every such line also has the generated code under it, wrapped in comments that clearly label it as generated code.
-* When the interpreter reaches this call, it automatically checks the current state of the file. If the generated code is already present, it does nothing more. If not present, it throws a GeneratedCodeNeedsUpdate exception.
-* When you run this file (`code_generation.py`) as __main__, it walks the current directory, catches those exceptions, and performs the actual code updates. Also, it deletes any code that's labeled as generated and isn't induced by an existing inject_code call.
+* When you want to inject code, you write `inject_code(...)` as its own line in a module (perhaps inside a class), and pass a string (which you generated however you want).
+* The system's goal is to make it so that every such line also has the generated code under it, wrapped in comments that clearly label it as generated code.
+* When the interpreter reaches an `inject_code` call, it automatically checks the current state of the file. If the generated code is already present, it does nothing more. If not present, it throws a GeneratedCodeNeedsUpdate exception.
+* When you run this file (`code_generation.py`) as __main__, it walks the current directory to find every file that did `from code_generation import inject_code`, catches those exceptions, and performs the actual code updates. Also, it deletes any code that's labeled as generated and isn't induced by an existing inject_code call.
+* `inject_code` injects the string exactly as-is, except:
+  * it strips any initial `\n` so you can write multiline strings less weirdly
+  * it also adds 1 line of "generated code marker" comments at the beginning and end, and a short comment at the end of each line
+  * if there was a syntax error in the code, it comments out all of it (otherwise the syntax error would prevent you from rerunning the generation either)
 """
 
 import inspect
 import os.path
+import re
 import sys
 from typing import List, Tuple, Optional
 
@@ -22,10 +27,15 @@ from atomicwrites import atomic_write
 generated_code_line_label = " #gen#"
 generated_code_start_label = "# == Generated code (don't edit this) =="
 generated_code_end_label = "# == End of generated code (don't edit this) =="
+_injection_line_regex = re.compile(r"^\s*inject_code\(")
 
 
 def _line_is_generated(line):
     return line.endswith(generated_code_line_label)
+
+
+def _line_is_injection(line):
+    return _injection_line_regex.match(line) is not None
 
 
 def _labeled_line(raw_line):
@@ -52,11 +62,13 @@ def inject_code(raw_generated_code):
     with open(file_path, "r") as file:
         old_code = file.read()
     existing_lines = old_code.splitlines()
+    if raw_generated_code.startswith("\n"):
+        raw_generated_code = raw_generated_code[1:]
     generated_lines = _full_generated_lines(raw_generated_code.split("\n"))
     # f_lineno is 1-indexed, so this is the next line after the call
     generated_code_start_lineidx = caller.f_lineno
     calling_line = existing_lines[caller.f_lineno - 1]
-    assert (calling_line.startswith("inject_code(")), "inject_code() should only be called at the top level"
+    assert (_line_is_injection(calling_line)), "inject_code() should only be called at the top level"
 
     updated_lines = _lines_with_replacing_generated_code_at(generated_code_start_lineidx, existing_lines, generated_lines)
 
@@ -68,7 +80,7 @@ def inject_code(raw_generated_code):
 def _lines_with_removing_generated_code_before_first_generator(original_lines: List[str]) -> List[str]:
     result = []
     for i, line in enumerate(original_lines):
-        if line.startswith("inject_code"):
+        if _line_is_injection(line):
             result.extend(original_lines[i:])
             break
 
@@ -168,7 +180,7 @@ def _update_all_generated_code(file_path):
             # thought of putting this at the start, but don't want to affect line numbers
             # ['"Code disabled due to syntax error (see below)"']+
             lines[start:end] = [commented_line(line) for line in lines[start:end]]
-            lines.insert(min(line_index + 1, end), _labeled_line(f'"{" " * e.offset}^ {e} "'))
+            lines.insert(min(line_index + 1, end), _labeled_line(f'#"{" " * (e.offset-1)}^ {e} "'))
             with atomic_write(file_path, overwrite=True) as file:
                 file.write("\n".join(lines))
 
@@ -207,12 +219,12 @@ def _main():
         for file in files:
             if file.endswith(".py"):
                 file_path = os.path.join(root, file)
-                imported = False
+                # imported = False
                 with open(file_path) as f:
                     for line in f:
                         if line == "from code_generation import inject_code\n":
-                            imported = True
-                        if imported and line.startswith("inject_code("):
+                        #     imported = True
+                        # if imported and _line_is_injection(line):
                             updates_needed.append(file_path)
                             break
     for file_path in updates_needed:

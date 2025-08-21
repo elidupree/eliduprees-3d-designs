@@ -32,6 +32,8 @@ from weakref import WeakValueDictionary
 from bencodepy import bencode
 from siphash import siphash_128
 
+from code_generation import inject_code
+
 hash_id_byte_length = 16
 hash_id_bencode_byte_length = hash_id_byte_length + len(f"{hash_id_byte_length}:")
 
@@ -91,20 +93,76 @@ def forbidden_mutating_operation(name):
     return f
 
 
+def forward_methods(class_, methods):
+    names = [m[0] for m in re.finditer(r"[^, ]+", methods)]
+    for name in names:
+        assert hasattr(class_, name)
+    return "".join(f'''
+    def {name}(self, *args, **kwargs):
+        return self.data.{name}(*args, **kwargs)''' for name in names)
+
+
 class CAByteString(CA):
     def __init__(self, *args, **kwargs):
-        self.raw_form = bytes(*args,**kwargs)
+        self.raw_form = self.data = bytes(*args,**kwargs)
         self.serialized = bencode(self.raw_form)
         CA.__init__(self)
 
     def children(self):
         return []
 
-    def __getattr__(self, item):
-        return self.raw_form.item
+    def __bytes__(self):
+        return self.data
 
-
-forbidden_list_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __iadd__, __imul__, append, extend, insert, remove, pop, clear, sort, reverse")}
+    inject_code(forward_methods(bytes, "__contains__, __getitem__, __iter__, __len__, __format__, __repr__, __str__, __ge__, __le__, __gt__, __lt__, count, index, find, isalpha, isdigit, isascii, islower, isspace, istitle, isupper, startswith, endswith"))
+# == Generated code (don't edit this) ==                                   #gen#
+    def __contains__(self, *args, **kwargs):                               #gen#
+        return self.data.__contains__(*args, **kwargs)                     #gen#
+    def __getitem__(self, *args, **kwargs):                                #gen#
+        return self.data.__getitem__(*args, **kwargs)                      #gen#
+    def __iter__(self, *args, **kwargs):                                   #gen#
+        return self.data.__iter__(*args, **kwargs)                         #gen#
+    def __len__(self, *args, **kwargs):                                    #gen#
+        return self.data.__len__(*args, **kwargs)                          #gen#
+    def __format__(self, *args, **kwargs):                                 #gen#
+        return self.data.__format__(*args, **kwargs)                       #gen#
+    def __repr__(self, *args, **kwargs):                                   #gen#
+        return self.data.__repr__(*args, **kwargs)                         #gen#
+    def __str__(self, *args, **kwargs):                                    #gen#
+        return self.data.__str__(*args, **kwargs)                          #gen#
+    def __ge__(self, *args, **kwargs):                                     #gen#
+        return self.data.__ge__(*args, **kwargs)                           #gen#
+    def __le__(self, *args, **kwargs):                                     #gen#
+        return self.data.__le__(*args, **kwargs)                           #gen#
+    def __gt__(self, *args, **kwargs):                                     #gen#
+        return self.data.__gt__(*args, **kwargs)                           #gen#
+    def __lt__(self, *args, **kwargs):                                     #gen#
+        return self.data.__lt__(*args, **kwargs)                           #gen#
+    def count(self, *args, **kwargs):                                      #gen#
+        return self.data.count(*args, **kwargs)                            #gen#
+    def index(self, *args, **kwargs):                                      #gen#
+        return self.data.index(*args, **kwargs)                            #gen#
+    def find(self, *args, **kwargs):                                       #gen#
+        return self.data.find(*args, **kwargs)                             #gen#
+    def isalpha(self, *args, **kwargs):                                    #gen#
+        return self.data.isalpha(*args, **kwargs)                          #gen#
+    def isdigit(self, *args, **kwargs):                                    #gen#
+        return self.data.isdigit(*args, **kwargs)                          #gen#
+    def isascii(self, *args, **kwargs):                                    #gen#
+        return self.data.isascii(*args, **kwargs)                          #gen#
+    def islower(self, *args, **kwargs):                                    #gen#
+        return self.data.islower(*args, **kwargs)                          #gen#
+    def isspace(self, *args, **kwargs):                                    #gen#
+        return self.data.isspace(*args, **kwargs)                          #gen#
+    def istitle(self, *args, **kwargs):                                    #gen#
+        return self.data.istitle(*args, **kwargs)                          #gen#
+    def isupper(self, *args, **kwargs):                                    #gen#
+        return self.data.isupper(*args, **kwargs)                          #gen#
+    def startswith(self, *args, **kwargs):                                 #gen#
+        return self.data.startswith(*args, **kwargs)                       #gen#
+    def endswith(self, *args, **kwargs):                                   #gen#
+        return self.data.endswith(*args, **kwargs)                         #gen#
+# == End of generated code (don't edit this) ==                            #gen#
 
 
 class CAList(CA):
@@ -119,13 +177,33 @@ class CAList(CA):
     def children(self):
         yield from self.data
 
-    def __getattr__(self, item):
-        if item in forbidden_list_mutating_methods:
-            raise RuntimeError(f"using {item} to mutate an immutable (CA) collection")
-        return self.data[item]
+    def __add__(self, other):
+        return CAList(self.data + other.data)
+    
+    def __mul__(self, other):
+        return CAList(self.data * other)
 
-
-forbidden_dict_mutating_methods = {m[0] for m in re.finditer(r"[^, ]+", "__setattr__, __delattr__, __setitem__, __delitem__, __ior__, clear, pop, popitem, setdefault")}
+    inject_code(forward_methods(list, "__contains__, __getitem__, __iter__, __len__, __format__, __repr__, __str__, count, index"))
+# == Generated code (don't edit this) ==                                   #gen#
+    def __contains__(self, *args, **kwargs):                               #gen#
+        return self.data.__contains__(*args, **kwargs)                     #gen#
+    def __getitem__(self, *args, **kwargs):                                #gen#
+        return self.data.__getitem__(*args, **kwargs)                      #gen#
+    def __iter__(self, *args, **kwargs):                                   #gen#
+        return self.data.__iter__(*args, **kwargs)                         #gen#
+    def __len__(self, *args, **kwargs):                                    #gen#
+        return self.data.__len__(*args, **kwargs)                          #gen#
+    def __format__(self, *args, **kwargs):                                 #gen#
+        return self.data.__format__(*args, **kwargs)                       #gen#
+    def __repr__(self, *args, **kwargs):                                   #gen#
+        return self.data.__repr__(*args, **kwargs)                         #gen#
+    def __str__(self, *args, **kwargs):                                    #gen#
+        return self.data.__str__(*args, **kwargs)                          #gen#
+    def count(self, *args, **kwargs):                                      #gen#
+        return self.data.count(*args, **kwargs)                            #gen#
+    def index(self, *args, **kwargs):                                      #gen#
+        return self.data.index(*args, **kwargs)                            #gen#
+# == End of generated code (don't edit this) ==                            #gen#
 
 
 class CADict(CA):
@@ -144,10 +222,31 @@ class CADict(CA):
         yield from self.data.keys()
         yield from self.data.values()
 
-    def __getattr__(self, item):
-        if item in forbidden_dict_mutating_methods:
-            raise RuntimeError(f"using {item} to mutate an immutable (CA) collection")
-        return self.data[item]
+    inject_code(forward_methods(dict, "__contains__, __getitem__, __iter__, __len__, __format__, __repr__, __str__, get, items, keys, values"))
+# == Generated code (don't edit this) ==                                   #gen#
+    def __contains__(self, *args, **kwargs):                               #gen#
+        return self.data.__contains__(*args, **kwargs)                     #gen#
+    def __getitem__(self, *args, **kwargs):                                #gen#
+        return self.data.__getitem__(*args, **kwargs)                      #gen#
+    def __iter__(self, *args, **kwargs):                                   #gen#
+        return self.data.__iter__(*args, **kwargs)                         #gen#
+    def __len__(self, *args, **kwargs):                                    #gen#
+        return self.data.__len__(*args, **kwargs)                          #gen#
+    def __format__(self, *args, **kwargs):                                 #gen#
+        return self.data.__format__(*args, **kwargs)                       #gen#
+    def __repr__(self, *args, **kwargs):                                   #gen#
+        return self.data.__repr__(*args, **kwargs)                         #gen#
+    def __str__(self, *args, **kwargs):                                    #gen#
+        return self.data.__str__(*args, **kwargs)                          #gen#
+    def get(self, *args, **kwargs):                                        #gen#
+        return self.data.get(*args, **kwargs)                              #gen#
+    def items(self, *args, **kwargs):                                      #gen#
+        return self.data.items(*args, **kwargs)                            #gen#
+    def keys(self, *args, **kwargs):                                       #gen#
+        return self.data.keys(*args, **kwargs)                             #gen#
+    def values(self, *args, **kwargs):                                     #gen#
+        return self.data.values(*args, **kwargs)                           #gen#
+# == End of generated code (don't edit this) ==                            #gen#
 
 
 _object_cache = WeakValueDictionary()
