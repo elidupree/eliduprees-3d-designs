@@ -110,10 +110,14 @@ class SqliteStore(KeyValueStore):
         self._connection().commit()
 
     def __setitem__(self, key: CA, value: CA):
+        old_value = self.get(key)
+
         cursor = self._connection().cursor()
         _store_value(cursor, key)
         _store_value(cursor, value)
         cursor.execute("INSERT OR REPLACE INTO key_value_entries (key_id, value_id) VALUES (?, ?);", [key.id().serialized, value.id().serialized])
+        if old_value is not None:
+            _check_for_orphan(cursor, old_value)
         self._connection().commit()
 
 
