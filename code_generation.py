@@ -69,6 +69,7 @@ def inject_code(raw_generated_code):
     generated_code_start_lineidx = caller.f_lineno
     calling_line = existing_lines[caller.f_lineno - 1]
     assert (_line_is_injection(calling_line)), "inject_code() should only be called at the top level"
+    assert (not _line_is_generated(calling_line)), "we don't support recursive inject_code()"
 
     updated_lines = _lines_with_replacing_generated_code_at(generated_code_start_lineidx, existing_lines, generated_lines)
 
