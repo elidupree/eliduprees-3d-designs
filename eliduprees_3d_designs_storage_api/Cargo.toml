@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-internment = "0.7.1"
 bendy = "0.3.3"
 siphasher = "1.0.1"
 const-hex = "1.15.0"
