@@ -11,6 +11,26 @@ def normal_of_depthmap_sampler(sampler, x, y, epsilon=0.001):
     dddx,dddy = dxe - d, dye - d
     return -Direction(Vector(epsilon, 0, dddx).cross(Vector(0, epsilon, dddy)))
 
+class Lt:
+    def __init__(self, threshold):
+        self.threshold = threshold
+
+    def __call__(self, value):
+        return value < self.threshold
+
+    def __repr__(self):
+        return f"(< {self.threshold})"
+
+class Gt:
+    def __init__(self, threshold):
+        self.threshold = threshold
+
+    def __call__(self, value):
+        return value > self.threshold
+
+    def __repr__(self):
+        return f"(> {self.threshold})"
+
 class Depthmap:
     def __init__(self, file_path, *, pixels_per_unit, px_at_zero, py_at_zero, min_depth, max_depth, invalid_depths = None):
         self.file_path = file_path
@@ -28,12 +48,13 @@ class Depthmap:
         v = vars(self).copy()
         del v["file"]
         del v["pixels"]
-        del v["invalid_depths"]
         return f"Depthmap({repr(v)})"
 
     def pixel_depth(self, px, py):
-        result = self.pixels[py,px][0]
-        result = self.min_depth + result * self.depth_range
+        pixel = self.pixels[py,px][0]
+        assert 0 <= pixel <= 1
+        result = self.min_depth + pixel * self.depth_range
+        # print(pixel, result)
         if self.invalid_depths is not None and self.invalid_depths(result):
             return None
         return result

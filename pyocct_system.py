@@ -480,16 +480,38 @@ def _checksum_of_global (g, name, stack = []):
   # if name not in g:
   #   raise _ChecksumOfGlobalError(f"tried to check current value of `{g['__name__']}.{name}`, but it didn't exist; the system currently can't handle references to global keys that don't exist yet.")
   value = g[name]
+  result = _checksum_of_value(value, stack + [key])
+  _cache_info_by_global_key[key] = {"checksum": result}
+  #print(f"Info: decided that output hash of {key} is {result}")
+  return result
 
+def _checksum_of_value (value, stack = []):
   code, code2 = _get_code (value)
   # print(key, stack)
   if id(value) in _global_location_by_deserialized_object_id:
     g2, name2 = _global_location_by_deserialized_object_id[id(value)]
-    result = _checksum_of_global (g2, name2, stack + [key])
+    return _checksum_of_global (g2, name2, stack)
   elif code is None:
-    result = repr(value)
-    if " at 0x" in result:
-      raise RuntimeError(f"Caching system made a cache dependent on a global ({key}: {result}) which contained a transient pointer; something needs to be fixed")
+    hasher = hashlib.sha256()
+    r = repr(value)
+    if " at 0x" in r:
+      raise RuntimeError(f"Caching system made a cache dependent on a global ({stack}: {r}) which contained a transient pointer; something needs to be fixed")
+    hasher.update(r.encode ("utf-8"))
+    t = type(value)
+    try:
+      file = inspect.getfile(t)
+    except TypeError:
+      # v2 is a builtin module, class, or function
+      file = None
+    module = sys.modules[t.__module__]
+    g2 = vars(module)
+    name2 = t.__name__
+    if file is not None:
+      abspath = os.path.abspath(file)
+      if abspath.startswith(os.path.dirname(__file__)):
+        assert (getattr(module, name2) is t)
+        hasher.update(_checksum_of_global(g2, name2, stack).encode("utf-8"))
+    return hasher.hexdigest()
   else:
     code2 = inspect.getsource (value)
     hasher = hashlib.sha256()
@@ -513,17 +535,13 @@ def _checksum_of_global (g, name, stack = []):
       if file is not None:
         abspath = os.path.abspath(file)
         if not abspath.startswith(os.path.dirname(__file__)):
-          print(f"Skipping checksum of {g['__name__']}.{name2} because it's outside this project ({abspath})")
+          print(f"Skipping checksum of {g2['__name__']}.{name2} because it's outside this project ({abspath})")
           continue
 
-      checksum_2 = _checksum_of_global (g2, name2, stack + [key])
+      checksum_2 = _checksum_of_global (g2, name2, stack)
       hasher.update (checksum_2.encode ("utf-8"))
-    result = hasher.hexdigest()
-        
-  #print(f"Info: decided that output hash of {key} is {result}")
-    
-  _cache_info_by_global_key[key] = {"checksum": result}
-  return result
+    return hasher.hexdigest()
+
 
 def _module_cache_path (g):
   if g["__name__"] == "__main__":
