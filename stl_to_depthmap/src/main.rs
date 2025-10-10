@@ -99,7 +99,9 @@ impl Conversion {
                     assert!(xfrac >= 0.0);
                     assert!(xfrac <= 1.0);
                     let depth = interpolate(v0[2] + dz[0], v0[2] + dz[1], xfrac);
-                    self.rows[y][x] = self.rows[y][x].min(depth);
+                    if depth >= 0.0 {
+                        self.rows[y][x] = self.rows[y][x].min(depth);
+                    }
                 }
             }
         }
@@ -131,7 +133,9 @@ impl Conversion {
                     assert!(xfrac >= 0.0);
                     assert!(xfrac <= 1.0);
                     let depth = interpolate(v2[2] + dz[0], v2[2] + dz[1], xfrac);
-                    self.rows[y][x] = self.rows[y][x].min(depth);
+                    if depth >= 0.0 {
+                        self.rows[y][x] = self.rows[y][x].min(depth);
+                    }
                 }
             }
         }
