@@ -3,13 +3,43 @@ import math
 import depthmap
 from depthmap import Depthmap
 from pyocct_system import *
+import matplotlib.pyplot as plt
+
+from svg_utils import load_Inkscape_BSplineCurve
 
 initialize_pyocct_system()
 
 chin_depthmap = Depthmap("private/chin_bones_mold_downward_depthmap_3px_per_mm_100mm_range.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = 0, invalid_depths = depthmap.Lt(5))
 
-def sample(x, y):
-    return chin_depthmap.depth_smoothed(x, y, 1)
+# plt.hist([c for row in chin_depthmap.pixels for cell in row for c in cell if c != 1.0], bins=50)
+# plt.show()
+
+def sample(x, y = None):
+    if y is None:
+        x, y = x[0],x[1]
+    return chin_depthmap.depth_smoothed(x, -y, 1)
+def sample_point(x, y = None):
+    if y is None:
+        x, y = x[0],x[1]
+    z = sample(x, y)
+    if z is None:
+        return None
+    return Point(x, y, z)
+
+def curve_from_layout_file(id):
+    # I've laid out some curves as front-views in Inkscape:
+    return load_Inkscape_BSplineCurve("jaw_mold_layout.svg", id) @ Mirror(Back) @ Translate(Left*125 + Back*125)
+
+@run_if_changed
+def inner_line():
+    return curve_from_layout_file("inner_line")
+@run_if_changed
+def outer_line():
+    return curve_from_layout_file("outer_line")
+@run_if_changed
+def middle_line():
+    return curve_from_layout_file("middle_line")
+
 
 chunk_radius = 5
 chunk_diameter = chunk_radius*2
@@ -51,4 +81,60 @@ def chunks():
                 result.append(c)
     return result
 
-preview(Compound(chunks), Vertex(0, 0, 50).extrude(Left*100, centered=True).extrude(Back*100, centered=True), Vertex(0, 0, 70).extrude(Left*100, centered=True).extrude(Back*100, centered=True))
+@run_if_changed
+def strips():
+    num_curved_strips = 5
+    rowses = [[] for _ in range(num_curved_strips)]
+    for outer in outer_line.subdivisions(amount=101):
+        try:
+            inner = inner_line.position(closest = outer)
+        except:
+            preview(outer, outer_line, inner_line)
+        mid = min(middle_line.intersections(Plane(inner, Direction((outer - inner).cross(Up)))).points, key = lambda p: outer.distance(p))
+        edge = max(subdivisions(mid, outer, max_length = 0.2), key = sample)
+        # if mid.distance(outer) < mid.distance(inner):
+
+        d = Direction(inner, outer)*0.5
+        mid_z = sample(mid)
+        def cropped_sample(p):
+            too_far_in = inner.distance(mid) - inner.distance(p)
+            if outer.distance(p) < outer.distance(edge):
+                z = 100
+            elif too_far_in > 0:
+                z = mid_z - too_far_in*0.3
+            else:
+                z = sample(p)
+            try:
+                return Point(p[0], p[1], z)
+            except:
+                preview(Compound(chunks), outer, inner, mid, p, edge, outer_line, middle_line, inner_line)
+        for rows, strip_point in zip(rowses, subdivisions(inner, edge, amount = num_curved_strips)):
+            a, b = strip_point - d, strip_point + d
+            rows.append([cropped_sample(p) for p in [a,b]])
+        z = sample(mid)
+        # if z is None:
+        #     preview(Compound(chunks), outer, inner, mid, outer_line, middle_line, inner_line)
+        # else:
+        #     z = sample()
+        # try:
+        # rowses[0].append([sample_point(edge), Point(inner[0], inner[1], z)])
+        # except:
+        #     import traceback
+        #     traceback.print_exc()
+        #     preview(Compound(chunks), outer, inner, mid, outer_line, middle_line, inner_line)
+
+    cross_strips = []
+    for i, rows_pair in enumerate(pairs(rowses)):
+        parity = i % 2
+        for (_, a), (b, _) in zip(*(rows[parity*2+1:-1:4] for rows in rows_pair)):
+            d1 = Direction(a, b)
+            d2 = Direction(d1.cross(Up))
+            cross_strips.append(Edge(a-d1*0.1, b+d1*0.1).extrude(d2*1, centered=True).extrude(Down*20) @ Translate(Down*1))
+    return Compound([Face(BSplineSurface(rows, v = BSplineDimension(degree=1))).extrude(Down*20) for rows in rowses] + cross_strips)
+
+@run_if_changed
+def export_strips():
+    save_STL("jaw_mold_test", strips)
+    export("jaw_mold_test.stl", "jaw_mold_test_1.stl")
+
+preview(strips, Compound(chunks), Vertex(0, 0, 50).extrude(Left*100, centered=True).extrude(Back*100, centered=True), Vertex(0, 0, 70).extrude(Left*100, centered=True).extrude(Back*100, centered=True))
