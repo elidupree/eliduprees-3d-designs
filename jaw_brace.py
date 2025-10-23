@@ -85,16 +85,17 @@ def chunks():
 def strips():
     num_curved_strips = 5
     rowses = [[] for _ in range(num_curved_strips)]
-    for outer in outer_line.subdivisions(amount=101):
+    for i, inner in enumerate(inner_line.subdivisions(amount=101)):
         try:
-            inner = inner_line.position(closest = outer)
+            outer = outer_line.position(closest = inner)
         except:
             preview(outer, outer_line, inner_line)
         mid = min(middle_line.intersections(Plane(inner, Direction((outer - inner).cross(Up)))).points, key = lambda p: outer.distance(p))
         edge = max(subdivisions(mid, outer, max_length = 0.2), key = sample)
         # if mid.distance(outer) < mid.distance(inner):
 
-        d = Direction(inner, outer)*0.5
+        d = Direction(inner, outer)
+        half_width_offset = Direction(inner, outer)*0.5
         mid_z = sample(mid)
         def cropped_sample(p):
             too_far_in = inner.distance(mid) - inner.distance(p)
@@ -108,8 +109,10 @@ def strips():
                 return Point(p[0], p[1], z)
             except:
                 preview(Compound(chunks), outer, inner, mid, p, edge, outer_line, middle_line, inner_line)
-        for rows, strip_point in zip(rowses, subdivisions(inner, edge, amount = num_curved_strips)):
-            a, b = strip_point - d, strip_point + d
+        for rows, strip_point in zip(rowses, subdivisions(inner, edge+d*1, amount = num_curved_strips)):
+            offset = [-1, 0, 1, 0][i % 4]
+            offset = d * offset*0.8
+            a, b = strip_point - half_width_offset + offset, strip_point + half_width_offset + offset
             rows.append([cropped_sample(p) for p in [a,b]])
         z = sample(mid)
         # if z is None:
@@ -129,12 +132,19 @@ def strips():
         for (_, a), (b, _) in zip(*(rows[parity*2+1:-1:4] for rows in rows_pair)):
             d1 = Direction(a, b)
             d2 = Direction(d1.cross(Up))
-            cross_strips.append(Edge(a-d1*0.1, b+d1*0.1).extrude(d2*1, centered=True).extrude(Down*20) @ Translate(Down*1))
+            def fix(p):
+                p2 = sample_point(p)
+                if p2 is not None and p[2] - 5 < p2[2] < p[2]:
+                    return p2
+                return p
+            e = Edge(BSplineCurve([fix(p) for p in subdivisions(a-d1*0.1, b+d1*0.1, amount=4)]))
+            cross_strips.append(e.extrude(d2*1, centered=True).extrude(Down*20) @ Translate(Down*2))
     return Compound([Face(BSplineSurface(rows, v = BSplineDimension(degree=1))).extrude(Down*20) for rows in rowses] + cross_strips)
 
 @run_if_changed
 def export_strips():
     save_STL("jaw_mold_test", strips)
-    export("jaw_mold_test.stl", "jaw_mold_test_1.stl")
+    export("jaw_mold_test.stl", "jaw_mold_test_2.stl")
+    pass
 
 preview(strips, Compound(chunks), Vertex(0, 0, 50).extrude(Left*100, centered=True).extrude(Back*100, centered=True), Vertex(0, 0, 70).extrude(Left*100, centered=True).extrude(Back*100, centered=True))
