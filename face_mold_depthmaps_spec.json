@@ -1,0 +1,69 @@
+{
+    "rows": 800,
+    "cols": 650,
+    "frame_of_reference": {
+        "origin": [
+            0,
+            0,
+            -15
+        ],
+        "x_pixel_offset": [
+            0.3333,
+            0,
+            0
+        ],
+        "y_pixel_offset": [
+            0,
+            0,
+            0.3333
+        ],
+        "depth_unit_offset": [
+            0,
+            0.3333,
+            0
+        ]
+    },
+    "maps": [
+        {
+            "name": "Eli_face_scan_1",
+            "export": "OnlyClosest",
+            "data": {
+                "Mesh": {
+                    "file": "private/standardfacelayout_Eli_face_scan_1.stl"
+                }
+            }
+        },
+        {
+            "name": "face5",
+            "export": "OnlyClosest",
+            "data": {
+                "Mesh": {
+                    "file": "private/standardfacelayout_face5.stl"
+                }
+            }
+        },
+        {
+            "name": "merged",
+            "export": "OnlyClosest",
+            "data": {
+                "Merge2d": {
+                    "foreground": "Eli_face_scan_1",
+                    "background": "face5",
+                    "foreground_inset_min": 15,
+                    "foreground_inset_max": 30
+                }
+            }
+        },
+        {
+            "name": "outset",
+            "export": "OnlyClosest",
+            "data": {
+                "Outset3d": {
+                    "of": "merged",
+                    "radius": 15
+                }
+            }
+        }
+    ],
+    "export_path": "private/build/face_mold_depthmaps/"
+}

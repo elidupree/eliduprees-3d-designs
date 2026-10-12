@@ -6,4 +6,8 @@ members = [
     "eliduprees_3d_designs_lib",
     "truck_experiments",
     "stl_to_depthmap",
+    "render_depthmaps",
 ]
+
+[profile.dev]
+opt-level = 3

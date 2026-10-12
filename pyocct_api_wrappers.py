@@ -1406,20 +1406,37 @@ def setup(Wrapper, wrap, unwrap, do_export, override_attribute, SerializeAsVars,
     writer = STEPControl.STEPControl_Writer()
     writer.Transfer(shape, STEPControl.STEPControl_StepModelType.STEPControl_AsIs)
     writer.Write(path)
-      
-  def LoadSTL (path):
+
+  def LoadSTL_Triangulation (path):
     register_file_read(path)
+    return RWStl.RWStl.ReadFile_(os.path.abspath (path))
+
+  def LoadSTL (path, point_filter = None):
     #note: it appears that StlAPI.Read is simply nonfunctional
     '''shape = Shape()
     StlAPI.StlAPI.Read_ (shape, os.path.abspath (path))
     shape = downcast_shape (shape)'''
     #print (os.path.abspath (path))
-    triangulation = RWStl.RWStl.ReadFile_(os.path.abspath (path))
-    vertices = [Vertex (point) for point in triangulation.nodes()]
-    faces = [Wire (*(vertices [index - 1] for index in triangle.Get (0, 0, 0))) for triangle in triangulation.triangles()]
+    triangulation = LoadSTL_Triangulation(path)
+    if point_filter is None:
+      vertices = [Vertex (point) for point in triangulation.nodes()]
+      faces = [Wire (*(vertices [index - 1] for index in triangle.Get (0, 0, 0)), loop=True) for triangle in triangulation.triangles()]
+    else:
+      vertices = [(Vertex(point) if point_filter(point) else None) for point in triangulation.nodes()]
+      faces = []
+      for triangle in triangulation.triangles():
+        triangle_verts = []
+        for index in triangle.Get(0, 0, 0):
+          vertex = vertices[index - 1]
+          if vertex is None:
+            break
+          triangle_verts.append(vertex)
+        if len(triangle_verts) == 3:
+          faces.append(Wire(triangle_verts, loop=True))
+
     return Compound (faces)
   
-  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude LoadSTL Angle Degrees Radians Turns")
+  export_locals ("thicken_shell_or_face, thicken_solid, Box, HalfSpace, Loft, Offset, Offset2D, Union, Intersection, Difference, JoinArc, JoinIntersection, FilletedEdges, ClosedFreeWires, BuildMesh, SaveSTL_raw Extrude LoadSTL_Triangulation LoadSTL Angle Degrees Radians Turns")
   
 
   

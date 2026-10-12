@@ -3,7 +3,7 @@ from pyocct_system import *
 import depthmap
 from depthmap import Depthmap, normal_of_depthmap_sampler
 
-front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = lambda d: d > 149)
+front_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150y.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = depthmap.Gt(149))
 left_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_-100to150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = -100, max_depth = 150, invalid_depths = depthmap.Gt(5))
 right_depthmap = Depthmap("private/Eli_face_scan_1_depthmap_3px_per_mm_color_range_100to-150x.exr", pixels_per_unit = 3, px_at_zero = (750-1)/2, py_at_zero = (750-1)/2, min_depth = 100, max_depth = -150, invalid_depths = depthmap.Gt(5))
 wax_nose_depthmap = Depthmap("private/wax_nose_mold_edited_front_depthmap.exr", pixels_per_unit = 1/0.3, px_at_zero = (300-1)/2, py_at_zero = (300-1)/2, min_depth = 20, max_depth = -20, invalid_depths = depthmap.Gt(19))

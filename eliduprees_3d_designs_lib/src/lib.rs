@@ -1,6 +1,7 @@
 use std::ops::{Add, Mul, Sub};
 
 pub mod data_interchange;
+pub mod depthmap;
 
 pub fn interpolate<Position, Delta, Output>(a: Position, b: Position, frac: f64) -> Output
 where

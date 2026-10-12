@@ -1,0 +1,7 @@
+[package]
+name = "render_depthmaps"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+eliduprees_3d_designs_lib = { path="../eliduprees_3d_designs_lib" }
