@@ -63,6 +63,16 @@
                     "radius": 15
                 }
             }
+        },
+        {
+            "name": "outset_1mm",
+            "export": "OnlyClosest",
+            "data": {
+                "Outset3d": {
+                    "of": "merged",
+                    "radius": 3
+                }
+            }
         }
     ],
     "export_path": "private/build/face_mold_depthmaps/"

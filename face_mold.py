@@ -69,8 +69,9 @@ def mold_solid():
 
 @run_if_changed
 def export_mold_solid():
-    save_STL("mold_solid", mold_solid)
-    export("mold_solid.stl", "mold_solid_1.stl")
+    #save_STL("mold_solid", mold_solid)
+    #export("mold_solid.stl", "mold_solid_1.stl")
+    pass
 
 preview(
     #face5,
