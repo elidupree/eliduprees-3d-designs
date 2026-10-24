@@ -13,6 +13,7 @@ CPAP_head_radius = CPAP_head_diameter/2
 CPAP_hose_radius = CPAP_hose_diameter/2
 halfish_sample_count = 200
 sample_count = halfish_sample_count*2-1
+wall_thickness = 3
 
 depthmaps = load_depthmaps_from_specfile("face_mold_depthmaps_spec.json", ["merged", "outset_1mm"])
 
@@ -92,69 +93,90 @@ def shell_sample_points(depthmap, z, inset=0):
     return BSplineCurve(shell_control_points(depthmap, z, inset)).subdivisions(amount=sample_count)
 
 @run_if_changed
-def outer_surface():
+def outer_surface_rows():
     rows = [
-        [front_depthmap_sample_point(depthmaps["outset_1mm"], x, z) for x in subdivisions(outer_x-0.01, -outer_x+0.01, amount=sample_count)]
-        for z in [10,8,6,4,2,0,-4,-7,-10,-14,-18]
-    ] + [shell_sample_points(depthmaps["outset_1mm"], z) for z in [-40] + subdivisions(-60, -140, max_length=10)]
+        # [front_depthmap_sample_point(depthmaps["outset_1mm"], x, z) for x in subdivisions(outer_x-0.01, -outer_x+0.01, amount=sample_count)]
+        # for z in [10,8,6,4,2,0,-4,-7,-10,-14,-18]
+        [front_depthmap_sample_point(depthmaps["outset_1mm"], p[0], Between(p[2], min(p[2]-1, max(mask_top_bottom_curve.position(x=p[0])[2], -18)), frac)) for p in mask_top_top_curve.subdivisions(amount=sample_count)]
+        for frac in subdivisions(0,0.6, amount=20)+[0.8,1]
+    ] + [shell_sample_points(depthmaps["outset_1mm"], z) for z in [-40] + subdivisions(-60, -140, amount=10)]
 
-    return Face(BSplineSurface(rows)).cut(Edge(mask_top_top_curve).extrude(Front*100, centered=True).extrude(Up*100))
+    return rows
+            #.cut(Edge(mask_top_top_curve).extrude(Front*100, centered=True).extrude(Up*100))
+
+@run_if_changed
+def outer_surface():
+    return BSplineSurface(outer_surface_rows)
+
+@run_if_changed
+def inner_surface_without_face():
+    inset = wall_thickness
+    rows = [
+        mask_top_bottom_curve.subdivisions(start_x = outer_x-inset, end_x = -outer_x +inset, amount=sample_count)
+    ] + [shell_sample_points(depthmaps["merged"], z, inset=inset) for z in [-55] + subdivisions(-65, -140, amount=10)]
+    
+
+    return BSplineSurface(rows)
 
 @run_if_changed
 def inner_surface():
-    inset = 3
-    rows = [
-        mask_top_bottom_curve.subdivisions(start_x = outer_x-inset, end_x = -outer_x +inset, amount=sample_count)
-    ] + [shell_sample_points(depthmaps["merged"], z, inset=inset) for z in [-55] + subdivisions(-65, -140, max_length=10)]
-    
-
-    return Face(BSplineSurface(rows))
+    def sample(p):
+        if (abs(p[0]) > outer_x - wall_thickness) or p[2] > -18:
+            front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
+        i = inner_surface_without_face.intersections(RayIsh(p, Back*1000))
+        if len(i.points) > 0:
+            return i.point()
+        return front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
+    return BSplineSurface([[sample(p) for p in row] for row in outer_surface_rows])
 
 # @run_if_changed
 # def face_surface_for_cutting():
 #     resolution = 0.5
 #     return BSplineSurface([[front_depthmap_sample_point(depthmaps["merged"],x,z,avoid_chin=True) for z in subdivisions(-142, 10, max_length=resolution)] for x in subdivisions(outer_x+resolution,-outer_x-resolution,max_length=resolution)])
 
-@run_if_changed
-def surface_joiners():
-    def select_edge(edges, cond):
-        options = [e for e in edges if cond(e)]
-        assert (len(options) == 1)
-        return options[0]
-    def select_edges(cond):
-        return select_edge(inner_surface.edges(), cond), select_edge(outer_surface.edges(), cond)
-    # def joiner_pairs(cond):
-    #     e0,e1 = select_edges(cond)
-    #     return [[a,b] for a,b in zip(e0.trimmed_curve().subdivisions(amount=sample_count), e1.trimmed_curve().subdivisions(amount=sample_count))]
-    def face_sample(p):
-        return front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
+# @run_if_changed
+# def surface_joiners():
+#     def select_edge(edges, cond):
+#         options = [e for e in edges if cond(e)]
+#         assert (len(options) == 1)
+#         return options[0]
+#     def select_edges(cond):
+#         return select_edge(inner_surface.edges(), cond), select_edge(outer_surface.edges(), cond)
+#     # def joiner_pairs(cond):
+#     #     e0,e1 = select_edges(cond)
+#     #     return [[a,b] for a,b in zip(e0.trimmed_curve().subdivisions(amount=sample_count), e1.trimmed_curve().subdivisions(amount=sample_count))]
+#     def face_sample(p):
+#         return front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
 
-    ei,eo = select_edges(lambda e: e.bounds().max()[2] < -80)
-    result = [Loft(ei, eo, ruled=True)]
-    face_conditions = [
-        lambda e: e.bounds().max()[0] < 0,
-        lambda e: e.bounds().min()[0] > 0,
-        lambda e: e.bounds().min()[2] > -80,
-    ]
-    def face_row(a,b):
-        return [face_sample(p) for p in subdivisions(a,b,amount=20)]
-    # for cond in face_conditions:
-    #     ei,eo = select_edges(cond)
-    #     ci,co = ei.curve(),eo.curve()
-    #     opoints = co.subdivisions(amount=len(ci.poles()))
-    #     rows = [[face_row(a,b)] for a,b in zip(ci.poles(), opoints)]
-    #     len(ei.poles())
-    #     result.append(Face(BSplineSurface(rows, v = ci.dimension())))
-    #     result.append(Loft(Edge(BSplineCurve(rows[-1], v = ci.dimension())), eo, ruled=True))
+#     ei,eo = select_edges(lambda e: e.bounds().max()[2] < -80)
+#     # result = [Loft(Wire(ei), Wire(eo), ruled=True)]
+#     # result = [Face(Wire(ei, ))]
+#     result = []
+#     face_conditions = [
+#         lambda e: e.bounds().max()[0] < 0,
+#         lambda e: e.bounds().min()[0] > 0,
+#         lambda e: e.bounds().min()[2] > -80,
+#     ]
+#     def face_row(a,b):
+#         return [face_sample(p) for p in subdivisions(a,b,amount=20)]
+#     for cond in face_conditions:
+#         ei, eo = select_edges(cond)
+#         ci, co = ei.curve()[0], eo.curve()[0]
+#         cp = co.poles()
+#         preview(ci, co)
+#         assert (len(cp) == len(ci.poles()))
+#         face_rows = [[Between(a,b,frac) for a,b in zip(ci.poles(), cp)] for frac in subdivisions(0,1, amount=20)]
+#         result.append(Face(BSplineSurface(face_rows)))
+#         result.append(Face(BSplineSurface([face_rows[-1], cp], u=BSplineDimension(degree=1))))
+#         # result.append(Loft(Wire(BSplineCurve(rows[-1])), Wire(eo), ruled=True))
 
-        # pairs = joiner_pairs(cond)
-        # face_rows = [face_row(a,b) for a,b in pairs]
-        # to_face_rows = [[b, face_sample(b)] for a,b in pairs]
-        # result.append(BSplineSurface(face_rows))
-        # result.append(BSplineSurface(to_face_rows, v = BSplineDimension(degree=1)))
-    result = [Face(s) for s in result]
-    # preview(result)
-    return result
+#         # pairs = joiner_pairs(cond)
+#         # face_rows = [face_row(a,b) for a,b in pairs]
+#         # to_face_rows = [[b, face_sample(b)] for a,b in pairs]
+#         # result.append(BSplineSurface(face_rows))
+#         # result.append(BSplineSurface(to_face_rows, v = BSplineDimension(degree=1)))
+#     # preview(result)
+#     return result
 
 
 # @run_if_changed
@@ -176,7 +198,7 @@ preview(
 
     inner_surface @ Translate(Front*300),
     outer_surface @ Translate(Front*300),
-    Compound(surface_joiners) @ Translate(Front*300),
-    (outer_surface @ Translate(Front*300)).vertices(),
+    # Compound(surface_joiners) @ Translate(Front*300),
+    # (outer_surface @ Translate(Front*300)).vertices(),
     # mask_solid @ Translate(Front*300)
     )
