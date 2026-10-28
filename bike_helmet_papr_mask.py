@@ -11,7 +11,7 @@ CPAP_head_length = 45
 CPAP_hose_diameter = 22
 CPAP_head_radius = CPAP_head_diameter/2
 CPAP_hose_radius = CPAP_hose_diameter/2
-halfish_sample_count = 200
+halfish_sample_count = 50
 sample_count = halfish_sample_count*2-1
 wall_thickness = 3
 
@@ -42,7 +42,7 @@ def front_depthmap_sample_point(depthmap, x_or_p, z = None, avoid_chin = False):
 
 def resample_curve_front(depthmap, curve):
     points_stageright_leftwards = curve.subdivisions(amount=halfish_sample_count)
-    points = [p @ Mirror(Right) for p in points_stageright_leftwards] + points_stageright_leftwards[-1::-1]
+    points = [p @ Mirror(Right) for p in points_stageright_leftwards] + points_stageright_leftwards[-2::-1]
     return BSplineCurve([front_depthmap_sample_point(depthmap, p) for p in points])
 
 @run_if_changed
@@ -72,17 +72,22 @@ def putative_CPAP():
         )
 
 def shell_control_points(depthmap, z, inset=0):
-    x = outer_x
-    p1 = front_depthmap_sample_point(depthmap, x, z, avoid_chin = True)
-    p2 = front_depthmap_sample_point(depthmap, -x, z, avoid_chin = True)
+    inset_x = outer_x - inset
+    p1 = front_depthmap_sample_point(depthmap, inset_x, z, avoid_chin = True)
+    p2 = front_depthmap_sample_point(depthmap, -inset_x, z, avoid_chin = True)
     y2 = -35 + (z+85)**2/300
 
-    return [p1 + Left*inset,
-            Point(x-2-inset, y2+15+inset, z),
-            Point(x/2, y2+inset, z),
-            Point(-x/2, y2+inset, z),
-            Point(-(x-2)+inset, y2+15+inset, z),
-            p2 + Right*inset]
+    result = [p1,
+            Point(inset_x-2-inset, y2+15+inset, z),
+            Point(inset_x/2, y2+inset, z),
+            Point(-inset_x/2, y2+inset, z),
+            Point(-(inset_x-2)+inset, y2+15+inset, z),
+            p2]
+    if inset > 0:
+        a = [front_depthmap_sample_point(depthmap, x, z, avoid_chin = True) for x in subdivisions(outer_x, inset_x, amount=5)[:-1]]
+        b = [front_depthmap_sample_point(depthmap, x, z, avoid_chin = True) for x in subdivisions(-inset_x, -outer_x, amount=5)[1:]]
+        result = a + result + b
+    return result
 
 # @run_if_changed
 # def shell_rows():
@@ -90,7 +95,9 @@ def shell_control_points(depthmap, z, inset=0):
 #     return [shell_control_points(z) for z in subdivisions(z0, -140, max_length = 5)]
 
 def shell_sample_points(depthmap, z, inset=0):
-    return BSplineCurve(shell_control_points(depthmap, z, inset)).subdivisions(amount=sample_count)
+    curve = BSplineCurve(shell_control_points(depthmap, z, inset))
+    l = curve.length()
+    return [curve.position(x = Between(outer_x, -outer_x, 0.1*f + 0.9*smootherstep(f))) for f in subdivisions(0, 1, amount=sample_count)]
 
 @run_if_changed
 def outer_surface_rows():
@@ -118,16 +125,96 @@ def inner_surface_without_face():
 
     return BSplineSurface(rows)
 
+# @run_if_changed
+# def inner_surface():
+#     def sample(p):
+#         if (abs(p[0]) > outer_x - wall_thickness) or p[2] > -18:
+#             front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
+#         i = inner_surface_without_face.intersections(RayIsh(p, Back*1000))
+#         if len(i.points) > 0:
+#             return i.point()
+#         return front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
+#     return BSplineSurface([[sample(p) for p in row] for row in outer_surface_rows])
+
 @run_if_changed
-def inner_surface():
-    def sample(p):
-        if (abs(p[0]) > outer_x - wall_thickness) or p[2] > -18:
-            front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
-        i = inner_surface_without_face.intersections(RayIsh(p, Back*1000))
-        if len(i.points) > 0:
-            return i.point()
-        return front_depthmap_sample_point(depthmaps["merged"], p, avoid_chin=True)
-    return BSplineSurface([[sample(p) for p in row] for row in outer_surface_rows])
+def both_surfaces():
+    ttc_points = mask_top_top_curve.poles()
+    tbc_points = mask_top_bottom_curve.poles()
+    first_shell_z = -40
+    first_shell_points = shell_sample_points(depthmaps["outset_1mm"], first_shell_z)
+    # print(len(ttc_points), len(tbc_points), len(first_shell_points))
+
+    rows_inner = [ttc_points]
+    rows_outer = [[front_depthmap_sample_point(depthmaps["outset_1mm"], p) for p in rows_inner[-1]]]
+
+    def make_row(base_points, previous_row, is_outer):
+        # previous_curve = BSplineCurve(previous_row)
+        row = []
+        for p, prev, first_shell_point in zip(base_points, previous_row, first_shell_points):
+            if is_outer and p[2] > first_shell_z:
+                laxity = smootherstep(p[2],-18,first_shell_z)
+                if laxity > 0:
+                    p = Between(p, Point(first_shell_point[0], first_shell_point[1], p[2]), laxity)
+
+            # closest = previous_curve.derivatives(closest = p)
+            # displacement = p - closest.position
+            # adjusted = closest.position
+            # if closest.tangent[2] != 0:
+            #     adjusted = closest.position + closest.tangent*displacement.length()*closest.tangent[2]
+            displacement = p - prev
+            h = displacement.projected_perpendicular (Up)
+            v = -displacement[2]
+            allowed_steepness = 1.5
+            if v > 0 and h.length() > v*allowed_steepness:
+                limited = prev + Down*v + Direction(h)*v*allowed_steepness
+                if front_depthmap_sample_point(depthmaps["outset_1mm" if is_outer else "merged"], p)[1] > limited[1]:
+                    p = limited
+            row.append(p)
+        # print(len(row), len(previous_row))
+        # assert (len(row) == len(previous_row))
+        return row
+    
+    def do_rows(base_points_inner, base_points_outer):
+        rows_inner.append(make_row(base_points_inner, rows_inner[-1], False))
+        rows_outer.append(make_row(base_points_outer, rows_outer[-1], True))
+
+    for frac in subdivisions(0, 1, amount=20):
+        do_rows(
+            [front_depthmap_sample_point(depthmaps["merged"], Between(t,b,frac)) for t,b in zip(ttc_points, tbc_points)],
+            [front_depthmap_sample_point(depthmaps["outset_1mm"], Between(t,b,frac)) for t,b in zip(ttc_points, tbc_points)],
+        )
+    
+    for frac in subdivisions(0, 1, amount=20)[1:]:
+        do_rows(
+            [Between(t,b,frac) for t,b in zip(tbc_points, shell_sample_points(depthmaps["merged"], first_shell_z, inset=wall_thickness))],
+            [Between(t,b,frac) for t,b in zip(tbc_points, first_shell_points)],
+        )
+    # preview(Compound(
+    #     Edge(BSplineCurve(row)) for row in (
+    #         rows_inner+
+    #         rows_outer+
+    #         list(zip(*rows_inner))[::5]+
+    #         list(zip(*rows_outer))[::5]
+    # )))
+    for z in subdivisions(-60, -140, amount=10):
+        do_rows(
+            shell_sample_points(depthmaps["merged"], z, inset=wall_thickness),
+            shell_sample_points(depthmaps["outset_1mm"], z, inset=0),
+        )
+
+    start_row = [Between(a,b) for a,b in zip(rows_inner[0], rows_outer[0])]
+    end_row = [Between(a,b) for a,b in zip(rows_inner[-1], rows_outer[-1])]
+    rows_inner = [start_row]+rows_inner+[end_row]
+    rows_outer = [start_row]+rows_outer+[end_row]
+    result_inner = []
+    result_outer = []
+    for ri,ro in zip(rows_inner, rows_outer):
+        start = Between(ri[0],ro[0])
+        end = Between(ri[-1],ro[-1])
+        result_inner.append([start]+ri+[end])
+        result_outer.append([start]+ro+[end])
+
+    return BSplineSurface(result_inner), BSplineSurface(result_outer)
 
 # @run_if_changed
 # def face_surface_for_cutting():
@@ -187,6 +274,16 @@ def inner_surface():
 # def mask_solid():
 #     for a, b in 
 
+@run_if_changed
+def mask_solid():
+    return Solid(Shell([Face(s) for s in both_surfaces]))
+
+@run_if_changed
+def export_mask_solid():
+    save_STL("mask_solid", mask_solid)
+    export("mask_solid.stl", "mask_solid_1.stl")
+    pass
+
 preview(
     putative_face_surface,
     mask_top_top_curve,
@@ -194,11 +291,13 @@ preview(
     putative_CPAP,
     # [BSplineCurve(row) for row in shell_rows],
     # [BSplineSurface([mask_top_bottom_curve.poles(), BSplineCurve(shell_rows[2]).subdivisions(amount=sample_count)], u=BSplineDimension(degree=1))],
-    outer_surface,
+    # outer_surface,
 
-    inner_surface @ Translate(Front*300),
-    outer_surface @ Translate(Front*300),
+    # inner_surface @ Translate(Front*300),
+    # outer_surface @ Translate(Front*300),
     # Compound(surface_joiners) @ Translate(Front*300),
     # (outer_surface @ Translate(Front*300)).vertices(),
     # mask_solid @ Translate(Front*300)
+
+    [s @ Translate(Front*300) for s in both_surfaces]
     )
